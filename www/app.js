@@ -1,9 +1,15 @@
 // SRM Student Companion - Dynamic Timetable Mutation & AI Override Engine
 
-// ─── API Config — swap to your Railway URL when deployed ──────────────────────
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:8000'          // local dev
-    : 'https://YOUR-APP.railway.app';  // ← replace with your Railway URL after deploy
+// ─── API Config — checks custom saved URL or local network IP ─────────────────
+function getApiBase() {
+    const saved = localStorage.getItem('srm_api_base');
+    if (saved) return saved.replace(/\/$/, '');
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'http://10.3.3.182:8000'; // Default PC local IP for phone testing
+    }
+    return 'http://10.3.3.182:8000';
+}
+const API_BASE = getApiBase();
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 function getToken()          { return localStorage.getItem('srm_jwt'); }
@@ -41,8 +47,14 @@ async function doLogin() {
     const errEl = document.getElementById('login-error');
     const rawId = document.getElementById('login-id').value.trim().toLowerCase().replace('@srmist.edu.in', '');
     const pass  = document.getElementById('login-pass').value;
+    const customServer = document.getElementById('login-server')?.value.trim();
 
-    // Fix #10: Validate SRM ID format
+    if (customServer) {
+        localStorage.setItem('srm_api_base', customServer.replace(/\/$/, ''));
+    }
+
+    const currentBase = getApiBase();
+
     if (!rawId || !pass) { showErr('Enter your SRM ID and password'); return; }
     if (!/^[a-z]{2}\d{4}$/.test(rawId)) { showErr('ID format: 2 letters + 4 digits (e.g. sk1325)'); return; }
 
@@ -50,7 +62,7 @@ async function doLogin() {
     errEl.style.display = 'none';
 
     try {
-        const r = await fetch(API_BASE + '/api/login', {
+        const r = await fetch(currentBase + '/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ srm_id: rawId, password: pass }),
@@ -58,13 +70,13 @@ async function doLogin() {
         const d = await r.json().catch(() => ({}));
         if (r.ok && d.token) {
             setToken(d.token);
-            localStorage.setItem('srm_display_name', rawId.toUpperCase()); // Fix #17
+            localStorage.setItem('srm_display_name', rawId.toUpperCase());
             onLoginSuccess();
         } else {
             showErr(d.detail || 'Invalid SRM ID or password');
         }
     } catch (_) {
-        showErr('Cannot reach server — check your connection');
+        showErr('Cannot reach ' + currentBase + ' — check connection/server');
     } finally {
         btn.disabled = false; btn.textContent = 'Sign In';
     }
@@ -75,24 +87,26 @@ function showErr(msg) {
     el.textContent = msg; el.style.display = 'block';
 }
 
-
 // ─── Single unified DOMContentLoaded (fixes race condition) ──────────────────
 document.addEventListener('DOMContentLoaded', () => {
-    // Auth bindings
-    ['login-id', 'login-pass'].forEach(id => {
+    ['login-id', 'login-pass', 'login-server'].forEach(id => {
         document.getElementById(id)?.addEventListener('keydown', e => {
             if (e.key === 'Enter') doLogin();
         });
     });
 
+    const sField = document.getElementById('login-server');
+    if (sField) sField.value = getApiBase();
+
     if (!getToken()) {
         showLogin();
-        return; // Don't init app until logged in
+        return;
     }
 
     showDashboard();
     _initApp();
 });
+
 
 function _initApp() {
     initClockAndDate();
