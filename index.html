@@ -15,7 +15,9 @@
     <meta name="apple-mobile-web-app-title" content="SRM Companion">
 </head>
 
-<!-- Login Screen (shown when no JWT stored) -->
+<body>
+
+<!-- Login Screen (shown when no JWT stored) — MUST be inside body -->
 <div id="login-screen" class="login-screen" style="display:none;">
     <div class="login-card">
         <div class="login-logo">
@@ -41,8 +43,6 @@
     </div>
 </div>
 
-<body>
-
     <div class="mobile-wrapper">
         <!-- Top Navigation -->
         <div class="top-nav">
@@ -59,6 +59,7 @@
                 <span style="opacity:0.4;">|</span>
                 <span id="live-clock">--:--</span>
             </div>
+            <button class="logout-btn" onclick="doLogout()" title="Log out">⏏</button>
         </div>
 
         <!-- Section 1: Today / Timetable View -->

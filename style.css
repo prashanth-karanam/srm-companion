@@ -765,3 +765,28 @@ body {
     border-radius: var(--radius-sm);
     border: 1px solid rgba(239, 68, 68, 0.2);
 }
+
+/* Fix #15 — status-dot (was missing, caused green dot to not render) */
+.status-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent-glow);
+    flex-shrink: 0;
+}
+
+/* Fix #9 — logout button in top nav */
+.logout-btn {
+    background: none;
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-sub);
+    font-size: 1rem;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+}
+.logout-btn:hover { color: #f87171; border-color: #f87171; }

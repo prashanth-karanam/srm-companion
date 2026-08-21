@@ -12,10 +12,16 @@ function clearToken()        { localStorage.removeItem('srm_jwt'); }
 function authHeader()        { return { 'Authorization': 'Bearer ' + getToken() }; }
 
 async function apiFetch(path, opts = {}) {
-    opts.headers = { ...opts.headers, ...authHeader() };
-    const r = await fetch(API_BASE + path, opts);
-    if (r.status === 401) { clearToken(); showLogin(); return null; }
-    return r.json();
+    opts.headers = { ...opts.headers, ...authHeader(), 'Content-Type': 'application/json' };
+    try {
+        const r = await fetch(API_BASE + path, opts);
+        if (r.status === 401) { clearToken(); showLogin(); return null; }
+        const ct = r.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) return null; // non-JSON (HTML error page)
+        return await r.json();
+    } catch (_) {
+        return null;
+    }
 }
 
 function showLogin() {
@@ -33,10 +39,12 @@ function showDashboard() {
 async function doLogin() {
     const btn   = document.getElementById('login-btn');
     const errEl = document.getElementById('login-error');
-    const id    = document.getElementById('login-id').value.trim();
+    const rawId = document.getElementById('login-id').value.trim().toLowerCase().replace('@srmist.edu.in', '');
     const pass  = document.getElementById('login-pass').value;
 
-    if (!id || !pass) { showErr('Enter your SRM ID and password'); return; }
+    // Fix #10: Validate SRM ID format
+    if (!rawId || !pass) { showErr('Enter your SRM ID and password'); return; }
+    if (!/^[a-z]{2}\d{4}$/.test(rawId)) { showErr('ID format: 2 letters + 4 digits (e.g. sk1325)'); return; }
 
     btn.disabled = true; btn.textContent = 'Signing in…';
     errEl.style.display = 'none';
@@ -45,13 +53,13 @@ async function doLogin() {
         const r = await fetch(API_BASE + '/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ srm_id: id, password: pass }),
+            body: JSON.stringify({ srm_id: rawId, password: pass }),
         });
-        const d = await r.json();
+        const d = await r.json().catch(() => ({}));
         if (r.ok && d.token) {
             setToken(d.token);
-            showDashboard();
-            syncWithBackend();
+            localStorage.setItem('srm_display_name', rawId.toUpperCase()); // Fix #17
+            onLoginSuccess();
         } else {
             showErr(d.detail || 'Invalid SRM ID or password');
         }
@@ -67,15 +75,55 @@ function showErr(msg) {
     el.textContent = msg; el.style.display = 'block';
 }
 
-// Enter key triggers login
+
+// ─── Single unified DOMContentLoaded (fixes race condition) ──────────────────
 document.addEventListener('DOMContentLoaded', () => {
+    // Auth bindings
     ['login-id', 'login-pass'].forEach(id => {
         document.getElementById(id)?.addEventListener('keydown', e => {
             if (e.key === 'Enter') doLogin();
         });
     });
-    if (!getToken()) { showLogin(); } else { showDashboard(); }
+
+    if (!getToken()) {
+        showLogin();
+        return; // Don't init app until logged in
+    }
+
+    showDashboard();
+    _initApp();
 });
+
+function _initApp() {
+    initClockAndDate();
+    initDockNavigation();
+    initDaySelector();
+    initAI();
+    initQuickTools();
+    renderCalendarList();
+    renderAnnouncements();
+    initAnnouncementsSearch();
+    updateLiveHUD();
+    syncWithBackend();
+    initP2PMesh();
+
+    setInterval(updateLiveHUD, 10000);
+    setInterval(updateClock, 1000);
+    setInterval(syncWithBackend, 4000);
+}
+
+// Called after successful login
+function onLoginSuccess() {
+    showDashboard();
+    _initApp();
+}
+
+// Logout — clears JWT and reloads to login screen
+function doLogout() {
+    clearToken();
+    localStorage.removeItem('srm_p2p_history');
+    location.reload();
+}
 
 let selectedDay = 'Day 1';
 let currentDayOrder = 'Day 1';
@@ -188,16 +236,14 @@ let portalAttendance = [];
 async function syncWithBackend() {
     if (!getToken()) return;
 
-    // Sync announcements + overrides (local backend still handles WhatsApp AI)
-    try {
-        const d = await (await fetch('http://localhost:8000/api/announcements')).json();
-        if (d?.success) {
-            if (d.announcements) { announcementsData = d.announcements; renderAnnouncements(); }
-            if (d.overrides)     { scheduleOverrides = d.overrides; renderDaySchedule(selectedDay); updateLiveHUD(); }
-        }
-    } catch (_) {}
+    // Sync announcements + overrides
+    const ann = await apiFetch('/api/announcements');
+    if (ann?.success) {
+        if (ann.announcements) { announcementsData = ann.announcements; renderAnnouncements(); }
+        if (ann.overrides)     { scheduleOverrides = ann.overrides; renderDaySchedule(selectedDay); updateLiveHUD(); }
+    }
 
-    // Sync portal data from cloud API (attendance + holiday)
+    // Sync portal data (attendance + holiday)
     const res = await apiFetch('/api/me/data');
     if (res?.success && res.data) {
         const d = res.data;
@@ -799,41 +845,6 @@ function updateP2PStatusBadge() {
     }
 }
 
-function sendP2PMessage() {
-    const input = document.getElementById('p2p-input');
-    if (!input) return;
-    const text = input.value.trim();
-    if (!text) return;
-
-    const msg = {
-        id: 'p2p-' + Date.now(),
-        sender: 'Sai Prasanth',
-        text: text,
-        mode: navigator.onLine ? 'ONLINE' : 'P2P_OFFLINE',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    if (navigator.onLine) {
-        // Online: send to cloud server API + local broadcast
-        try {
-            apiFetch('/api/me/chat', {
-                method: 'POST',
-                body: JSON.stringify(msg),
-            });
-        } catch (_) {}
-    }
-
-    // Always broadcast locally to nearby peers via P2P Mesh
-    if (p2pChannel) {
-        try { p2pChannel.postMessage(msg); } catch (_) {}
-    }
-
-    // Render locally & save to phone storage
-    renderP2PMessage(msg, true);
-    saveP2PMessage(msg);
-
-    input.value = '';
-}
 
 function renderP2PMessage(msg, isSelf) {
     const container = document.getElementById('p2p-chat-history');
@@ -868,15 +879,46 @@ function saveP2PMessage(msg) {
 
 function loadP2PHistory() {
     try {
+        const myName = localStorage.getItem('srm_display_name') || 'Me';
         const history = JSON.parse(localStorage.getItem('srm_p2p_history') || '[]');
-        history.forEach(msg => renderP2PMessage(msg, msg.sender === 'Sai Prasanth'));
+        history.forEach(msg => renderP2PMessage(msg, msg.sender === myName));
     } catch (_) {}
 }
 
-function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function sendP2PMessage() {
+    const input = document.getElementById('p2p-input');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+
+    const myName = localStorage.getItem('srm_display_name') || 'Me'; // Fix #17
+
+    const msg = {
+        id: 'p2p-' + Date.now(),
+        sender: myName,
+        text: text,
+        mode: navigator.onLine ? 'ONLINE' : 'P2P_OFFLINE',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    if (navigator.onLine) {
+        try { apiFetch('/api/me/chat', { method: 'POST', body: JSON.stringify(msg) }); } catch (_) {}
+    }
+    if (p2pChannel) {
+        try { p2pChannel.postMessage(msg); } catch (_) {}
+    }
+
+    renderP2PMessage(msg, true);
+    saveP2PMessage(msg);
+    input.value = '';
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    initP2PMesh();
-});
+// Fix #14: escapeHtml handles newlines properly
+function escapeHtml(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>');
+}
+// Note: initP2PMesh() is now called inside _initApp() — no extra DOMContentLoaded needed

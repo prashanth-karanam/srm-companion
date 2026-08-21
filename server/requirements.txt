@@ -5,5 +5,6 @@ playwright-stealth
 python-jose[cryptography]
 cryptography
 supabase
-requests
+httpx
+slowapi
 urllib3

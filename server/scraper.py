@@ -13,12 +13,14 @@ import json
 import random
 from datetime import datetime
 
-import requests
+import httpx
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-# ─── One login at a time to avoid SRM flagging burst logins ──────────────────
-_LOGIN_LOCK = asyncio.Semaphore(1)
+# Fix #8: Per-user lock (same user can't login twice) + pool cap (max 3 browsers at once)
+# Different users can now login SIMULTANEOUSLY — no more 22s queue freeze
+_USER_LOCKS: dict[str, asyncio.Lock] = {}
+_BROWSER_POOL = asyncio.Semaphore(3)
 
 ZOHO_OWNER   = "srmuniv"
 ZOHO_APP     = "academia-academic-services"
@@ -48,132 +50,138 @@ async def stealth_login(srm_id: str, password: str) -> dict:
 
     username = srm_id if "@" in srm_id else f"{srm_id}@srmist.edu.in"
 
-    async with _LOGIN_LOCK:
-        pw      = None
-        browser = None
-        try:
-            pw      = await async_playwright().start()
-            browser = await pw.chromium.launch(
-                headless=True,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--no-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                ]
-            )
-            ctx = await browser.new_context(
-                viewport={"width": 1280, "height": 800},
-                user_agent=UA,
-                locale="en-IN",
-                timezone_id="Asia/Kolkata",
-            )
-            page = await ctx.new_page()
-            await stealth_async(page)   # ← patches webdriver, WebGL, canvas, plugins
+    # Per-user lock: prevents duplicate logins for same user
+    if srm_id not in _USER_LOCKS:
+        _USER_LOCKS[srm_id] = asyncio.Lock()
 
-            await page.goto("https://academia.srmist.edu.in", wait_until="domcontentloaded", timeout=30000)
-            await asyncio.sleep(random.uniform(1.5, 2.5))
+    async with _USER_LOCKS[srm_id]:
+        # Browser pool: max 3 Chromium instances running at once
+        async with _BROWSER_POOL:
+            pw      = None
+            browser = None
+            try:
+                pw      = await async_playwright().start()
+                browser = await pw.chromium.launch(
+                    headless=True,
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--no-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-gpu",
+                    ]
+                )
+                ctx = await browser.new_context(
+                    viewport={"width": 1280, "height": 800},
+                    user_agent=UA,
+                    locale="en-IN",
+                    timezone_id="Asia/Kolkata",
+                )
+                page = await ctx.new_page()
+                await stealth_async(page)
 
-            # ── Find Zoho IAM iframe ──────────────────────────────────────────
-            frame = page
-            for _ in range(12):
+                await page.goto("https://academia.srmist.edu.in", wait_until="domcontentloaded", timeout=30000)
+                await asyncio.sleep(random.uniform(1.5, 2.5))
+
+                # ── Find Zoho IAM iframe ──────────────────────────────────────
+                frame = page
+                for _ in range(12):
+                    for f in page.frames:
+                        if "signin" in f.url or "accounts" in f.url:
+                            frame = f
+                            break
+                    if frame is not page:
+                        break
+                    await asyncio.sleep(1)
+
+                # ── Type email ────────────────────────────────────────────────
+                for sel in ['input[name="LOGIN_ID"]', 'input[type="email"]', "#Email"]:
+                    try:
+                        el = frame.locator(sel).first
+                        if await el.count() > 0:
+                            await el.fill("")
+                            await _human_type(el, username)
+                            break
+                    except Exception:
+                        pass
+
+                await asyncio.sleep(random.uniform(0.9, 1.4))
+
+                # ── Click Next ────────────────────────────────────────────────
+                for sel in ["#nextbtn", 'button[type="submit"]', 'input[type="submit"]']:
+                    try:
+                        btn = frame.locator(sel).first
+                        if await btn.count() > 0 and await btn.is_visible():
+                            await btn.click()
+                            break
+                    except Exception:
+                        pass
+
+                await asyncio.sleep(random.uniform(1.2, 2.0))
+
+                # Re-find frame after possible navigation
                 for f in page.frames:
-                    if "signin" in f.url or "accounts" in f.url:
+                    if "accounts" in f.url or "signin" in f.url:
                         frame = f
                         break
-                if frame is not page:
-                    break
-                await asyncio.sleep(1)
 
-            # ── Type email ────────────────────────────────────────────────────
-            for sel in ['input[name="LOGIN_ID"]', 'input[type="email"]', "#Email"]:
+                # ── Type password ─────────────────────────────────────────────
+                for sel in ['input[name="PASSWORD"]', 'input[type="password"]', "#Password"]:
+                    try:
+                        el = frame.locator(sel).first
+                        if await el.count() > 0:
+                            await el.fill("")
+                            await _human_type(el, password)
+                            break
+                    except Exception:
+                        pass
+
+                await asyncio.sleep(random.uniform(0.8, 1.3))
+
+                # ── Submit ────────────────────────────────────────────────────
+                for sel in ["#nextbtn", "#signin", 'button[type="submit"]']:
+                    try:
+                        btn = frame.locator(sel).first
+                        if await btn.count() > 0 and await btn.is_visible():
+                            await btn.click()
+                            break
+                    except Exception:
+                        pass
+
+                # ── Wait for portal ───────────────────────────────────────────
                 try:
-                    el = frame.locator(sel).first
-                    if await el.count() > 0:
-                        await el.fill("")
-                        await _human_type(el, username)
-                        break
+                    await page.wait_for_url(
+                        lambda u: "academia.srmist.edu.in" in u and "signin" not in u,
+                        timeout=22000
+                    )
                 except Exception:
                     pass
 
-            await asyncio.sleep(random.uniform(0.9, 1.4))
+                await asyncio.sleep(2)
 
-            # ── Click Next ────────────────────────────────────────────────────
-            for sel in ["#nextbtn", 'button[type="submit"]', 'input[type="submit"]']:
-                try:
-                    btn = frame.locator(sel).first
-                    if await btn.count() > 0 and await btn.is_visible():
-                        await btn.click()
-                        break
-                except Exception:
-                    pass
+                if "signin" in page.url:
+                    await browser.close()
+                    await pw.stop()
+                    return {"success": False, "error": "Login failed — check SRM ID and password"}
 
-            await asyncio.sleep(random.uniform(1.2, 2.0))
+                # ── Extract cookies ───────────────────────────────────────────
+                all_cookies = await ctx.cookies()
+                cookies = {c["name"]: c["value"] for c in all_cookies}
 
-            # Re-find frame after possible navigation
-            for f in page.frames:
-                if "accounts" in f.url or "signin" in f.url:
-                    frame = f
-                    break
-
-            # ── Type password ─────────────────────────────────────────────────
-            for sel in ['input[name="PASSWORD"]', 'input[type="password"]', "#Password"]:
-                try:
-                    el = frame.locator(sel).first
-                    if await el.count() > 0:
-                        await el.fill("")
-                        await _human_type(el, password)
-                        break
-                except Exception:
-                    pass
-
-            await asyncio.sleep(random.uniform(0.8, 1.3))
-
-            # ── Submit ────────────────────────────────────────────────────────
-            for sel in ["#nextbtn", "#signin", 'button[type="submit"]']:
-                try:
-                    btn = frame.locator(sel).first
-                    if await btn.count() > 0 and await btn.is_visible():
-                        await btn.click()
-                        break
-                except Exception:
-                    pass
-
-            # ── Wait for portal ───────────────────────────────────────────────
-            try:
-                await page.wait_for_url(
-                    lambda u: "academia.srmist.edu.in" in u and "signin" not in u,
-                    timeout=22000
-                )
-            except Exception:
-                pass
-
-            await asyncio.sleep(2)
-
-            if "signin" in page.url:
                 await browser.close()
                 await pw.stop()
-                return {"success": False, "error": "Login failed — check SRM ID and password"}
 
-            # ── Extract cookies ───────────────────────────────────────────────
-            all_cookies = await ctx.cookies()
-            cookies = {c["name"]: c["value"] for c in all_cookies}
+                if not cookies:
+                    return {"success": False, "error": "No cookies received — login may have failed"}
 
-            await browser.close()
-            await pw.stop()
+                return {"success": True, "cookies": cookies}
 
-            if not cookies:
-                return {"success": False, "error": "No cookies received — login may have failed"}
-
-            return {"success": True, "cookies": cookies}
-
-        except Exception as e:
-            try:
-                if browser: await browser.close()
-                if pw: await pw.stop()
-            except Exception:
-                pass
-            return {"success": False, "error": f"Browser error: {e}"}
+            except Exception as e:
+                try:
+                    if browser: await browser.close()
+                    if pw: await pw.stop()
+                except Exception:
+                    pass
+                return {"success": False, "error": f"Browser error: {e}"}
 
 
 async def _human_type(element, text: str):
@@ -185,12 +193,13 @@ async def _human_type(element, text: str):
 # ─── Session test ─────────────────────────────────────────────────────────────
 async def test_session(cookies: dict) -> bool:
     """Quick check — are these cookies still valid against the Zoho Creator API?"""
+    headers = {"User-Agent": UA, "Referer": "https://academia.srmist.edu.in/"}
     try:
-        s = _make_session(cookies)
-        r = s.get(REPORT_URLS["attendance"], params={"limit": 1}, timeout=8)
-        if r.status_code == 200:
-            d = r.json()
-            return d.get("code") == 3000 or "data" in d
+        async with httpx.AsyncClient(cookies=cookies, headers=headers, timeout=8, follow_redirects=True) as client:
+            r = await client.get(REPORT_URLS["attendance"], params={"limit": 1})
+            if r.status_code == 200:
+                d = r.json()
+                return d.get("code") == 3000 or "data" in d
     except Exception:
         pass
     return False
@@ -200,14 +209,15 @@ async def test_session(cookies: dict) -> bool:
 async def scrape_with_cookies(cookies: dict) -> dict | None:
     """
     Use saved cookies to hit Zoho Creator report API directly.
-    No browser. Pure requests. Fast (< 5s for all data).
+    No browser. Pure async httpx. Fast (< 5s for all 4 reports).
     """
-    s = _make_session(cookies)
-
-    attendance = _fetch_report(s, "attendance")
-    timetable  = _fetch_report(s, "timetable")
-    calendar   = _fetch_report(s, "calendar")
-    circulars  = _fetch_report(s, "circulars")
+    # Fetch all 4 reports concurrently (async, non-blocking)
+    attendance, timetable, calendar, circulars = await asyncio.gather(
+        _fetch_report(cookies, "attendance"),
+        _fetch_report(cookies, "timetable"),
+        _fetch_report(cookies, "calendar"),
+        _fetch_report(cookies, "circulars"),
+    )
 
     # If all empty, session probably expired
     if not attendance and not calendar:
@@ -233,20 +243,15 @@ async def scrape_with_cookies(cookies: dict) -> dict | None:
     }
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
-def _make_session(cookies: dict) -> requests.Session:
-    s = requests.Session()
-    retry = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
-    s.mount("https://", HTTPAdapter(max_retries=retry))
-    s.headers.update({"User-Agent": UA, "Referer": "https://academia.srmist.edu.in/"})
-    s.cookies.update(cookies)
-    return s
 
-def _fetch_report(s: requests.Session, name: str) -> list:
+# ─── Async HTTP helpers (Fix #5: httpx replaces blocking requests) ────────────
+async def _fetch_report(cookies: dict, name: str) -> list:
+    headers = {"User-Agent": UA, "Referer": "https://academia.srmist.edu.in/"}
     try:
-        r = s.get(REPORT_URLS[name], params={"limit": 200}, timeout=15)
-        if r.status_code == 200:
-            return r.json().get("data", [])
+        async with httpx.AsyncClient(cookies=cookies, headers=headers, timeout=15, follow_redirects=True) as client:
+            r = await client.get(REPORT_URLS[name], params={"limit": 200})
+            if r.status_code == 200:
+                return r.json().get("data", [])
     except Exception as e:
         print(f"[Scraper] {name} error: {e}")
     return []
