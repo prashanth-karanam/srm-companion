@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+playwright
+playwright-stealth
+python-jose[cryptography]
+cryptography
+supabase
+requests
+urllib3

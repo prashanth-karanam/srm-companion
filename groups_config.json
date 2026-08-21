@@ -1,0 +1,17 @@
+{
+  "all_groups": [
+    { "id": "120363414414706236@g.us", "name": "P1 C programming", "enabled": true },
+    { "id": "120363428457163076@g.us", "name": "AI ML P1 MATHS 26-27 odd", "enabled": true },
+    { "id": "120363429643242377@g.us", "name": "AI ML P1 Chemistry", "enabled": true },
+    { "id": "120363432799866714@g.us", "name": "P1 26-30 CSE AI ML BIO", "enabled": true },
+    { "id": "120363411556899403@g.us", "name": "AI ML P1 26-30", "enabled": false },
+    { "id": "120363428559657465@g.us", "name": "P1_FA_2026_2030", "enabled": false },
+    { "id": "120363412282084420@g.us", "name": "AiMl P1 Chemistry 2", "enabled": false },
+    { "id": "120363426574617327@g.us", "name": "P1 Connects", "enabled": false },
+    { "id": "120363428211883939@g.us", "name": "SRM TELUGU 2026-30'", "enabled": false },
+    { "id": "120363425536706729@g.us", "name": "GROUND TO FOURTH FLOOR (2026 - 2027)", "enabled": false },
+    { "id": "120363428611072419@g.us", "name": "Tech Club", "enabled": false },
+    { "id": "120363431003775827@g.us", "name": "AI ML P1 26-30 (2)", "enabled": false },
+    { "id": "120363429886357061@g.us", "name": "General", "enabled": false }
+  ]
+}
