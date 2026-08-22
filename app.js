@@ -304,9 +304,12 @@ function onLoginSuccess() {
     _initApp();
 }
 
-// Logout — clears JWT and reloads
+// Logout — clears JWT and reloads to login screen
 function doLogout() {
     clearToken();
+    localStorage.removeItem('srm_auto_id');
+    localStorage.removeItem('srm_auto_pass');
+    localStorage.removeItem('srm_display_name');
     localStorage.removeItem('srm_p2p_history');
     location.reload();
 }
@@ -327,22 +330,6 @@ function _initApp() {
     setInterval(updateLiveHUD, 10000);
     setInterval(updateClock, 1000);
     setInterval(syncWithBackend, 4000);
-}
-
-// Called after successful login
-function onLoginSuccess() {
-    showDashboard();
-    _initApp();
-}
-
-// Logout — clears JWT and reloads to login screen
-function doLogout() {
-    clearToken();
-    localStorage.removeItem('srm_auto_id');
-    localStorage.removeItem('srm_auto_pass');
-    localStorage.removeItem('srm_display_name');
-    localStorage.removeItem('srm_p2p_history');
-    location.reload();
 }
 
 let selectedDay = 'Day 1';
