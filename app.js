@@ -24,8 +24,13 @@ let _isRefreshing = false;
 
 async function apiFetch(path, opts = {}) {
     const base = opts.customBase || API_BASE;
+    const isZoho = base.includes('zoho.com');
     delete opts.customBase;
-    opts.headers = { ...opts.headers, ...authHeader(), 'Content-Type': 'application/json' };
+    
+    opts.headers = { ...opts.headers, 'Content-Type': 'application/json' };
+    if (!isZoho) {
+        opts.headers = { ...opts.headers, ...authHeader() };
+    }
     
     try {
         const r = await fetch(base + path, opts);
@@ -42,7 +47,9 @@ async function apiFetch(path, opts = {}) {
             
             if (success) {
                 // Retry original fetch
-                opts.headers = { ...opts.headers, ...authHeader() };
+                if (!isZoho) {
+                    opts.headers = { ...opts.headers, ...authHeader() };
+                }
                 const r2 = await fetch(base + path, opts);
                 if (r2.ok && (r2.headers.get('content-type')||'').includes('json')) {
                     return await r2.json();
@@ -87,6 +94,15 @@ function showDashboard() {
     document.getElementById('login-screen').style.display = 'none';
     document.querySelector('.mobile-wrapper').style.display = 'block';
     document.querySelector('.dock').style.display = 'flex';
+    
+    // Update Header with Reg No (since we don't scrape name yet)
+    const displayName = localStorage.getItem('srm_display_name') || 'Student';
+    const regEl = document.getElementById('header-reg');
+    const nameEl = document.getElementById('header-name');
+    const avEl = document.getElementById('header-avatar');
+    if (nameEl) nameEl.textContent = 'Welcome';
+    if (regEl) regEl.textContent = displayName;
+    if (avEl) avEl.textContent = displayName.substring(0, 2).toUpperCase();
 }
 
 // ─── Direct Auto-Login (InAppBrowser Background Engine) ────────────────────────
@@ -322,6 +338,9 @@ function onLoginSuccess() {
 // Logout — clears JWT and reloads to login screen
 function doLogout() {
     clearToken();
+    localStorage.removeItem('srm_auto_id');
+    localStorage.removeItem('srm_auto_pass');
+    localStorage.removeItem('srm_display_name');
     localStorage.removeItem('srm_p2p_history');
     location.reload();
 }
