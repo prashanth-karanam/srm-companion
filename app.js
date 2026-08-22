@@ -24,7 +24,7 @@ let _isRefreshing = false;
 
 async function apiFetch(path, opts = {}) {
     const base = opts.customBase || API_BASE;
-    const isZoho = base.includes('zoho.com');
+    const isZoho = base.includes('zoho.com') || base.includes('academia.srmist.edu.in');
     delete opts.customBase;
     
     opts.headers = { ...opts.headers, 'Content-Type': 'application/json' };
@@ -140,10 +140,10 @@ async function doAutoLogin(isBackgroundRefresh = false) {
         const browser = window.cordova.InAppBrowser.open('https://academia.srmist.edu.in', '_blank', 'hidden=yes,clearcache=yes,clearsessioncache=yes');
         
         browser.addEventListener('loadstop', function(e) {
-            const url = e.url || '';
+            const url = (e.url || '').toLowerCase();
             
-            // Check if successfully reached dashboard
-            if (url.includes('academia.srmist.edu.in') && !url.includes('signin') && !url.includes('accounts')) {
+            // Check if successfully reached dashboard (top-level URL changes to /portal/...)
+            if (url.includes('portal') || url.includes('zoho.in') || url.includes('zoho.com') || url.includes('academic-services')) {
                 browser.close();
                 setToken('direct_on_device_session_' + Date.now());
                 if (!isBackgroundRefresh) onLoginSuccess();
@@ -151,40 +151,48 @@ async function doAutoLogin(isBackgroundRefresh = false) {
                 return;
             }
 
-            // If on signin page, inject credentials
-            if (url.includes('signin') || url.includes('accounts')) {
-                const code = `
-                    if (!window._srmLoginInterval) {
-                        window._srmLoginInterval = setInterval(() => {
-                            const idInput = document.querySelector('input[name="LOGIN_ID"]') || document.querySelector('input[type="email"]') || document.getElementById('Email');
-                            const nextBtn1 = document.getElementById('nextbtn') || document.querySelector('button[type="submit"]');
-                            const passInput = document.querySelector('input[name="PASSWORD"]') || document.querySelector('input[type="password"]') || document.getElementById('Password');
-                            const nextBtn2 = document.getElementById('nextbtn') || document.getElementById('signin') || document.querySelector('button[type="submit"]');
-                            const captchaImg = document.querySelector('img[src*="captcha"]');
+            // Otherwise, inject the state machine into the page to tunnel into the iframe and type credentials
+            const code = `
+                if (!window._srmLoginInterval) {
+                    window._srmLoginInterval = setInterval(() => {
+                        let targetDoc = document;
+                        const iframe = document.getElementById('signinFrame') || document.querySelector('iframe');
+                        if (iframe && iframe.contentDocument) {
+                            targetDoc = iframe.contentDocument;
+                        } else if (window.frames.length > 0) {
+                            try { targetDoc = window.frames[0].document; } catch(err) {}
+                        }
 
-                            if (captchaImg) {
-                                try { webkit.messageHandlers.cordova_iab.postMessage(JSON.stringify({ captchaDetected: true })); } catch(e) {}
-                                return;
-                            }
+                        const idInput = targetDoc.querySelector('input[name="LOGIN_ID"]') || targetDoc.querySelector('input[type="email"]') || targetDoc.getElementById('Email');
+                        const nextBtn1 = targetDoc.getElementById('nextbtn') || targetDoc.querySelector('button[type="submit"]');
+                        const passInput = targetDoc.querySelector('input[name="PASSWORD"]') || targetDoc.querySelector('input[type="password"]') || targetDoc.getElementById('Password');
+                        const nextBtn2 = targetDoc.getElementById('nextbtn') || targetDoc.getElementById('signin') || targetDoc.querySelector('button[type="submit"]');
+                        const captchaInput = targetDoc.querySelector('input[name="captcha"]') || targetDoc.querySelector('input[id*="captcha"]') || targetDoc.querySelector('input[placeholder*="captcha"]');
 
-                            if (idInput && (!passInput || passInput.offsetParent === null)) {
-                                if (idInput.value !== '${rawId}@srmist.edu.in') {
-                                    idInput.value = '${rawId}@srmist.edu.in';
-                                    idInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                }
-                                if (nextBtn1) nextBtn1.click();
-                            } else if (passInput && passInput.offsetParent !== null) {
-                                if (passInput.value === '') {
-                                    passInput.value = '${pass.replace(/'/g, "\\'")}';
-                                    passInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                    if (nextBtn2) nextBtn2.click();
-                                }
+                        if (captchaInput) {
+                            try { webkit.messageHandlers.cordova_iab.postMessage(JSON.stringify({ captchaDetected: true })); } catch(e) {}
+                            return;
+                        }
+
+                        if (idInput && (!passInput || passInput.offsetParent === null)) {
+                            if (idInput.value !== '${rawId}@srmist.edu.in') {
+                                idInput.value = '${rawId}@srmist.edu.in';
+                                idInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                idInput.dispatchEvent(new Event('change', { bubbles: true }));
                             }
-                        }, 1000);
-                    }
-                `;
-                browser.executeScript({ code: code });
-            }
+                            if (nextBtn1) nextBtn1.click();
+                        } else if (passInput && passInput.offsetParent !== null) {
+                            if (passInput.value === '') {
+                                passInput.value = '${pass.replace(/'/g, "\\'")}';
+                                passInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                passInput.dispatchEvent(new Event('change', { bubbles: true }));
+                                if (nextBtn2) nextBtn2.click();
+                            }
+                        }
+                    }, 1000);
+                }
+            `;
+            browser.executeScript({ code: code });
         });
 
         browser.addEventListener('message', function(e) {
@@ -443,7 +451,8 @@ let portalAttendance = [];
 async function syncWithBackend() {
     if (!getToken()) return;
 
-    const ZOHO_BASE = 'https://creator.zoho.com/api/v2/srm_university/academia-academic-services/report';
+    // Use the native white-labeled domain so cookies are attached automatically by the OS
+    const ZOHO_BASE = 'https://academia.srmist.edu.in/api/v2/srm_university/academia-academic-services/report';
     
     // --- 1. Fetch Attendance ---
     const attResp = await apiFetch('/My_Attendance?limit=200', { customBase: ZOHO_BASE });
