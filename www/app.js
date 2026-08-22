@@ -523,7 +523,7 @@ async function syncWithBackend() {
     // --- 4. Fetch Circulars (Replace Hardcoded Announcements) ---
     const circResp = await apiFetch('/My_Circulars?limit=50', { customBase: ZOHO_BASE });
     if (circResp && circResp.data && circResp.data.length > 0) {
-        announcementsData = circResp.data.map((rec, i) => ({
+        const newCirculars = circResp.data.map((rec, i) => ({
             id: "circ-" + i,
             subject: "Official Circular",
             code: "",
@@ -536,6 +536,9 @@ async function syncWithBackend() {
             priority: (rec.Title||'').toLowerCase().includes('exam') ? "HIGH" : "MEDIUM",
             timestamp: rec.Date || 'Recent'
         }));
+        const existingIds = announcementsData.map(a => a.id);
+        const uniqueCirculars = newCirculars.filter(c => !existingIds.includes(c.id));
+        announcementsData = [...uniqueCirculars, ...announcementsData];
         renderAnnouncements();
     }
 }
@@ -978,12 +981,30 @@ async function handleAISend() {
         try {
             const userName = localStorage.getItem('srm_display_name') || 'a student';
             const encodedPrompt = encodeURIComponent(`You are an academic tutor for SRM university student ${userName}. Answer this: ` + prompt);
-            const url = `https://text.pollinations.ai/${encodedPrompt}?model=openai`;
+            const url = `https://text.pollinations.ai/${encodedPrompt}`;
             const fallbackResp = await fetch(url);
+            
+            if (!fallbackResp.ok) throw new Error('Pollinations blocked');
             const text = await fallbackResp.text();
             updateChatMessage(loadingId, formatMarkdown(text));
         } catch (e2) {
-            updateChatMessage(loadingId, 'Unable to get AI response. Please verify connection.');
+            try {
+                // Secondary robust fallback (Pico Apps Free LLM)
+                const picoUrl = 'https://backend.buildpicoapps.com/aero/run/llm-api?pk=v1-Z0FBQUFBQm5Ha1FSem1MZE1hOEZBQXdBcXdQQXVWQUFNU1R1MktzUVE0WklOdm40RURlX2F2Z1g5UGJ1NllQeG1rQ3FYRmlJUXhhVEhybWw1T1BtdTBCcldwWENhUG1MTHc9PQ==';
+                const picoResp = await fetch(picoUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: `You are an academic tutor for SRM university student. Answer this: ` + prompt })
+                });
+                const picoData = await picoResp.json();
+                if (picoData.status === 'success') {
+                    updateChatMessage(loadingId, formatMarkdown(picoData.text));
+                } else {
+                    throw new Error('Pico failed');
+                }
+            } catch (e3) {
+                updateChatMessage(loadingId, 'Unable to get AI response. Both AI endpoints rejected the request.');
+            }
         }
     }
 }

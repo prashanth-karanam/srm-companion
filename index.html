@@ -256,6 +256,31 @@
     </div>
 
     <script src="data.js"></script>
-    <script src="app.js"></script>
+        <!-- OTA Logic update mechanism -->
+    <script>
+        // Attempt to fetch the latest app.js directly from GitHub to provide instant OTA updates
+        fetch('https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/www/app.js?time=' + Date.now())
+            .then(res => {
+                if (!res.ok) throw new Error('Network response was not ok');
+                return res.text();
+            })
+            .then(code => {
+                console.log('OTA Update Successful: Loaded latest app.js from GitHub');
+                try {
+                    // Execute the remote script in the global scope
+                    const script = document.createElement('script');
+                    script.text = code;
+                    document.body.appendChild(script);
+                } catch (e) {
+                    throw e;
+                }
+            })
+            .catch(err => {
+                console.log('OTA Update Failed (Offline?), falling back to local app.js');
+                const script = document.createElement('script');
+                script.src = 'app.js';
+                document.body.appendChild(script);
+            });
+    </script>
 </body>
 </html>
