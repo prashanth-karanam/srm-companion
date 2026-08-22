@@ -790,3 +790,60 @@ body {
     flex-shrink: 0;
 }
 .logout-btn:hover { color: #f87171; border-color: #f87171; }
+
+/* ─── Reconnect banner (shown instead of force-logout) ──────────────── */
+.reconnect-banner {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a1a0a;
+    border: 1px solid var(--amber);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 9999;
+    font-size: 0.82rem;
+    color: var(--amber);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    white-space: nowrap;
+}
+.reconnect-banner button:first-of-type {
+    background: var(--amber);
+    color: #000;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.reconnect-banner .rb-close {
+    background: none;
+    border: none;
+    color: var(--text-sub);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0 2px;
+}
+
+/* ─── CAPTCHA inline block in login screen ───────────────────────────── */
+#captcha-block {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.captcha-label {
+    font-size: 0.75rem;
+    color: var(--amber);
+    text-align: center;
+}
+.captcha-img {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--card-border);
+}
+

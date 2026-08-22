@@ -17,17 +17,40 @@ function setToken(t)         { localStorage.setItem('srm_jwt', t); }
 function clearToken()        { localStorage.removeItem('srm_jwt'); }
 function authHeader()        { return { 'Authorization': 'Bearer ' + getToken() }; }
 
+// ─── Pending login state (used for CAPTCHA flow) ──────────────────────────────
+let _pendingLogin = null;
+
 async function apiFetch(path, opts = {}) {
     opts.headers = { ...opts.headers, ...authHeader(), 'Content-Type': 'application/json' };
     try {
         const r = await fetch(API_BASE + path, opts);
-        if (r.status === 401) { clearToken(); showLogin(); return null; }
+        // Never force logout — show reconnect banner instead
+        if (r.status === 401) { showReconnectBanner(); return null; }
         const ct = r.headers.get('content-type') || '';
-        if (!ct.includes('application/json')) return null; // non-JSON (HTML error page)
+        if (!ct.includes('application/json')) return null;
         return await r.json();
     } catch (_) {
         return null;
     }
+}
+
+// ─── Reconnect banner (shown on session expiry instead of hard logout) ─────────
+function showReconnectBanner() {
+    if (document.getElementById('reconnect-banner')) return;
+    const b = document.createElement('div');
+    b.id = 'reconnect-banner';
+    b.className = 'reconnect-banner';
+    b.innerHTML = `
+        <span>⚠ Session expired</span>
+        <button onclick="doReconnect()">Reconnect</button>
+        <button class="rb-close" onclick="this.parentElement.remove()">✕</button>
+    `;
+    document.body.appendChild(b);
+}
+
+function doReconnect() {
+    document.getElementById('reconnect-banner')?.remove();
+    showLogin();
 }
 
 function showLogin() {
@@ -49,10 +72,7 @@ async function doLogin() {
     const pass  = document.getElementById('login-pass').value;
     const customServer = document.getElementById('login-server')?.value.trim();
 
-    if (customServer) {
-        localStorage.setItem('srm_api_base', customServer.replace(/\/$/, ''));
-    }
-
+    if (customServer) localStorage.setItem('srm_api_base', customServer.replace(/\/$/, ''));
     const currentBase = getApiBase();
 
     if (!rawId || !pass) { showErr('Enter your SRM ID and password'); return; }
@@ -60,6 +80,7 @@ async function doLogin() {
 
     btn.disabled = true; btn.textContent = 'Signing in…';
     errEl.style.display = 'none';
+    document.getElementById('captcha-block')?.remove();
 
     try {
         const r = await fetch(currentBase + '/api/login', {
@@ -68,6 +89,13 @@ async function doLogin() {
             body: JSON.stringify({ srm_id: rawId, password: pass }),
         });
         const d = await r.json().catch(() => ({}));
+
+        if (d.captcha) {
+            // SRM triggered CAPTCHA — show it in-screen
+            _pendingLogin = { srm_id: rawId, password: pass, base: currentBase };
+            showCaptchaUI(d.captcha_img, d.session_id);
+            return;
+        }
         if (r.ok && d.token) {
             setToken(d.token);
             localStorage.setItem('srm_display_name', rawId.toUpperCase());
@@ -76,9 +104,71 @@ async function doLogin() {
             showErr(d.detail || 'Invalid SRM ID or password');
         }
     } catch (_) {
-        showErr('Cannot reach ' + currentBase + ' — check connection/server');
+        showErr('Cannot reach ' + currentBase + ' — check server or Server Endpoint field');
     } finally {
         btn.disabled = false; btn.textContent = 'Sign In';
+    }
+}
+
+// ─── CAPTCHA UI ───────────────────────────────────────────────────────────────
+function showCaptchaUI(img_b64, session_id) {
+    document.getElementById('captcha-block')?.remove();
+    const block = document.createElement('div');
+    block.id = 'captcha-block';
+    block.innerHTML = `
+        <p class="captcha-label">SRM requires CAPTCHA — type the text you see:</p>
+        <img class="captcha-img" src="data:image/png;base64,${img_b64}" alt="CAPTCHA">
+        <input id="captcha-input" class="login-input" type="text" placeholder="Type CAPTCHA text here" autocomplete="off">
+        <button class="login-btn" id="captcha-submit-btn" onclick="submitCaptcha('${session_id}')">Submit</button>
+    `;
+    document.querySelector('.login-form').appendChild(block);
+    document.getElementById('captcha-input').focus();
+    document.getElementById('captcha-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') submitCaptcha(session_id);
+    });
+}
+
+async function submitCaptcha(session_id) {
+    if (!_pendingLogin) { showErr('Login session lost — please try again'); return; }
+    const captcha_text = document.getElementById('captcha-input')?.value.trim();
+    if (!captcha_text) { showErr('Please type the CAPTCHA text'); return; }
+
+    const btn = document.getElementById('captcha-submit-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Verifying…'; }
+
+    try {
+        const r = await fetch(_pendingLogin.base + '/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                srm_id: _pendingLogin.srm_id,
+                password: _pendingLogin.password,
+                captcha_text,
+                session_id,
+            }),
+        });
+        const d = await r.json().catch(() => ({}));
+
+        if (d.captcha) {
+            // Still wrong — show new CAPTCHA
+            document.getElementById('captcha-block')?.remove();
+            showCaptchaUI(d.captcha_img, d.session_id);
+            showErr('Wrong CAPTCHA — try again');
+            return;
+        }
+        if (r.ok && d.token) {
+            const loginName = _pendingLogin?.srm_id?.toUpperCase() || '';
+            _pendingLogin = null;
+            setToken(d.token);
+            localStorage.setItem('srm_display_name', loginName);
+            onLoginSuccess();
+        } else {
+            showErr(d.detail || 'CAPTCHA verification failed');
+            if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
+        }
+    } catch (_) {
+        showErr('Cannot reach server — check connection');
+        if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
     }
 }
 
@@ -87,26 +177,35 @@ function showErr(msg) {
     el.textContent = msg; el.style.display = 'block';
 }
 
-// ─── Single unified DOMContentLoaded (fixes race condition) ──────────────────
+// ─── Single unified DOMContentLoaded ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     ['login-id', 'login-pass', 'login-server'].forEach(id => {
         document.getElementById(id)?.addEventListener('keydown', e => {
             if (e.key === 'Enter') doLogin();
         });
     });
-
     const sField = document.getElementById('login-server');
     if (sField) sField.value = getApiBase();
 
-    if (!getToken()) {
-        showLogin();
-        return;
-    }
-
+    if (!getToken()) { showLogin(); return; }
     showDashboard();
     _initApp();
 });
 
+// Called after successful login
+function onLoginSuccess() {
+    document.getElementById('captcha-block')?.remove();
+    _pendingLogin = null;
+    showDashboard();
+    _initApp();
+}
+
+// Logout — clears JWT and reloads
+function doLogout() {
+    clearToken();
+    localStorage.removeItem('srm_p2p_history');
+    location.reload();
+}
 
 function _initApp() {
     initClockAndDate();

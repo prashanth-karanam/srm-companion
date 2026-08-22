@@ -1,6 +1,5 @@
 """
 Auth — JWT creation/verification + cookie encryption
-Fix #3: Crash loudly if FERNET_KEY missing — no silent per-restart key change
 """
 import os
 import json
@@ -15,21 +14,17 @@ _FERNET_KEY = os.environ.get("FERNET_KEY", "")
 
 if not _FERNET_KEY:
     import sys
-    # In production (Railway), crash immediately so the problem is obvious
     if os.environ.get("RAILWAY_ENVIRONMENT"):
-        print("FATAL: FERNET_KEY env var not set. Set it in Railway dashboard.", file=sys.stderr)
+        print("FATAL: FERNET_KEY env var not set.", file=sys.stderr)
         sys.exit(1)
     else:
-        # Dev only: generate a stable key for the session and warn loudly
-        print("⚠️  WARNING: FERNET_KEY not set. Using temp key — all sessions reset on restart!")
-        print("   Run: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"")
-        print("   Then add FERNET_KEY=<output> to your .env file")
+        print("⚠️  WARNING: FERNET_KEY not set. Using temp key — sessions reset on restart!")
         _FERNET_KEY = Fernet.generate_key().decode()
 
 _FERNET = Fernet(_FERNET_KEY.encode() if isinstance(_FERNET_KEY, str) else _FERNET_KEY)
 
-# ─── JWT ──────────────────────────────────────────────────────────────────────
-JWT_EXPIRE_DAYS = 7
+# ─── JWT — 365 day expiry so user is NEVER logged out ────────────────────────
+JWT_EXPIRE_DAYS = 365
 
 def create_token(srm_id: str) -> str:
     payload = {
