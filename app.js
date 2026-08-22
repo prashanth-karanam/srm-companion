@@ -20,14 +20,35 @@ function authHeader()        { return { 'Authorization': 'Bearer ' + getToken() 
 // ─── Pending login state (used for CAPTCHA flow) ──────────────────────────────
 let _pendingLogin = null;
 
+let _isRefreshing = false;
+
 async function apiFetch(path, opts = {}) {
     opts.headers = { ...opts.headers, ...authHeader(), 'Content-Type': 'application/json' };
     try {
         const r = await fetch(API_BASE + path, opts);
-        // Never force logout — show reconnect banner instead
-        if (r.status === 401) { showReconnectBanner(); return null; }
         const ct = r.headers.get('content-type') || '';
-        if (!ct.includes('application/json')) return null;
+        
+        // If session expired (401 or HTML login page returned instead of JSON)
+        if (r.status === 401 || !ct.includes('application/json')) {
+            if (_isRefreshing) return null;
+            _isRefreshing = true;
+            
+            // Try silent background login
+            const success = await doAutoLogin(true);
+            _isRefreshing = false;
+            
+            if (success) {
+                // Retry original fetch
+                opts.headers = { ...opts.headers, ...authHeader() };
+                const r2 = await fetch(API_BASE + path, opts);
+                if (r2.ok && (r2.headers.get('content-type')||'').includes('json')) {
+                    return await r2.json();
+                }
+            }
+            
+            showReconnectBanner();
+            return null;
+        }
         return await r.json();
     } catch (_) {
         return null;
@@ -65,83 +86,108 @@ function showDashboard() {
     document.querySelector('.dock').style.display = 'flex';
 }
 
-async function doLogin() {
+// ─── Direct Auto-Login (InAppBrowser Background Engine) ────────────────────────
+async function doAutoLogin(isBackgroundRefresh = false) {
+    const rawId = isBackgroundRefresh ? localStorage.getItem('srm_auto_id') : document.getElementById('login-id')?.value.trim().toLowerCase().replace('@srmist.edu.in', '');
+    const pass  = isBackgroundRefresh ? localStorage.getItem('srm_auto_pass') : document.getElementById('login-pass')?.value;
     const btn   = document.getElementById('login-btn');
-    const errEl = document.getElementById('login-error');
-    const rawId = document.getElementById('login-id').value.trim().toLowerCase().replace('@srmist.edu.in', '');
-    const pass  = document.getElementById('login-pass').value;
-    const customServer = document.getElementById('login-server')?.value.trim();
 
-    if (customServer && customServer.startsWith('http')) {
-        localStorage.setItem('srm_api_base', customServer.replace(/\/$/, ''));
-        const currentBase = getApiBase();
-        btn.disabled = true; btn.textContent = 'Signing in via Server…';
-        errEl.style.display = 'none';
-
-        try {
-            const r = await fetch(currentBase + '/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ srm_id: rawId, password: pass }),
-            });
-            const d = await r.json().catch(() => ({}));
-            if (d.captcha) {
-                _pendingLogin = { srm_id: rawId, password: pass, base: currentBase };
-                showCaptchaUI(d.captcha_img, d.session_id);
-                return;
-            }
-            if (r.ok && d.token) {
-                setToken(d.token);
-                localStorage.setItem('srm_display_name', rawId.toUpperCase());
-                onLoginSuccess();
-                return;
-            } else {
-                showErr(d.detail || 'Invalid SRM ID or password');
-                return;
-            }
-        } catch (_) {
-            showErr('Cannot reach server endpoint — switching to Direct On-Device Login...');
-        } finally {
-            btn.disabled = false; btn.textContent = 'Sign In (Direct Phone Login)';
-        }
+    if (!rawId || !pass) { 
+        if (!isBackgroundRefresh) showErr('Enter your SRM ID and password'); 
+        return false; 
     }
 
-    // ─── Direct On-Device Portal Login (Zero Server Dependency) ──────────────
-    if (rawId) {
+    if (!isBackgroundRefresh) {
+        if (!/^[a-z]{2}\d{4}$/.test(rawId)) { showErr('ID format: 2 letters + 4 digits (e.g. sk1325)'); return false; }
+        if (btn) { btn.disabled = true; btn.textContent = 'Authenticating…'; }
+        document.getElementById('login-error').style.display = 'none';
+        
+        // Save for future background silent re-login
+        localStorage.setItem('srm_auto_id', rawId);
+        localStorage.setItem('srm_auto_pass', pass);
         localStorage.setItem('srm_display_name', rawId.toUpperCase());
     }
-    const container = document.getElementById('portal-frame-container');
-    const iframe    = document.getElementById('portal-iframe');
 
-    if (container && iframe) {
-        container.style.display = 'block';
-        iframe.src = "https://academia.srmist.edu.in";
-        btn.textContent = 'Logging In via Direct Portal…';
+    return new Promise((resolve) => {
+        // If not running in Capacitor/Cordova, we can't use InAppBrowser. Fallback to normal flow.
+        if (!window.cordova || !window.cordova.InAppBrowser) {
+            if (!isBackgroundRefresh) showErr('Cordova InAppBrowser plugin missing. Run on device.');
+            if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+            resolve(false);
+            return;
+        }
+
+        // Open hidden browser
+        const browser = window.cordova.InAppBrowser.open('https://academia.srmist.edu.in', '_blank', 'hidden=yes,clearcache=yes,clearsessioncache=yes');
         
-        // Listen for iframe load / successful portal entry
-        let checkCount = 0;
-        const checkInterval = setInterval(() => {
-            checkCount++;
-            try {
-                const href = iframe.contentWindow?.location?.href || '';
-                if (href.includes('academia.srmist.edu.in') && !href.includes('signin') && !href.includes('accounts')) {
-                    clearInterval(checkInterval);
-                    setToken('direct_on_device_session_' + Date.now());
-                    onLoginSuccess();
-                }
-            } catch (_) {
-                // Cross-origin iframe security prevents reading location URL,
-                // user completes login directly inside the frame!
+        browser.addEventListener('loadstop', function(e) {
+            const url = e.url || '';
+            
+            // Check if successfully reached dashboard
+            if (url.includes('academia.srmist.edu.in') && !url.includes('signin') && !url.includes('accounts')) {
+                browser.close();
+                setToken('direct_on_device_session_' + Date.now());
+                if (!isBackgroundRefresh) onLoginSuccess();
+                resolve(true);
+                return;
             }
-            if (checkCount > 120) clearInterval(checkInterval);
-        }, 2000);
 
-        showErr('Please complete sign-in inside the portal box below if prompted:');
-    } else {
-        setToken('direct_on_device_session_' + Date.now());
-        onLoginSuccess();
-    }
+            // If on signin page, inject credentials
+            if (url.includes('signin') || url.includes('accounts')) {
+                const code = `
+                    setTimeout(() => {
+                        const idInput = document.querySelector('input[name="LOGIN_ID"]') || document.querySelector('input[type="email"]') || document.getElementById('Email');
+                        const nextBtn1 = document.getElementById('nextbtn') || document.querySelector('button[type="submit"]');
+                        
+                        if (idInput && idInput.value === '') {
+                            idInput.value = '${rawId}@srmist.edu.in';
+                            if (nextBtn1) nextBtn1.click();
+                        } else {
+                            const passInput = document.querySelector('input[name="PASSWORD"]') || document.querySelector('input[type="password"]') || document.getElementById('Password');
+                            const nextBtn2 = document.getElementById('nextbtn') || document.getElementById('signin') || document.querySelector('button[type="submit"]');
+                            
+                            if (passInput && passInput.value === '') {
+                                passInput.value = '${pass.replace(/'/g, "\\'")}';
+                                if (nextBtn2) nextBtn2.click();
+                            }
+                            
+                            // Check for CAPTCHA
+                            const captchaImg = document.querySelector('img[src*="captcha"]');
+                            if (captchaImg) {
+                                window.webkit.messageHandlers.cordova_iab.postMessage(JSON.stringify({ captchaDetected: true }));
+                            }
+                        }
+                    }, 1000);
+                `;
+                browser.executeScript({ code: code });
+            }
+        });
+
+        browser.addEventListener('message', function(e) {
+            if (e.data && e.data.captchaDetected) {
+                // CAPTCHA hit — surface the browser so the user can type it
+                if (!isBackgroundRefresh) {
+                    browser.show();
+                } else {
+                    browser.close();
+                    showReconnectBanner();
+                    resolve(false);
+                }
+            }
+        });
+        
+        // Timeout safeguard
+        setTimeout(() => {
+            browser.close();
+            if (!isBackgroundRefresh) {
+                showErr('Login timed out. Try again.');
+                if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+            }
+            resolve(false);
+        }, 30000);
+    });
 }
+
 
 
 // ─── CAPTCHA UI ───────────────────────────────────────────────────────────────
