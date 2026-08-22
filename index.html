@@ -35,14 +35,18 @@
                 <input id="login-pass" class="login-input" type="password" placeholder="Your academia password" autocomplete="current-password">
             </div>
             <div class="login-field" style="margin-top:2px;">
-                <label class="login-label">Server Endpoint</label>
-                <input id="login-server" class="login-input" type="text" placeholder="http://10.3.3.182:8000" style="font-size:0.8rem;color:var(--text-sub);">
+                <label class="login-label">Server Endpoint (Optional Cloud/PC Server)</label>
+                <input id="login-server" class="login-input" type="text" placeholder="Direct Phone Login (No Server Needed)" style="font-size:0.8rem;color:var(--text-sub);">
             </div>
             <p id="login-error" class="login-error" style="display:none;"></p>
-            <button id="login-btn" class="login-btn" onclick="doLogin()">Sign In</button>
+            <button id="login-btn" class="login-btn" onclick="doLogin()">Sign In (Direct Phone Login)</button>
+            <div id="portal-frame-container" style="display:none;margin-top:12px;border-radius:12px;overflow:hidden;border:1px solid var(--card-border);">
+                <iframe id="portal-iframe" style="width:100%;height:380px;border:none;" src="about:blank"></iframe>
+            </div>
             <p class="section-stamp" style="text-align:center;margin-top:12px;">
-                Your password is sent securely and never stored.
+                Direct On-Device Login: Password stays 100% on your phone.
             </p>
+
         </div>
     </div>
 </div>

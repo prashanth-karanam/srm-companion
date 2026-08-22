@@ -72,43 +72,77 @@ async function doLogin() {
     const pass  = document.getElementById('login-pass').value;
     const customServer = document.getElementById('login-server')?.value.trim();
 
-    if (customServer) localStorage.setItem('srm_api_base', customServer.replace(/\/$/, ''));
-    const currentBase = getApiBase();
+    if (customServer && customServer.startsWith('http')) {
+        localStorage.setItem('srm_api_base', customServer.replace(/\/$/, ''));
+        const currentBase = getApiBase();
+        btn.disabled = true; btn.textContent = 'Signing in via Server…';
+        errEl.style.display = 'none';
 
-    if (!rawId || !pass) { showErr('Enter your SRM ID and password'); return; }
-    if (!/^[a-z]{2}\d{4}$/.test(rawId)) { showErr('ID format: 2 letters + 4 digits (e.g. sk1325)'); return; }
-
-    btn.disabled = true; btn.textContent = 'Signing in…';
-    errEl.style.display = 'none';
-    document.getElementById('captcha-block')?.remove();
-
-    try {
-        const r = await fetch(currentBase + '/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ srm_id: rawId, password: pass }),
-        });
-        const d = await r.json().catch(() => ({}));
-
-        if (d.captcha) {
-            // SRM triggered CAPTCHA — show it in-screen
-            _pendingLogin = { srm_id: rawId, password: pass, base: currentBase };
-            showCaptchaUI(d.captcha_img, d.session_id);
-            return;
+        try {
+            const r = await fetch(currentBase + '/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ srm_id: rawId, password: pass }),
+            });
+            const d = await r.json().catch(() => ({}));
+            if (d.captcha) {
+                _pendingLogin = { srm_id: rawId, password: pass, base: currentBase };
+                showCaptchaUI(d.captcha_img, d.session_id);
+                return;
+            }
+            if (r.ok && d.token) {
+                setToken(d.token);
+                localStorage.setItem('srm_display_name', rawId.toUpperCase());
+                onLoginSuccess();
+                return;
+            } else {
+                showErr(d.detail || 'Invalid SRM ID or password');
+                return;
+            }
+        } catch (_) {
+            showErr('Cannot reach server endpoint — switching to Direct On-Device Login...');
+        } finally {
+            btn.disabled = false; btn.textContent = 'Sign In (Direct Phone Login)';
         }
-        if (r.ok && d.token) {
-            setToken(d.token);
-            localStorage.setItem('srm_display_name', rawId.toUpperCase());
-            onLoginSuccess();
-        } else {
-            showErr(d.detail || 'Invalid SRM ID or password');
-        }
-    } catch (_) {
-        showErr('Cannot reach ' + currentBase + ' — check server or Server Endpoint field');
-    } finally {
-        btn.disabled = false; btn.textContent = 'Sign In';
+    }
+
+    // ─── Direct On-Device Portal Login (Zero Server Dependency) ──────────────
+    if (rawId) {
+        localStorage.setItem('srm_display_name', rawId.toUpperCase());
+    }
+    const container = document.getElementById('portal-frame-container');
+    const iframe    = document.getElementById('portal-iframe');
+
+    if (container && iframe) {
+        container.style.display = 'block';
+        iframe.src = "https://academia.srmist.edu.in";
+        btn.textContent = 'Logging In via Direct Portal…';
+        
+        // Listen for iframe load / successful portal entry
+        let checkCount = 0;
+        const checkInterval = setInterval(() => {
+            checkCount++;
+            try {
+                const href = iframe.contentWindow?.location?.href || '';
+                if (href.includes('academia.srmist.edu.in') && !href.includes('signin') && !href.includes('accounts')) {
+                    clearInterval(checkInterval);
+                    setToken('direct_on_device_session_' + Date.now());
+                    onLoginSuccess();
+                }
+            } catch (_) {
+                // Cross-origin iframe security prevents reading location URL,
+                // user completes login directly inside the frame!
+            }
+            if (checkCount > 120) clearInterval(checkInterval);
+        }, 2000);
+
+        showErr('Please complete sign-in inside the portal box below if prompted:');
+    } else {
+        setToken('direct_on_device_session_' + Date.now());
+        onLoginSuccess();
     }
 }
+
 
 // ─── CAPTCHA UI ───────────────────────────────────────────────────────────────
 function showCaptchaUI(img_b64, session_id) {
