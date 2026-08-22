@@ -429,22 +429,7 @@ let announcementsData = [
     }
 ];
 
-document.addEventListener('DOMContentLoaded', () => {
-    initClockAndDate();
-    initDockNavigation();
-    initDaySelector();
-    initAI();
-    initQuickTools();
-    renderCalendarList();
-    renderAnnouncements();
-    initAnnouncementsSearch();
-    updateLiveHUD();
-    syncWithBackend();
-    
-    setInterval(updateLiveHUD, 10000);
-    setInterval(updateClock, 1000);
-    setInterval(syncWithBackend, 4000);
-});
+
 
 let portalAttendance = [];
 
