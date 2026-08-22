@@ -437,16 +437,12 @@ let portalAttendance = [];
 async function syncWithBackend() {
     if (!getToken()) return;
 
-    // Direct On-Device Fetch from Zoho Creator
     const ZOHO_BASE = 'https://creator.zoho.com/api/v2/srm_university/academia-academic-services/report';
     
-    // Use apiFetch to automatically handle 401/HTML and trigger InAppBrowser auto-login
-    const r = await apiFetch('/My_Attendance?limit=200', { 
-        customBase: ZOHO_BASE 
-    });
-
-    if (r && r.data) {
-        const parsed = r.data.map(rec => {
+    // --- 1. Fetch Attendance ---
+    const attResp = await apiFetch('/My_Attendance?limit=200', { customBase: ZOHO_BASE });
+    if (attResp && attResp.data) {
+        const parsed = attResp.data.map(rec => {
             const code = (rec.CourseCode || rec.Course_Code || '').replace(/\s*Regular\s*$/, '').trim();
             const title = (rec.CourseTitle || rec.Course_Title || rec.Subject || '').trim();
             const conducted = parseFloat(rec.HoursConducted || rec.Conducted || '0');
@@ -457,16 +453,75 @@ async function syncWithBackend() {
             if (!pct && conducted > 0) {
                 pct = ((att / conducted) * 100).toFixed(1);
             }
-            
-            return {
-                code, title,
-                conducted, attended: att, absent, percentage: pct
-            };
+            return { code, title, conducted, attended: att, absent, percentage: pct };
         }).filter(x => x.title || x.code);
         
         portalAttendance = parsed;
         const now = new Date();
         renderAttendance(now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+    }
+
+    // --- 2. Fetch TimeTable ---
+    const ttResp = await apiFetch('/My_Time_Table?limit=200', { customBase: ZOHO_BASE });
+    if (ttResp && ttResp.data && ttResp.data.length > 0) {
+        const schedule = { "Day 1": [], "Day 2": [], "Day 3": [], "Day 4": [], "Day 5": [] };
+        ttResp.data.forEach(rec => {
+            const doStr = String(rec.Day_Order || '');
+            let doNum = doStr.replace(/[^0-9]/g, '');
+            if (doNum && schedule["Day " + doNum]) {
+                const title = rec.CourseTitle || rec.Subject || '';
+                schedule["Day " + doNum].push({
+                    hour: parseInt(rec.Hour || rec.Period || '1'),
+                    code: rec.CourseCode || rec.Course_Code || '',
+                    title: title,
+                    type: title.toLowerCase().includes('lab') ? 'Lab' : 'Theory',
+                    venue: rec.RoomNo || rec.Room || '',
+                    slot: rec.Slot || '',
+                    faculty: rec.Faculty || ''
+                });
+            }
+        });
+        for (let day in schedule) {
+            schedule[day].sort((a, b) => a.hour - b.hour);
+        }
+        SRM_DATA.dayOrderSchedule = schedule;
+        renderDaySchedule(selectedDay);
+        updateLiveHUD();
+    }
+
+    // --- 3. Fetch Calendar for Holidays ---
+    const calResp = await apiFetch('/My_Academic_Calender?limit=200', { customBase: ZOHO_BASE });
+    if (calResp && calResp.data) {
+        const todayStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+        const todayEntry = calResp.data.find(e => (e.Date||'').replace(/\//g, '-') === todayStr);
+        if (todayEntry && todayEntry.Status === 'Holiday') {
+            isTodayHoliday = true;
+            const badge = document.getElementById('current-day-badge');
+            if (badge) { 
+                badge.textContent = 'Holiday · ' + (todayEntry.Remarks || 'Official'); 
+                badge.style.color = '#ef4444'; 
+            }
+            updateLiveHUD();
+        }
+    }
+
+    // --- 4. Fetch Circulars (Replace Hardcoded Announcements) ---
+    const circResp = await apiFetch('/My_Circulars?limit=50', { customBase: ZOHO_BASE });
+    if (circResp && circResp.data && circResp.data.length > 0) {
+        announcementsData = circResp.data.map((rec, i) => ({
+            id: "circ-" + i,
+            subject: "Official Circular",
+            code: "",
+            category: "University Notice",
+            title: rec.Title || 'Notice',
+            detail: rec.Details || '',
+            faculty: "Admin",
+            venue: "",
+            sourceGroup: "SRM Portal",
+            priority: (rec.Title||'').toLowerCase().includes('exam') ? "HIGH" : "MEDIUM",
+            timestamp: rec.Date || 'Recent'
+        }));
+        renderAnnouncements();
     }
 }
 
@@ -906,16 +961,10 @@ async function handleAISend() {
         throw new Error('Local server failed');
     } catch (err) {
         try {
-            const fallbackResp = await fetch('https://text.pollinations.ai/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    messages: [
-                        { role: 'system', content: 'You are an academic tutor for SRM 1st year student Karanam Sai Prasanth.' },
-                        { role: 'user', content: prompt }
-                    ]
-                })
-            });
+            const userName = localStorage.getItem('srm_display_name') || 'a student';
+            const encodedPrompt = encodeURIComponent(`You are an academic tutor for SRM university student ${userName}. Answer this: ` + prompt);
+            const url = `https://text.pollinations.ai/${encodedPrompt}?model=openai`;
+            const fallbackResp = await fetch(url);
             const text = await fallbackResp.text();
             updateChatMessage(loadingId, formatMarkdown(text));
         } catch (e2) {
