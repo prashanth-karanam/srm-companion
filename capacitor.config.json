@@ -1,5 +1,9 @@
 {
   "appId": "com.srm.companion",
   "appName": "SRM Companion",
-  "webDir": "www"
-}
+  "webDir": "www",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }

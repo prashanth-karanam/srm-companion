@@ -23,9 +23,12 @@ let _pendingLogin = null;
 let _isRefreshing = false;
 
 async function apiFetch(path, opts = {}) {
+    const base = opts.customBase || API_BASE;
+    delete opts.customBase;
     opts.headers = { ...opts.headers, ...authHeader(), 'Content-Type': 'application/json' };
+    
     try {
-        const r = await fetch(API_BASE + path, opts);
+        const r = await fetch(base + path, opts);
         const ct = r.headers.get('content-type') || '';
         
         // If session expired (401 or HTML login page returned instead of JSON)
@@ -40,7 +43,7 @@ async function apiFetch(path, opts = {}) {
             if (success) {
                 // Retry original fetch
                 opts.headers = { ...opts.headers, ...authHeader() };
-                const r2 = await fetch(API_BASE + path, opts);
+                const r2 = await fetch(base + path, opts);
                 if (r2.ok && (r2.headers.get('content-type')||'').includes('json')) {
                     return await r2.json();
                 }
@@ -135,29 +138,34 @@ async function doAutoLogin(isBackgroundRefresh = false) {
             // If on signin page, inject credentials
             if (url.includes('signin') || url.includes('accounts')) {
                 const code = `
-                    setTimeout(() => {
-                        const idInput = document.querySelector('input[name="LOGIN_ID"]') || document.querySelector('input[type="email"]') || document.getElementById('Email');
-                        const nextBtn1 = document.getElementById('nextbtn') || document.querySelector('button[type="submit"]');
-                        
-                        if (idInput && idInput.value === '') {
-                            idInput.value = '${rawId}@srmist.edu.in';
-                            if (nextBtn1) nextBtn1.click();
-                        } else {
+                    if (!window._srmLoginInterval) {
+                        window._srmLoginInterval = setInterval(() => {
+                            const idInput = document.querySelector('input[name="LOGIN_ID"]') || document.querySelector('input[type="email"]') || document.getElementById('Email');
+                            const nextBtn1 = document.getElementById('nextbtn') || document.querySelector('button[type="submit"]');
                             const passInput = document.querySelector('input[name="PASSWORD"]') || document.querySelector('input[type="password"]') || document.getElementById('Password');
                             const nextBtn2 = document.getElementById('nextbtn') || document.getElementById('signin') || document.querySelector('button[type="submit"]');
-                            
-                            if (passInput && passInput.value === '') {
-                                passInput.value = '${pass.replace(/'/g, "\\'")}';
-                                if (nextBtn2) nextBtn2.click();
-                            }
-                            
-                            // Check for CAPTCHA
                             const captchaImg = document.querySelector('img[src*="captcha"]');
+
                             if (captchaImg) {
-                                window.webkit.messageHandlers.cordova_iab.postMessage(JSON.stringify({ captchaDetected: true }));
+                                try { webkit.messageHandlers.cordova_iab.postMessage(JSON.stringify({ captchaDetected: true })); } catch(e) {}
+                                return;
                             }
-                        }
-                    }, 1000);
+
+                            if (idInput && (!passInput || passInput.offsetParent === null)) {
+                                if (idInput.value !== '${rawId}@srmist.edu.in') {
+                                    idInput.value = '${rawId}@srmist.edu.in';
+                                    idInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                }
+                                if (nextBtn1) nextBtn1.click();
+                            } else if (passInput && passInput.offsetParent !== null) {
+                                if (passInput.value === '') {
+                                    passInput.value = '${pass.replace(/'/g, "\\'")}';
+                                    passInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                    if (nextBtn2) nextBtn2.click();
+                                }
+                            }
+                        }, 1000);
+                    }
                 `;
                 browser.executeScript({ code: code });
             }
@@ -429,24 +437,36 @@ let portalAttendance = [];
 async function syncWithBackend() {
     if (!getToken()) return;
 
-    // Sync announcements + overrides
-    const ann = await apiFetch('/api/announcements');
-    if (ann?.success) {
-        if (ann.announcements) { announcementsData = ann.announcements; renderAnnouncements(); }
-        if (ann.overrides)     { scheduleOverrides = ann.overrides; renderDaySchedule(selectedDay); updateLiveHUD(); }
-    }
+    // Direct On-Device Fetch from Zoho Creator
+    const ZOHO_BASE = 'https://creator.zoho.com/api/v2/srm_university/academia-academic-services/report';
+    
+    // Use apiFetch to automatically handle 401/HTML and trigger InAppBrowser auto-login
+    const r = await apiFetch('/My_Attendance?limit=200', { 
+        customBase: ZOHO_BASE 
+    });
 
-    // Sync portal data (attendance + holiday)
-    const res = await apiFetch('/api/me/data');
-    if (res?.success && res.data) {
-        const d = res.data;
-        if (d.today_is_holiday) {
-            isTodayHoliday = true;
-            const badge = document.getElementById('current-day-badge');
-            if (badge) { badge.textContent = 'Holiday · ' + (d.today_holiday_name || 'Official'); badge.style.color = '#ef4444'; }
-            updateLiveHUD();
-        }
-        if (d.attendance?.length) { portalAttendance = d.attendance; renderAttendance(d.last_scraped); }
+    if (r && r.data) {
+        const parsed = r.data.map(rec => {
+            const code = (rec.CourseCode || rec.Course_Code || '').replace(/\s*Regular\s*$/, '').trim();
+            const title = (rec.CourseTitle || rec.Course_Title || rec.Subject || '').trim();
+            const conducted = parseFloat(rec.HoursConducted || rec.Conducted || '0');
+            const absent = parseFloat(rec.HoursAbsent || rec.Absent || '0');
+            const att = Math.max(0, conducted - absent);
+            let pct = (rec.Attendance || rec.Percentage || '').trim();
+            
+            if (!pct && conducted > 0) {
+                pct = ((att / conducted) * 100).toFixed(1);
+            }
+            
+            return {
+                code, title,
+                conducted, attended: att, absent, percentage: pct
+            };
+        }).filter(x => x.title || x.code);
+        
+        portalAttendance = parsed;
+        const now = new Date();
+        renderAttendance(now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
     }
 }
 
