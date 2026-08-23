@@ -28,28 +28,40 @@
         </div>
         <div class="login-form">
             <div class="login-field">
-                <label class="login-label">SRM Registration ID</label>
+                <label class="login-label">SRM NetID (without @srmist.edu.in)</label>
                 <input id="login-id" class="login-input" type="text" placeholder="e.g. sk1325" autocomplete="username" spellcheck="false">
             </div>
             <div class="login-field">
                 <label class="login-label">Password</label>
-                <input id="login-pass" class="login-input" type="password" placeholder="Your academia password" autocomplete="current-password">
+                <input id="login-pass" class="login-input" type="password" placeholder="Your student portal password" autocomplete="current-password">
+            </div>
+            <div class="login-field" id="captcha-container">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <label class="login-label">Security CAPTCHA</label>
+                    <button type="button" onclick="refreshCaptcha()" style="background:none;border:none;color:#2563eb;font-size:0.75rem;font-weight:600;cursor:pointer;">🔄 Refresh</button>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <div id="captcha-box" style="background:#e2e8f0;border-radius:10px;padding:8px 12px;font-family:var(--font-mono);font-size:1.05rem;font-weight:700;letter-spacing:4px;color:#0f172a;min-width:110px;text-align:center;user-select:none;">
+                        R7B9K
+                    </div>
+                    <input id="login-captcha" class="login-input" type="text" placeholder="Enter code" style="flex:1;" autocomplete="off">
+                </div>
             </div>
             <p id="login-error" class="login-error" style="display:none;"></p>
-            <button id="login-btn" class="login-btn" onclick="doAutoLogin()">Sign In (Auto)</button>
+            <button id="login-btn" class="login-btn" onclick="doAutoLogin()">Sign In</button>
             
-            <div style="display:flex;align-items:center;margin:14px 0 10px;gap:10px;">
-                <div style="flex:1;height:1px;background:var(--card-border);"></div>
-                <span style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">OR SOLVE CAPTCHA</span>
-                <div style="flex:1;height:1px;background:var(--card-border);"></div>
+            <div style="display:flex;align-items:center;margin:10px 0 6px;gap:10px;">
+                <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+                <span style="font-size:0.72rem;color:#64748b;font-weight:600;">OR LIVE PORTAL</span>
+                <div style="flex:1;height:1px;background:#e2e8f0;"></div>
             </div>
 
             <button type="button" class="portal-open-btn" onclick="openPortalModal()">
-                🔐 Open Official SRM Login (with CAPTCHA)
+                🔐 Open Official SRM Student Portal
             </button>
 
-            <p class="section-stamp" style="text-align:center;margin-top:12px;">
-                Secure Auto-Login enabled. Credentials stay on your device.
+            <p class="section-stamp" style="text-align:center;margin-top:8px;">
+                Direct authentication enabled. Credentials stay on your device.
             </p>
 
         </div>

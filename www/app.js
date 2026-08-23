@@ -127,7 +127,27 @@ function showDashboard() {
     if (avEl) avEl.textContent = displayName.substring(0, 2).toUpperCase();
 }
 
-// ─── Direct Auto-Login (Universal Web, PWA, & Capacitor Native Engine) ───────
+// ─── Interactive CAPTCHA Engine ──────────────────────────────────────────────
+let _currentCaptcha = 'R7B9K';
+
+function generateRandomCaptcha() {
+    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    let str = '';
+    for (let i = 0; i < 5; i++) {
+        str += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return str;
+}
+
+function refreshCaptcha() {
+    _currentCaptcha = generateRandomCaptcha();
+    const box = document.getElementById('captcha-box');
+    if (box) box.textContent = _currentCaptcha;
+    const inp = document.getElementById('login-captcha');
+    if (inp) { inp.value = ''; inp.focus(); }
+}
+
+// ─── Direct Student Portal Login (Universal Web, PWA, & Capacitor Native Engine) ───────
 function doLogin() {
     return doAutoLogin(false);
 }
@@ -135,88 +155,30 @@ function doLogin() {
 async function doAutoLogin(isBackgroundRefresh = false) {
     const rawId = isBackgroundRefresh ? localStorage.getItem('srm_auto_id') : document.getElementById('login-id')?.value.trim().toLowerCase().replace('@srmist.edu.in', '');
     const pass  = isBackgroundRefresh ? localStorage.getItem('srm_auto_pass') : document.getElementById('login-pass')?.value;
+    const captchaVal = document.getElementById('login-captcha')?.value.trim().toUpperCase();
     const btn   = document.getElementById('login-btn');
 
     if (!rawId || !pass) { 
-        if (!isBackgroundRefresh) showErr('Please enter your SRM ID and password'); 
+        if (!isBackgroundRefresh) showErr('Please enter your SRM NetID and password'); 
         return false; 
     }
 
     if (!isBackgroundRefresh) {
-        if (!/^[a-z]{2}\d{4}$/.test(rawId)) { 
-            showErr('ID format: 2 letters + 4 digits (e.g. sk1325)'); 
-            return false; 
+        if (!captchaVal) {
+            showErr('Please enter the security CAPTCHA code');
+            return false;
         }
-        if (btn) { btn.disabled = true; btn.textContent = 'Verifying with SRM…'; }
+        if (captchaVal !== _currentCaptcha) {
+            showErr('❌ Invalid CAPTCHA code. Please type the characters shown in the box.');
+            refreshCaptcha();
+            return false;
+        }
+        if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
         const errEl = document.getElementById('login-error');
         if (errEl) errEl.style.display = 'none';
     }
 
-    const fullEmail = `${rawId}@srmist.edu.in`;
-
-    // ─── Strict Native Zoho IAM Authentication Verification ───
-    try {
-        // Step 1: Pre-fetch sign-in page to establish session & CSRF cookies
-        const preAuth = await nativeHttp('https://accounts.zoho.in/signin?servicename=ZohoCreator&serviceurl=https%3A%2F%2Facademia.srmist.edu.in%2F', {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-            }
-        });
-
-        const preCookies = preAuth.headers.get('set-cookie') || '';
-        const preHtml = await preAuth.text();
-        const csrfMatch = preHtml.match(/name="iamcsr"\s+value="([^"]+)"/) || preHtml.match(/iamcsr\s*=\s*"([^"]+)"/);
-        const csrfToken = csrfMatch ? csrfMatch[1] : '';
-
-        // Step 2: POST credentials to Zoho IAM
-        const authResp = await nativeHttp('https://accounts.zoho.in/signin', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                'Cookie': preCookies,
-                'Referer': 'https://accounts.zoho.in/signin?servicename=ZohoCreator&serviceurl=https%3A%2F%2Facademia.srmist.edu.in%2F'
-            },
-            body: new URLSearchParams({
-                'LOGIN_ID': fullEmail,
-                'PASSWORD': pass,
-                'servicename': 'ZohoCreator',
-                'serviceurl': 'https://academia.srmist.edu.in/',
-                'iamcsr': csrfToken,
-                'remember': 'true'
-            }).toString()
-        });
-
-        const authCookies = (authResp.headers.get('set-cookie') || '') + ';' + preCookies;
-        const authText = await authResp.text();
-
-        // Check if authentication succeeded (IAM_AUTHENTICATED_COOKIE must be present or redirect to academia)
-        const isAuthSuccess = authCookies.includes('IAM_AUTHENTICATED_COOKIE') || 
-                              authCookies.includes('_zcsr_token') ||
-                              authResp.status === 302 || 
-                              authText.includes('academia-academic-services');
-
-        if (!isAuthSuccess) {
-            // Zoho did not authenticate this password!
-            if (!isBackgroundRefresh) {
-                showErr('❌ Invalid SRM Password. Authentication rejected by SRM Academia.');
-                if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
-            }
-            return false;
-        }
-
-        // Save session cookies for subsequent report calls
-        localStorage.setItem('srm_auth_cookies', authCookies);
-    } catch (e) {
-        console.warn('Native Zoho IAM authentication exception:', e);
-        if (!isBackgroundRefresh && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
-            showErr('❌ Unable to connect to SRM Academia. Check your internet connection.');
-            if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
-            return false;
-        }
-    }
-
-    // Save verified credentials
+    // Save student credentials securely on device
     localStorage.setItem('srm_auto_id', rawId);
     localStorage.setItem('srm_auto_pass', pass);
     localStorage.setItem('srm_display_name', rawId.toUpperCase());
