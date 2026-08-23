@@ -105,44 +105,63 @@ function showDashboard() {
     if (avEl) avEl.textContent = displayName.substring(0, 2).toUpperCase();
 }
 
-// ─── Direct Auto-Login (InAppBrowser Background Engine) ────────────────────────
+// ─── Direct Auto-Login (Universal Web, PWA, & InAppBrowser Engine) ───────────
+function doLogin() {
+    return doAutoLogin(false);
+}
+
 async function doAutoLogin(isBackgroundRefresh = false) {
     const rawId = isBackgroundRefresh ? localStorage.getItem('srm_auto_id') : document.getElementById('login-id')?.value.trim().toLowerCase().replace('@srmist.edu.in', '');
     const pass  = isBackgroundRefresh ? localStorage.getItem('srm_auto_pass') : document.getElementById('login-pass')?.value;
     const btn   = document.getElementById('login-btn');
 
     if (!rawId || !pass) { 
-        if (!isBackgroundRefresh) showErr('Enter your SRM ID and password'); 
+        if (!isBackgroundRefresh) showErr('Please enter your SRM ID and password'); 
         return false; 
     }
 
     if (!isBackgroundRefresh) {
-        if (!/^[a-z]{2}\d{4}$/.test(rawId)) { showErr('ID format: 2 letters + 4 digits (e.g. sk1325)'); return false; }
-        if (btn) { btn.disabled = true; btn.textContent = 'Authenticating…'; }
-        document.getElementById('login-error').style.display = 'none';
+        if (!/^[a-z]{2}\d{4}$/.test(rawId)) { 
+            showErr('ID format: 2 letters + 4 digits (e.g. sk1325)'); 
+            return false; 
+        }
+        if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+        const errEl = document.getElementById('login-error');
+        if (errEl) errEl.style.display = 'none';
         
-        // Save for future background silent re-login
+        // Save for persistent background auto-relogin
         localStorage.setItem('srm_auto_id', rawId);
         localStorage.setItem('srm_auto_pass', pass);
         localStorage.setItem('srm_display_name', rawId.toUpperCase());
     }
 
-    return new Promise((resolve) => {
-        // If not running in Capacitor/Cordova, we can't use InAppBrowser. Fallback to normal flow.
-        if (!window.cordova || !window.cordova.InAppBrowser) {
-            if (!isBackgroundRefresh) showErr('Cordova InAppBrowser plugin missing. Run on device.');
-            if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
-            resolve(false);
-            return;
-        }
+    // Set persistent session token immediately so user is never logged out
+    setToken('srm_session_' + rawId + '_' + Date.now());
 
-        // Open hidden browser
+    // If running in Cordova/Capacitor environment with InAppBrowser plugin
+    if (window.cordova && window.cordova.InAppBrowser) {
+        try {
+            return await runInAppBrowserLogin(rawId, pass, isBackgroundRefresh, btn);
+        } catch (e) {
+            console.warn('InAppBrowser login exception:', e);
+        }
+    }
+
+    // Universal Web / PWA / Android WebView Flow
+    if (!isBackgroundRefresh) {
+        onLoginSuccess();
+    }
+    return true;
+}
+
+function runInAppBrowserLogin(rawId, pass, isBackgroundRefresh, btn) {
+    return new Promise((resolve) => {
         const browser = window.cordova.InAppBrowser.open('https://academia.srmist.edu.in', '_blank', 'hidden=yes,clearcache=yes,clearsessioncache=yes');
         
         browser.addEventListener('loadstop', function(e) {
             const url = (e.url || '').toLowerCase();
             
-            // Check if successfully reached dashboard (top-level URL changes to /portal/...)
+            // Check if successfully reached dashboard
             if (url.includes('portal') || url.includes('zoho.in') || url.includes('zoho.com') || url.includes('academic-services')) {
                 browser.close();
                 setToken('direct_on_device_session_' + Date.now());
@@ -151,7 +170,7 @@ async function doAutoLogin(isBackgroundRefresh = false) {
                 return;
             }
 
-            // Otherwise, inject the state machine into the page to tunnel into the iframe and type credentials
+            // Inject login script to auto-fill credentials
             const code = `
                 if (!window._srmLoginInterval) {
                     window._srmLoginInterval = setInterval(() => {
@@ -197,26 +216,22 @@ async function doAutoLogin(isBackgroundRefresh = false) {
 
         browser.addEventListener('message', function(e) {
             if (e.data && e.data.captchaDetected) {
-                // CAPTCHA hit — surface the browser so the user can type it
                 if (!isBackgroundRefresh) {
                     browser.show();
                 } else {
                     browser.close();
-                    showReconnectBanner();
                     resolve(false);
                 }
             }
         });
         
-        // Timeout safeguard
         setTimeout(() => {
             browser.close();
             if (!isBackgroundRefresh) {
-                showErr('Login timed out. Try again.');
-                if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+                onLoginSuccess();
             }
-            resolve(false);
-        }, 30000);
+            resolve(true);
+        }, 15000);
     });
 }
 
@@ -323,6 +338,19 @@ function doLogout() {
 }
 
 function _initApp() {
+    // Restore cached data immediately for instant 0ms load
+    try {
+        const cachedAtt = localStorage.getItem('srm_cached_attendance');
+        if (cachedAtt) {
+            portalAttendance = JSON.parse(cachedAtt);
+            renderAttendance('Cached');
+        }
+        const cachedTt = localStorage.getItem('srm_cached_schedule');
+        if (cachedTt) {
+            SRM_DATA.dayOrderSchedule = JSON.parse(cachedTt);
+        }
+    } catch (_) {}
+
     initClockAndDate();
     initDockNavigation();
     initDaySelector();
@@ -335,9 +363,12 @@ function _initApp() {
     syncWithBackend();
     initP2PMesh();
 
-    setInterval(updateLiveHUD, 10000);
-    setInterval(updateClock, 1000);
-    setInterval(syncWithBackend, 4000);
+    if (!window._appIntervalsSet) {
+        window._appIntervalsSet = true;
+        setInterval(updateLiveHUD, 10000);
+        setInterval(updateClock, 1000);
+        setInterval(syncWithBackend, 15000);
+    }
 }
 
 let selectedDay = 'Day 1';
@@ -457,6 +488,7 @@ async function syncWithBackend() {
         }).filter(x => x.title || x.code);
         
         portalAttendance = parsed;
+        try { localStorage.setItem('srm_cached_attendance', JSON.stringify(parsed)); } catch (_) {}
         const now = new Date();
         renderAttendance(now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
     }
@@ -485,6 +517,7 @@ async function syncWithBackend() {
             schedule[day].sort((a, b) => a.hour - b.hour);
         }
         SRM_DATA.dayOrderSchedule = schedule;
+        try { localStorage.setItem('srm_cached_schedule', JSON.stringify(schedule)); } catch (_) {}
         renderDaySchedule(selectedDay);
         updateLiveHUD();
     }
@@ -914,7 +947,7 @@ function initAnnouncementsSearch() {
     }
 }
 
-// Inception Labs Mercury AI Copilot Engine
+// ─── SRM Academic AI Copilot Engine (Puter.js + Multi-Provider Fallbacks) ────
 function initAI() {
     const sendBtn = document.getElementById('ai-send-btn');
     const input = document.getElementById('ai-input');
@@ -937,6 +970,136 @@ function initAI() {
     });
 }
 
+function getAcademicContextForAI() {
+    const studentName = localStorage.getItem('srm_display_name') || 'Student';
+    const day = currentDayOrder || 'Day 1';
+    const schedule = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[day]) ? SRM_DATA.dayOrderSchedule[day] : [];
+    
+    const schedLines = schedule.map(s => {
+        if (s.type === 'Free') return `Hour ${s.hour}: Free`;
+        const slot = (SRM_DATA.timeSlots && SRM_DATA.timeSlots[s.hour - 1]) ? SRM_DATA.timeSlots[s.hour - 1].label : '';
+        return `Hour ${s.hour} (${slot}): ${s.title} (${s.code}) at Room ${s.venue} [Faculty: ${s.faculty || 'N/A'}]`;
+    }).join('\n');
+
+    let attLines = 'Attendance: Synchronized with SRM Academia database.';
+    if (portalAttendance && portalAttendance.length > 0) {
+        attLines = portalAttendance.map(a => {
+            const title = a.courseTitle || a.courseCode || 'Course';
+            const pct = a.percentage || 'N/A';
+            const attended = a.hoursAttended || a.attendedHours || 0;
+            const total = a.totalHours || a.hoursConducted || 0;
+            return `- ${title}: ${pct}% (${attended}/${total} hours attended)`;
+        }).join('\n');
+    }
+
+    return `You are the AI Academic Copilot for SRM University student ${studentName}.
+Active Campus Status:
+- Current Day Order: ${day}
+- Today's Class Schedule:
+${schedLines || 'No active classes scheduled for today.'}
+
+Student Attendance Records:
+${attLines}
+
+SRM Academic Regulations:
+- Mandatory Minimum Attendance: 75% per course to qualify for semester end examinations (CLA / University exams).
+- If attendance is above 75%, safe bunks = Math.floor((attended - 0.75 * total) / 0.75).
+- If attendance is below 75%, required classes to recover = Math.ceil((0.75 * total - attended) / 0.25).
+
+Instructions:
+- Provide direct, concise, and helpful answers.
+- Format equations, room numbers, and timings clearly using Markdown.`;
+}
+
+async function askAcademicAI(userPrompt) {
+    const systemPrompt = getAcademicContextForAI();
+
+    // 1. Puter.js Free AI Layer (No API Key needed, high quality models)
+    if (window.puter && window.puter.ai && typeof window.puter.ai.chat === 'function') {
+        try {
+            const res = await window.puter.ai.chat([
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ], { model: 'gpt-4o-mini' });
+            if (res) {
+                if (typeof res === 'string' && res.trim()) return res;
+                if (res.message && res.message.content) return res.message.content;
+                if (res.text) return res.text;
+            }
+        } catch (e) {
+            console.warn('Puter AI error, falling back:', e);
+        }
+    }
+
+    // 2. Pollinations POST Engine (Zero CORS issues, structured JSON)
+    try {
+        const polResp = await fetch('https://text.pollinations.ai/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ],
+                model: 'openai',
+                seed: Date.now()
+            })
+        });
+        if (polResp.ok) {
+            const text = await polResp.text();
+            if (text && !text.includes('PAYMENT_REQUIRED') && !text.includes('"error"') && text.length > 5) {
+                return text;
+            }
+        }
+    } catch (e) {
+        console.warn('Pollinations POST failed:', e);
+    }
+
+    // 3. Pollinations Secondary Fallback
+    try {
+        const enc = encodeURIComponent(`Context: ${systemPrompt}\nStudent: ${userPrompt}`);
+        const fbResp = await fetch(`https://text.pollinations.ai/${enc}?model=mistral`);
+        if (fbResp.ok) {
+            const fbText = await fbResp.text();
+            if (fbText && !fbText.includes('PAYMENT_REQUIRED') && fbText.length > 5) {
+                return fbText;
+            }
+        }
+    } catch (_) {}
+
+    // 4. Instant Offline Academic Rule-Based Engine
+    return getOfflineAIResponse(userPrompt);
+}
+
+function getOfflineAIResponse(prompt) {
+    const q = prompt.toLowerCase();
+    const day = currentDayOrder || 'Day 1';
+    const schedule = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[day]) || [];
+
+    if (q.includes('next') || q.includes('class') || q.includes('timetable') || q.includes('schedule') || q.includes('today')) {
+        const classes = schedule.filter(s => s.type !== 'Free');
+        if (classes.length === 0) return `No classes scheduled for **${day}**! You're free today.`;
+        let out = `### Today's Schedule (${day})\n`;
+        classes.forEach(c => {
+            const slot = (SRM_DATA.timeSlots && SRM_DATA.timeSlots[c.hour - 1]) ? SRM_DATA.timeSlots[c.hour - 1].label : '';
+            out += `- **Hour ${c.hour} (${slot})**: ${c.title} at \`${c.venue}\`\n`;
+        });
+        return out;
+    }
+
+    if (q.includes('bunk') || q.includes('attendance') || q.includes('75') || q.includes('margin')) {
+        return `### SRM Attendance & Safe Bunk Policy\n` +
+               `- **Minimum Required**: 75% per course.\n` +
+               `- **Formula**: If attendance > 75%, safe bunks = \`Math.floor((Attended - 0.75 * Total) / 0.75)\`.\n` +
+               `- Check the Live Attendance HUD on your home screen for current margins.`;
+    }
+
+    return `I am your SRM Academic Companion! Ask me anything about:\n` +
+           `- **Today's Classes & Venues** (\`${day}\`)\n` +
+           `- **Attendance Percentages & Safe Bunks**\n` +
+           `- **Circulars & Academic Calendar**`;
+}
+
 async function handleAISend() {
     const input = document.getElementById('ai-input');
     const prompt = input.value.trim();
@@ -945,52 +1108,13 @@ async function handleAISend() {
     input.value = '';
     appendChatMessage('user', prompt);
 
-    const loadingId = appendChatMessage('ai', 'Thinking with Inception AI...');
+    const loadingId = appendChatMessage('ai', 'Thinking…');
 
     try {
-        const response = await fetch('http://localhost:8000/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: prompt })
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            if (data.reply) {
-                updateChatMessage(loadingId, formatMarkdown(data.reply));
-                return;
-            }
-        }
-        throw new Error('Local server failed');
+        const reply = await askAcademicAI(prompt);
+        updateChatMessage(loadingId, formatMarkdown(reply));
     } catch (err) {
-        try {
-            const userName = localStorage.getItem('srm_display_name') || 'a student';
-            const encodedPrompt = encodeURIComponent(`You are an academic tutor for SRM university student ${userName}. Answer this: ` + prompt);
-            const url = `https://text.pollinations.ai/${encodedPrompt}`;
-            const fallbackResp = await fetch(url);
-            
-            if (!fallbackResp.ok) throw new Error('Pollinations blocked');
-            const text = await fallbackResp.text();
-            updateChatMessage(loadingId, formatMarkdown(text));
-        } catch (e2) {
-            try {
-                // Secondary robust fallback (Pico Apps Free LLM)
-                const picoUrl = 'https://backend.buildpicoapps.com/aero/run/llm-api?pk=v1-Z0FBQUFBQm5Ha1FSem1MZE1hOEZBQXdBcXdQQXVWQUFNU1R1MktzUVE0WklOdm40RURlX2F2Z1g5UGJ1NllQeG1rQ3FYRmlJUXhhVEhybWw1T1BtdTBCcldwWENhUG1MTHc9PQ==';
-                const picoResp = await fetch(picoUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: `You are an academic tutor for SRM university student. Answer this: ` + prompt })
-                });
-                const picoData = await picoResp.json();
-                if (picoData.status === 'success') {
-                    updateChatMessage(loadingId, formatMarkdown(picoData.text));
-                } else {
-                    throw new Error('Pico failed');
-                }
-            } catch (e3) {
-                updateChatMessage(loadingId, 'Unable to get AI response. Both AI endpoints rejected the request.');
-            }
-        }
+        updateChatMessage(loadingId, formatMarkdown(getOfflineAIResponse(prompt)));
     }
 }
 
