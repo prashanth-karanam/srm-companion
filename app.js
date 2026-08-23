@@ -154,34 +154,69 @@ async function doAutoLogin(isBackgroundRefresh = false) {
 
     const fullEmail = `${rawId}@srmist.edu.in`;
 
-    // ─── Direct Native Zoho IAM Verification ───
+    // ─── Strict Native Zoho IAM Authentication Verification ───
     try {
-        const authResp = await nativeHttp('https://accounts.zoho.in/signin/v2/primary', {
+        // Step 1: Pre-fetch sign-in page to establish session & CSRF cookies
+        const preAuth = await nativeHttp('https://accounts.zoho.in/signin?servicename=ZohoCreator&serviceurl=https%3A%2F%2Facademia.srmist.edu.in%2F', {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+            }
+        });
+
+        const preCookies = preAuth.headers.get('set-cookie') || '';
+        const preHtml = await preAuth.text();
+        const csrfMatch = preHtml.match(/name="iamcsr"\s+value="([^"]+)"/) || preHtml.match(/iamcsr\s*=\s*"([^"]+)"/);
+        const csrfToken = csrfMatch ? csrfMatch[1] : '';
+
+        // Step 2: POST credentials to Zoho IAM
+        const authResp = await nativeHttp('https://accounts.zoho.in/signin', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Cookie': preCookies,
+                'Referer': 'https://accounts.zoho.in/signin?servicename=ZohoCreator&serviceurl=https%3A%2F%2Facademia.srmist.edu.in%2F'
             },
             body: new URLSearchParams({
                 'LOGIN_ID': fullEmail,
                 'PASSWORD': pass,
-                'client_portal': 'true',
+                'servicename': 'ZohoCreator',
+                'serviceurl': 'https://academia.srmist.edu.in/',
+                'iamcsr': csrfToken,
                 'remember': 'true'
             }).toString()
         });
 
-        if (authResp && authResp.status === 401) {
+        const authCookies = (authResp.headers.get('set-cookie') || '') + ';' + preCookies;
+        const authText = await authResp.text();
+
+        // Check if authentication succeeded (IAM_AUTHENTICATED_COOKIE must be present or redirect to academia)
+        const isAuthSuccess = authCookies.includes('IAM_AUTHENTICATED_COOKIE') || 
+                              authCookies.includes('_zcsr_token') ||
+                              authResp.status === 302 || 
+                              authText.includes('academia-academic-services');
+
+        if (!isAuthSuccess) {
+            // Zoho did not authenticate this password!
             if (!isBackgroundRefresh) {
-                showErr('❌ Invalid SRM Password. Please check and retry.');
+                showErr('❌ Invalid SRM Password. Authentication rejected by SRM Academia.');
                 if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
             }
             return false;
         }
+
+        // Save session cookies for subsequent report calls
+        localStorage.setItem('srm_auth_cookies', authCookies);
     } catch (e) {
-        console.warn('Native Zoho IAM direct auth check:', e);
+        console.warn('Native Zoho IAM authentication exception:', e);
+        if (!isBackgroundRefresh && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+            showErr('❌ Unable to connect to SRM Academia. Check your internet connection.');
+            if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+            return false;
+        }
     }
 
-    // Save for persistent background auto-relogin
+    // Save verified credentials
     localStorage.setItem('srm_auto_id', rawId);
     localStorage.setItem('srm_auto_pass', pass);
     localStorage.setItem('srm_display_name', rawId.toUpperCase());

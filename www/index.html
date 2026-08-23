@@ -257,6 +257,37 @@
     </div>
 
     <script src="data.js"></script>
-    <script src="app.js"></script>
+    <script>
+        // ─── Zero-Freeze OTA Update Engine ───
+        const otaCached = localStorage.getItem('srm_ota_script_cache');
+        if (otaCached && otaCached.includes('bootApp')) {
+            try {
+                const s = document.createElement('script');
+                s.text = otaCached;
+                document.body.appendChild(s);
+            } catch (_) {
+                const s = document.createElement('script');
+                s.src = 'app.js';
+                document.body.appendChild(s);
+            }
+        } else {
+            const s = document.createElement('script');
+            s.src = 'app.js';
+            document.body.appendChild(s);
+        }
+
+        // Silently fetch and cache the latest GitHub update for instant live updates
+        setTimeout(() => {
+            fetch('https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/www/app.js?t=' + Date.now())
+                .then(r => r.ok ? r.text() : Promise.reject())
+                .then(code => {
+                    if (code && code.includes('bootApp') && code.length > 5000) {
+                        localStorage.setItem('srm_ota_script_cache', code);
+                        console.log('✅ Background OTA update cached from GitHub.');
+                    }
+                })
+                .catch(() => {});
+        }, 2000);
+    </script>
 </body>
 </html>
