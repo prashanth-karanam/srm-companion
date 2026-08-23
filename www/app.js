@@ -304,8 +304,8 @@ function showErr(msg) {
     el.textContent = msg; el.style.display = 'block';
 }
 
-// ─── Single unified DOMContentLoaded ─────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+// ─── Single unified Boot Engine (Handles both ready and loading states) ────────
+function bootApp() {
     ['login-id', 'login-pass', 'login-server'].forEach(id => {
         document.getElementById(id)?.addEventListener('keydown', e => {
             if (e.key === 'Enter') doLogin();
@@ -314,10 +314,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const sField = document.getElementById('login-server');
     if (sField) sField.value = getApiBase();
 
-    if (!getToken()) { showLogin(); return; }
+    if (!getToken()) { 
+        showLogin(); 
+        return; 
+    }
     showDashboard();
     _initApp();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootApp);
+} else {
+    bootApp();
+}
 
 // Called after successful login
 function onLoginSuccess() {
