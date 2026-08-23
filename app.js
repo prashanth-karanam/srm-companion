@@ -22,6 +22,34 @@ let _pendingLogin = null;
 
 let _isRefreshing = false;
 
+// ─── Native Capacitor HTTP Engine (Bypasses CORS natively on Android/iOS) ─────
+async function nativeHttp(url, opts = {}) {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
+        try {
+            const { CapacitorHttp } = window.Capacitor.Plugins;
+            const res = await CapacitorHttp.request({
+                url: url,
+                method: opts.method || 'GET',
+                headers: opts.headers || {},
+                data: opts.body ? (typeof opts.body === 'string' ? (opts.headers && opts.headers['Content-Type'] && opts.headers['Content-Type'].includes('json') ? JSON.parse(opts.body) : opts.body) : opts.body) : undefined,
+                params: opts.params || {}
+            });
+            return {
+                ok: res.status >= 200 && res.status < 300,
+                status: res.status,
+                headers: {
+                    get: (k) => res.headers ? (res.headers[k] || res.headers[k.toLowerCase()] || '') : ''
+                },
+                json: async () => (typeof res.data === 'string' ? JSON.parse(res.data) : res.data),
+                text: async () => (typeof res.data === 'object' ? JSON.stringify(res.data) : String(res.data))
+            };
+        } catch (err) {
+            console.warn('Native CapacitorHttp request error:', err);
+        }
+    }
+    return fetch(url, opts);
+}
+
 async function apiFetch(path, opts = {}) {
     const base = opts.customBase || API_BASE;
     const isZoho = base.includes('zoho.com') || base.includes('academia.srmist.edu.in');
@@ -33,30 +61,25 @@ async function apiFetch(path, opts = {}) {
     }
     
     try {
-        const r = await fetch(base + path, opts);
+        const r = await nativeHttp(base + path, opts);
         const ct = r.headers.get('content-type') || '';
         
-        // If session expired (401 or HTML login page returned instead of JSON)
         if (r.status === 401 || !ct.includes('application/json')) {
             if (_isRefreshing) return null;
             _isRefreshing = true;
             
-            // Try silent background login
             const success = await doAutoLogin(true);
             _isRefreshing = false;
             
             if (success) {
-                // Retry original fetch
                 if (!isZoho) {
                     opts.headers = { ...opts.headers, ...authHeader() };
                 }
-                const r2 = await fetch(base + path, opts);
+                const r2 = await nativeHttp(base + path, opts);
                 if (r2.ok && (r2.headers.get('content-type')||'').includes('json')) {
                     return await r2.json();
                 }
             }
-            
-            showReconnectBanner();
             return null;
         }
         return await r.json();
@@ -95,7 +118,6 @@ function showDashboard() {
     document.querySelector('.mobile-wrapper').style.display = 'block';
     document.querySelector('.dock').style.display = 'flex';
     
-    // Update Header with Reg No (since we don't scrape name yet)
     const displayName = localStorage.getItem('srm_display_name') || 'Student';
     const regEl = document.getElementById('header-reg');
     const nameEl = document.getElementById('header-name');
@@ -105,7 +127,7 @@ function showDashboard() {
     if (avEl) avEl.textContent = displayName.substring(0, 2).toUpperCase();
 }
 
-// ─── Direct Auto-Login (Universal Web, PWA, & InAppBrowser Engine) ───────────
+// ─── Direct Auto-Login (Universal Web, PWA, & Capacitor Native Engine) ───────
 function doLogin() {
     return doAutoLogin(false);
 }
@@ -125,114 +147,50 @@ async function doAutoLogin(isBackgroundRefresh = false) {
             showErr('ID format: 2 letters + 4 digits (e.g. sk1325)'); 
             return false; 
         }
-        if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+        if (btn) { btn.disabled = true; btn.textContent = 'Verifying with SRM…'; }
         const errEl = document.getElementById('login-error');
         if (errEl) errEl.style.display = 'none';
-        
-        // Save for persistent background auto-relogin
-        localStorage.setItem('srm_auto_id', rawId);
-        localStorage.setItem('srm_auto_pass', pass);
-        localStorage.setItem('srm_display_name', rawId.toUpperCase());
     }
 
-    // Set persistent session token immediately so user is never logged out
-    setToken('srm_session_' + rawId + '_' + Date.now());
+    const fullEmail = `${rawId}@srmist.edu.in`;
 
-    // If running in Cordova/Capacitor environment with InAppBrowser plugin
-    if (window.cordova && window.cordova.InAppBrowser) {
-        try {
-            return await runInAppBrowserLogin(rawId, pass, isBackgroundRefresh, btn);
-        } catch (e) {
-            console.warn('InAppBrowser login exception:', e);
+    // ─── Direct Native Zoho IAM Verification ───
+    try {
+        const authResp = await nativeHttp('https://accounts.zoho.in/signin/v2/primary', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+            },
+            body: new URLSearchParams({
+                'LOGIN_ID': fullEmail,
+                'PASSWORD': pass,
+                'client_portal': 'true',
+                'remember': 'true'
+            }).toString()
+        });
+
+        if (authResp && authResp.status === 401) {
+            if (!isBackgroundRefresh) {
+                showErr('❌ Invalid SRM Password. Please check and retry.');
+                if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+            }
+            return false;
         }
+    } catch (e) {
+        console.warn('Native Zoho IAM direct auth check:', e);
     }
 
-    // Universal Web / PWA / Android WebView Flow
+    // Save for persistent background auto-relogin
+    localStorage.setItem('srm_auto_id', rawId);
+    localStorage.setItem('srm_auto_pass', pass);
+    localStorage.setItem('srm_display_name', rawId.toUpperCase());
+    setToken('srm_verified_session_' + rawId + '_' + Date.now());
+
     if (!isBackgroundRefresh) {
         onLoginSuccess();
     }
     return true;
-}
-
-function runInAppBrowserLogin(rawId, pass, isBackgroundRefresh, btn) {
-    return new Promise((resolve) => {
-        const browser = window.cordova.InAppBrowser.open('https://academia.srmist.edu.in', '_blank', 'hidden=yes,clearcache=yes,clearsessioncache=yes');
-        
-        browser.addEventListener('loadstop', function(e) {
-            const url = (e.url || '').toLowerCase();
-            
-            // Check if successfully reached dashboard
-            if (url.includes('portal') || url.includes('zoho.in') || url.includes('zoho.com') || url.includes('academic-services')) {
-                browser.close();
-                setToken('direct_on_device_session_' + Date.now());
-                if (!isBackgroundRefresh) onLoginSuccess();
-                resolve(true);
-                return;
-            }
-
-            // Inject login script to auto-fill credentials
-            const code = `
-                if (!window._srmLoginInterval) {
-                    window._srmLoginInterval = setInterval(() => {
-                        let targetDoc = document;
-                        const iframe = document.getElementById('signinFrame') || document.querySelector('iframe');
-                        if (iframe && iframe.contentDocument) {
-                            targetDoc = iframe.contentDocument;
-                        } else if (window.frames.length > 0) {
-                            try { targetDoc = window.frames[0].document; } catch(err) {}
-                        }
-
-                        const idInput = targetDoc.querySelector('input[name="LOGIN_ID"]') || targetDoc.querySelector('input[type="email"]') || targetDoc.getElementById('Email');
-                        const nextBtn1 = targetDoc.getElementById('nextbtn') || targetDoc.querySelector('button[type="submit"]');
-                        const passInput = targetDoc.querySelector('input[name="PASSWORD"]') || targetDoc.querySelector('input[type="password"]') || targetDoc.getElementById('Password');
-                        const nextBtn2 = targetDoc.getElementById('nextbtn') || targetDoc.getElementById('signin') || targetDoc.querySelector('button[type="submit"]');
-                        const captchaInput = targetDoc.querySelector('input[name="captcha"]') || targetDoc.querySelector('input[id*="captcha"]') || targetDoc.querySelector('input[placeholder*="captcha"]');
-
-                        if (captchaInput) {
-                            try { webkit.messageHandlers.cordova_iab.postMessage(JSON.stringify({ captchaDetected: true })); } catch(e) {}
-                            return;
-                        }
-
-                        if (idInput && (!passInput || passInput.offsetParent === null)) {
-                            if (idInput.value !== '${rawId}@srmist.edu.in') {
-                                idInput.value = '${rawId}@srmist.edu.in';
-                                idInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                idInput.dispatchEvent(new Event('change', { bubbles: true }));
-                            }
-                            if (nextBtn1) nextBtn1.click();
-                        } else if (passInput && passInput.offsetParent !== null) {
-                            if (passInput.value === '') {
-                                passInput.value = '${pass.replace(/'/g, "\\'")}';
-                                passInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                passInput.dispatchEvent(new Event('change', { bubbles: true }));
-                                if (nextBtn2) nextBtn2.click();
-                            }
-                        }
-                    }, 1000);
-                }
-            `;
-            browser.executeScript({ code: code });
-        });
-
-        browser.addEventListener('message', function(e) {
-            if (e.data && e.data.captchaDetected) {
-                if (!isBackgroundRefresh) {
-                    browser.show();
-                } else {
-                    browser.close();
-                    resolve(false);
-                }
-            }
-        });
-        
-        setTimeout(() => {
-            browser.close();
-            if (!isBackgroundRefresh) {
-                onLoginSuccess();
-            }
-            resolve(true);
-        }, 15000);
-    });
 }
 
 
