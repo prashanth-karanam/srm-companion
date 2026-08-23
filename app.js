@@ -1,13 +1,13 @@
 // SRM Student Companion - Dynamic Timetable Mutation & AI Override Engine
 
-// ─── API Config — checks custom saved URL or local network IP ─────────────────
+// ─── API Config — Vercel Serverless Backend / Custom URL ─────────────────────
 function getApiBase() {
     const saved = localStorage.getItem('srm_api_base');
     if (saved) return saved.replace(/\/$/, '');
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        return 'http://10.3.3.182:8000'; // Default PC local IP for phone testing
+    if (window.location.hostname.includes('vercel.app')) {
+        return window.location.origin;
     }
-    return 'http://10.3.3.182:8000';
+    return ''; // Relative or Vercel backend
 }
 const API_BASE = getApiBase();
 
