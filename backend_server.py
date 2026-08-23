@@ -19,6 +19,8 @@ if hasattr(sys.stdout, 'reconfigure'):
     except Exception:
         pass
 
+_active_sessions = {}
+
 # ── SRM Portal Scraper Integration ──────────────────────────────────────────
 try:
     from srm_scraper import load_scraped_data, start_background_scraper
@@ -324,57 +326,102 @@ class APIHandler(BaseHTTPRequestHandler):
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
 
-        elif self.path == '/api/ingest' or self.path == '/api/webhook':
+        elif self.path == '/api/sp/captcha':
+            # Generate a fresh live session with sp.srmist.edu.in and stream real CAPTCHA image
             try:
-                body = json.loads(post_data.decode('utf-8'))
-                raw_text = body.get('text') or body.get('message') or ''
-                group = body.get('groupName') or 'WhatsApp Group'
-
-                # 1. Check for schedule changes / cancellations first
-                override = analyze_and_apply_schedule_changes(raw_text, group)
-
-                # 2. Extract general announcement
-                ai_prompt = f"""Extract academic announcements for student Karanam Sai Prasanth from this text:
-"{raw_text}"
-
-Return JSON only:
-{{
-  "isRelevant": true,
-  "subject": "Subject Name",
-  "code": "Course Code",
-  "category": "Xerox / Lab Venue OR Schedule / Cancellation OR Assignment / Code OR Exam / Tutorial",
-  "title": "Short 3-5 word Title",
-  "detail": "Clear 1-line actionable instruction",
-  "priority": "HIGH / MEDIUM"
-}}"""
-                ai_reply = ai_engine.get_reply(ai_prompt)
-                match = re.search(r'\{[\s\S]*\}', ai_reply)
-                if match:
-                    d = json.loads(match.group(0))
-                    if d.get("isRelevant") or d.get("detail"):
-                        new_ann = {
-                            "id": f"ann-{uuid.uuid4().hex[:6]}",
-                            "subject": d.get("subject", "General Academic"),
-                            "code": d.get("code", "GENERAL"),
-                            "category": d.get("category", "General Notice"),
-                            "title": d.get("title", "Class Update"),
-                            "detail": d.get("detail", raw_text[:80]),
-                            "faculty": "-",
-                            "venue": "-",
-                            "sourceGroup": group,
-                            "priority": d.get("priority", "HIGH"),
-                            "timestamp": "Just Now"
-                        }
-                        STRUCTURED_ANNOUNCEMENTS.insert(0, new_ann)
-                        self._set_headers(200)
-                        self.wfile.write(json.dumps({"success": True, "announcement": new_ann, "override": override}).encode('utf-8'))
-                        return
-
+                sess = requests.Session()
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+                }
+                res = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp', headers=headers, timeout=12)
+                
+                # Fetch live captcha image from SCaptchaServlet
+                import base64
+                ts = int(time.time() * 1000)
+                captcha_res = sess.get(f'https://sp.srmist.edu.in/srmiststudentportal/SCaptchaServlet?ts={ts}', headers=headers, timeout=12)
+                
+                sess_id = str(uuid.uuid4())
+                _active_sessions[sess_id] = sess
+                
+                b64_img = base64.b64encode(captcha_res.content).decode('utf-8')
                 self._set_headers(200)
-                self.wfile.write(json.dumps({"success": False, "message": "No actionable change detected"}).encode('utf-8'))
+                self.wfile.write(json.dumps({
+                    "success": True,
+                    "sessionId": sess_id,
+                    "captchaImg": f"data:image/jpeg;base64,{b64_img}"
+                }).encode('utf-8'))
             except Exception as e:
                 self._set_headers(500)
-                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
+
+        elif self.path == '/api/sp/login':
+            # Submit credentials & solved CAPTCHA to sp.srmist.edu.in
+            try:
+                body = json.loads(post_data.decode('utf-8'))
+                sess_id = body.get('sessionId')
+                username = body.get('username')
+                password = body.get('password')
+                captcha = body.get('captcha')
+
+                sess = _active_sessions.get(sess_id) or requests.Session()
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp'
+                }
+
+                login_payload = {
+                    'username': username,
+                    'password': password,
+                    'captcha': captcha
+                }
+
+                r_login = sess.post('https://sp.srmist.edu.in/srmiststudentportal/LoginServlet', data=login_payload, headers=headers, timeout=15)
+                
+                # Fetch attendance table
+                r_att = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/report/attendanceReport.jsp', headers=headers, timeout=15)
+                
+                # Scrape attendance rows
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(r_att.text, 'html.parser')
+                attendance_list = []
+                
+                tables = soup.find_all('table')
+                for table in tables:
+                    rows = table.find_all('tr')
+                    for row in rows[1:]:
+                        cols = [c.text.strip() for c in row.find_all(['td', 'th'])]
+                        if len(cols) >= 6 and any(c.isdigit() for c in cols):
+                            attendance_list.append({
+                                "code": cols[0],
+                                "title": cols[1],
+                                "conducted": cols[2],
+                                "attended": cols[3],
+                                "absent": cols[4] if len(cols) > 4 else "0",
+                                "percentage": cols[5] if len(cols) > 5 else "0"
+                            })
+
+                if attendance_list:
+                    scraped = load_scraped_data()
+                    scraped["attendance"] = attendance_list
+                    scraped["status"] = "success"
+                    scraped["last_scraped"] = time.strftime("%d-%m-%Y %H:%M:%S")
+                    with open(os.path.join(os.path.dirname(__file__), "scraped_data.json"), "w") as f:
+                        json.dump(scraped, f, indent=2)
+
+                    self._set_headers(200)
+                    self.wfile.write(json.dumps({
+                        "success": True,
+                        "attendance": attendance_list
+                    }).encode('utf-8'))
+                else:
+                    self._set_headers(200)
+                    self.wfile.write(json.dumps({
+                        "success": False,
+                        "error": "Login rejected or no attendance table found. Check credentials/CAPTCHA."
+                    }).encode('utf-8'))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
 
 def run(port=8000):
     server_address = ('0.0.0.0', port)
