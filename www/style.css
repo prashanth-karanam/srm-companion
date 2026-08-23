@@ -847,3 +847,67 @@ body {
     border: 1px solid var(--card-border);
 }
 
+/* ─── SRM Live Portal Modal & CAPTCHA Solver ────────────────────────── */
+.portal-open-btn {
+    width: 100%;
+    padding: 12px;
+    background: #18181c;
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-md);
+    color: #e4e4e7;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.15s, border-color 0.15s;
+}
+.portal-open-btn:hover {
+    background: #222228;
+    border-color: var(--blue);
+}
+
+.portal-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #000;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+}
+.portal-modal-header {
+    height: 56px;
+    background: #121215;
+    border-bottom: 1px solid var(--card-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+}
+.portal-done-btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.portal-modal-body {
+    flex: 1;
+    width: 100%;
+    height: calc(100% - 56px);
+    background: #fff;
+}
+.portal-modal-body iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+

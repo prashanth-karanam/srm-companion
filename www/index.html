@@ -36,13 +36,37 @@
                 <input id="login-pass" class="login-input" type="password" placeholder="Your academia password" autocomplete="current-password">
             </div>
             <p id="login-error" class="login-error" style="display:none;"></p>
-            <button id="login-btn" class="login-btn" onclick="doAutoLogin()">Sign In</button>
+            <button id="login-btn" class="login-btn" onclick="doAutoLogin()">Sign In (Auto)</button>
             
+            <div style="display:flex;align-items:center;margin:14px 0 10px;gap:10px;">
+                <div style="flex:1;height:1px;background:var(--card-border);"></div>
+                <span style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">OR SOLVE CAPTCHA</span>
+                <div style="flex:1;height:1px;background:var(--card-border);"></div>
+            </div>
+
+            <button type="button" class="portal-open-btn" onclick="openPortalModal()">
+                🔐 Open Official SRM Login (with CAPTCHA)
+            </button>
+
             <p class="section-stamp" style="text-align:center;margin-top:12px;">
                 Secure Auto-Login enabled. Credentials stay on your device.
             </p>
 
         </div>
+    </div>
+</div>
+
+<!-- Interactive SRM Portal Modal & CAPTCHA Solver -->
+<div id="portal-modal" class="portal-modal" style="display:none;">
+    <div class="portal-modal-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span class="status-dot"></span>
+            <span style="font-weight:600;font-size:0.9rem;color:#f4f4f5;">SRM Academia Live Portal</span>
+        </div>
+        <button class="portal-done-btn" onclick="finishPortalLogin()">✅ Done & Continue</button>
+    </div>
+    <div class="portal-modal-body">
+        <iframe id="portal-frame" src="about:blank" allow="forms; scripts; same-origin"></iframe>
     </div>
 </div>
 
