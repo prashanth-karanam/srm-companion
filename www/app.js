@@ -228,22 +228,18 @@ async function doAutoLogin(isBackgroundRefresh = false) {
     return true;
 }
 
-// ─── Interactive SRM Portal Login & CAPTCHA Solver ───────────────────────────
+// ─── Interactive SRM Student Portal Login & CAPTCHA Solver ───────────────────
 function openPortalModal() {
     const modal = document.getElementById('portal-modal');
     const frame = document.getElementById('portal-frame');
-    if (!modal) return;
+    const spUrl = 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp';
 
-    modal.style.display = 'flex';
-    if (frame) {
-        frame.src = 'https://academia.srmist.edu.in/';
-    }
+    if (modal) modal.style.display = 'flex';
+    if (frame) frame.src = spUrl;
 
-    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
-        try {
-            window.open('https://academia.srmist.edu.in', '_blank');
-        } catch (_) {}
-    }
+    try {
+        window.open(spUrl, '_blank');
+    } catch (_) {}
 }
 
 function closePortalModal() {

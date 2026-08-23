@@ -678,34 +678,54 @@ body {
 .att-hint.safe   { color: #34d399; }
 .att-hint.warn   { color: #fbbf24; }
 
-/* ─── Login screen ───────────────────────────────────────────────────────── */
+/* ─── Login screen (Clean White Light Theme) ─────────────────────────────── */
 .login-screen {
     position: fixed;
     inset: 0;
-    background: var(--bg);
+    background: #f1f5f9;
+    color: #0f172a;
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 9999;
-    padding: 24px;
+    padding: 20px;
 }
 
 .login-card {
     width: 100%;
-    max-width: 360px;
+    max-width: 380px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 24px;
+    padding: 32px 24px;
+    box-shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
     display: flex;
     flex-direction: column;
-    gap: 28px;
+    gap: 20px;
 }
 
 .login-logo {
     text-align: center;
 }
+.login-logo .user-avatar {
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    font-weight: 800;
+}
+.login-logo h1 {
+    color: #0f172a;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+.login-logo .section-stamp {
+    color: #64748b;
+}
 
 .login-form {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
 }
 
 .login-field {
@@ -715,18 +735,18 @@ body {
 }
 
 .login-label {
-    font-size: 0.75rem;
+    font-size: 0.78rem;
     font-weight: 600;
-    color: var(--text-sub);
-    letter-spacing: 0.02em;
+    color: #334155;
+    letter-spacing: 0.01em;
 }
 
 .login-input {
-    background: var(--card);
-    border: 1px solid var(--card-border);
-    border-radius: var(--radius-md);
+    background: #f8fafc;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 12px;
     padding: 12px 14px;
-    color: var(--text-main);
+    color: #0f172a;
     font-family: var(--font);
     font-size: 0.92rem;
     outline: none;
@@ -734,21 +754,25 @@ body {
 }
 
 .login-input:focus {
-    border-color: var(--accent);
+    border-color: #2563eb;
+    background: #ffffff;
 }
 
 .login-btn {
-    background: var(--accent);
-    color: #000;
+    background: #2563eb;
+    color: #ffffff;
     border: none;
-    border-radius: var(--radius-md);
+    border-radius: 12px;
     padding: 13px;
     font-family: var(--font);
     font-size: 0.92rem;
     font-weight: 700;
     cursor: pointer;
     margin-top: 4px;
-    transition: opacity 0.15s;
+    transition: background 0.15s, opacity 0.15s;
+}
+.login-btn:hover {
+    background: #1d4ed8;
 }
 
 .login-btn:disabled {
@@ -758,12 +782,12 @@ body {
 
 .login-error {
     font-size: 0.78rem;
-    color: #f87171;
+    color: #dc2626;
     text-align: center;
     padding: 8px 12px;
-    background: rgba(239, 68, 68, 0.08);
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(239, 68, 68, 0.2);
+    background: #fef2f2;
+    border-radius: 8px;
+    border: 1px solid #fecaca;
 }
 
 /* Fix #15 — status-dot (was missing, caused green dot to not render) */
@@ -851,10 +875,10 @@ body {
 .portal-open-btn {
     width: 100%;
     padding: 12px;
-    background: #18181c;
-    border: 1px solid var(--card-border);
-    border-radius: var(--radius-md);
-    color: #e4e4e7;
+    background: #f8fafc;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 12px;
+    color: #0f172a;
     font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
@@ -865,8 +889,8 @@ body {
     transition: background 0.15s, border-color 0.15s;
 }
 .portal-open-btn:hover {
-    background: #222228;
-    border-color: var(--blue);
+    background: #e2e8f0;
+    border-color: #2563eb;
 }
 
 .portal-modal {
