@@ -289,15 +289,34 @@ function showErr(msg) {
     el.textContent = msg; el.style.display = 'block';
 }
 
+const APP_BUILD_VERSION = '2.0.2';
+
 // ─── Single unified Boot Engine (Handles both ready and loading states) ────────
 function bootApp() {
-    ['login-id', 'login-pass', 'login-server'].forEach(id => {
+    // 1. Auto-Purge outdated browser/webview script caches on version update (Zero 'Clear Data' needed!)
+    try {
+        const storedVer = localStorage.getItem('srm_client_version');
+        if (storedVer !== APP_BUILD_VERSION) {
+            if ('caches' in window) {
+                caches.keys().then(names => names.forEach(name => caches.delete(name)));
+            }
+            localStorage.setItem('srm_client_version', APP_BUILD_VERSION);
+        }
+    } catch (_) {}
+
+    // 2. Auto-Refresh HUD on app resume/foreground
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            updateLiveHUD();
+            updateClock();
+        }
+    });
+
+    ['login-id', 'login-pass', 'login-captcha'].forEach(id => {
         document.getElementById(id)?.addEventListener('keydown', e => {
             if (e.key === 'Enter') doLogin();
         });
     });
-    const sField = document.getElementById('login-server');
-    if (sField) sField.value = getApiBase();
 
     const token = getToken();
     const autoId = localStorage.getItem('srm_auto_id');
