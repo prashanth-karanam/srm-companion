@@ -1055,13 +1055,13 @@ async function askAcademicAI(userPrompt) {
         console.warn('Pollinations POST failed:', e);
     }
 
-    // 3. Pollinations Secondary Fallback
+    // 3. Pollinations Secondary Fallback (DeepSeek / OpenAI)
     try {
         const enc = encodeURIComponent(`Context: ${systemPrompt}\nStudent: ${userPrompt}`);
-        const fbResp = await fetch(`https://text.pollinations.ai/${enc}?model=mistral`);
+        const fbResp = await fetch(`https://text.pollinations.ai/${enc}?model=openai`);
         if (fbResp.ok) {
             const fbText = await fbResp.text();
-            if (fbText && !fbText.includes('PAYMENT_REQUIRED') && fbText.length > 5) {
+            if (fbText && !fbText.includes('PAYMENT_REQUIRED') && !fbText.includes('"error"') && fbText.length > 5) {
                 return fbText;
             }
         }
