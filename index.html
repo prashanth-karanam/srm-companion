@@ -19,7 +19,7 @@
 <body>
 
 <!-- Login Screen (shown when no JWT stored) — MUST be inside body -->
-<div id="login-screen" class="login-screen" style="display:none;">
+<div id="login-screen" class="login-screen" style="display:flex;">
     <div class="login-card">
         <div class="login-logo">
             <div class="user-avatar" style="width:52px;height:52px;font-size:1.1rem;margin:0 auto 12px;">SRM</div>
@@ -46,7 +46,7 @@
     </div>
 </div>
 
-    <div class="mobile-wrapper">
+    <div class="mobile-wrapper" style="display:none;">
         <!-- Top Navigation -->
         <div class="top-nav">
             <div class="user-tag">
@@ -229,7 +229,7 @@
     </div>
 
     <!-- Bottom Navigation Dock -->
-    <div class="dock">
+    <div class="dock" style="display:none;">
         <button class="dock-item active" data-tab="view-schedule">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
             <span>Schedule</span>
@@ -257,37 +257,6 @@
     </div>
 
     <script src="data.js"></script>
-    <script>
-        // ─── Zero-Freeze OTA Update Engine ───
-        const otaCached = localStorage.getItem('srm_ota_script_cache');
-        if (otaCached && otaCached.includes('bootApp')) {
-            try {
-                const s = document.createElement('script');
-                s.text = otaCached;
-                document.body.appendChild(s);
-            } catch (_) {
-                const s = document.createElement('script');
-                s.src = 'app.js';
-                document.body.appendChild(s);
-            }
-        } else {
-            const s = document.createElement('script');
-            s.src = 'app.js';
-            document.body.appendChild(s);
-        }
-
-        // Silently fetch and cache the latest GitHub update for instant live updates
-        setTimeout(() => {
-            fetch('https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/www/app.js?t=' + Date.now())
-                .then(r => r.ok ? r.text() : Promise.reject())
-                .then(code => {
-                    if (code && code.includes('bootApp') && code.length > 5000) {
-                        localStorage.setItem('srm_ota_script_cache', code);
-                        console.log('✅ Background OTA update cached from GitHub.');
-                    }
-                })
-                .catch(() => {});
-        }, 2000);
-    </script>
+    <script src="app.js"></script>
 </body>
 </html>

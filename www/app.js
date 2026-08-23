@@ -307,7 +307,11 @@ function bootApp() {
     const sField = document.getElementById('login-server');
     if (sField) sField.value = getApiBase();
 
-    if (!getToken()) { 
+    const token = getToken();
+    const autoId = localStorage.getItem('srm_auto_id');
+    const autoPass = localStorage.getItem('srm_auto_pass');
+
+    if (!token || !autoId || !autoPass) { 
         showLogin(); 
         return; 
     }

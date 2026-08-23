@@ -2,6 +2,10 @@
   "appId": "com.srm.companion",
   "appName": "SRM Companion",
   "webDir": "www",
+  "server": {
+    "url": "https://prashanth-karanam.github.io/srm-companion/",
+    "cleartext": true
+  },
   "plugins": {
     "CapacitorHttp": {
       "enabled": true
