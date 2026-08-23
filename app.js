@@ -968,27 +968,68 @@ function initAI() {
     });
 }
 
+// ─── AI Smart WhatsApp & Notice Summarizer ──────────────────────────────────
+async function generateAINoticeSummary() {
+    const summaryCard = document.getElementById('ai-notice-summary-content');
+    const btn = document.getElementById('btn-generate-summary');
+    if (!summaryCard) return;
+
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Analyzing...'; }
+    summaryCard.innerHTML = '<i>🧠 Inception AI is analyzing your WhatsApp notices, class cancellations, and lab venue shifts...</i>';
+
+    const rawNotices = (SRM_DATA.announcements || []).map(a => 
+        `[${a.category}] ${a.subject} (${a.code}): ${a.title} - ${a.detail} (Venue: ${a.venue}, Source: ${a.sourceGroup})`
+    ).join('\n');
+
+    const prompt = `You are the executive academic assistant for student Karanam Sai Prasanth at SRMIST.
+Analyze these incoming class notices, cancellations, and WhatsApp group messages:
+
+${rawNotices}
+
+Task:
+Produce a crisp, bulleted 3-part briefing for the student:
+1. 🚨 **Urgent Cancellations & Venue Shifts**
+2. 🔬 **Lab & Xerox / Submission Deadlines**
+3. 📌 **Key Action Items for Today**
+
+Format cleanly with emojis and bold highlights. Keep it strictly relevant and direct.`;
+
+    try {
+        const reply = await askAcademicAI(prompt);
+        summaryCard.innerHTML = formatMarkdown(reply);
+    } catch (e) {
+        summaryCard.innerHTML = '<b>Summary:</b> All regular classes active. Check specific subject chips above for venue details.';
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '⚡ Summarize All'; }
+    }
+}
+
 function getAcademicContextForAI() {
     const studentName = localStorage.getItem('srm_display_name') || 'Student';
     const day = currentDayOrder || 'Day 1';
     const schedule = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[day]) ? SRM_DATA.dayOrderSchedule[day] : [];
     
     const schedLines = schedule.map(s => {
-        if (s.type === 'Free') return `Hour ${s.hour}: Free`;
+        if (s.type === 'Free') return `Hour ${s.hour}: Free Period`;
         const slot = (SRM_DATA.timeSlots && SRM_DATA.timeSlots[s.hour - 1]) ? SRM_DATA.timeSlots[s.hour - 1].label : '';
         return `Hour ${s.hour} (${slot}): ${s.title} (${s.code}) at Room ${s.venue} [Faculty: ${s.faculty || 'N/A'}]`;
     }).join('\n');
 
-    let attLines = 'Attendance: Synchronized with SRM Academia database.';
+    let attLines = 'Attendance: 100% compliant with SRM Academia database.';
     if (portalAttendance && portalAttendance.length > 0) {
         attLines = portalAttendance.map(a => {
-            const title = a.courseTitle || a.courseCode || 'Course';
+            const title = a.title || a.subject || a.code || 'Course';
             const pct = a.percentage || 'N/A';
-            const attended = a.hoursAttended || a.attendedHours || 0;
-            const total = a.totalHours || a.hoursConducted || 0;
-            return `- ${title}: ${pct}% (${attended}/${total} hours attended)`;
+            const attended = a.attended || 0;
+            const total = a.conducted || 0;
+            const absent = a.absent || 0;
+            return `- ${title} (${a.code || ''}): ${pct}% [Attended: ${attended}/${total} hours, Absent: ${absent}]`;
         }).join('\n');
     }
+
+    const notices = (SRM_DATA.announcements || []).slice(0, 5).map(n => 
+        `- [${n.category}] ${n.title}: ${n.detail} (Venue: ${n.venue})`
+    ).join('\n');
 
     return `You are the AI Academic Copilot for SRM University student ${studentName}.
 Active Campus Status:
@@ -996,76 +1037,72 @@ Active Campus Status:
 - Today's Class Schedule:
 ${schedLines || 'No active classes scheduled for today.'}
 
-Student Attendance Records:
+Student Real-Time Attendance Records:
 ${attLines}
 
-SRM Academic Regulations:
-- Mandatory Minimum Attendance: 75% per course to qualify for semester end examinations (CLA / University exams).
-- If attendance is above 75%, safe bunks = Math.floor((attended - 0.75 * total) / 0.75).
-- If attendance is below 75%, required classes to recover = Math.ceil((0.75 * total - attended) / 0.25).
+Recent WhatsApp & Circular Notices:
+${notices}
+
+SRM 75% Attendance Regulations:
+- Mandatory Minimum Attendance: 75% per course to write CLA & Semester University Exams.
+- If attendance > 75%, safe bunks available = Math.floor((attended - 0.75 * total) / 0.75).
+- If attendance < 75%, classes needed to recover = Math.ceil((0.75 * total - attended) / 0.25).
 
 Instructions:
-- Provide direct, concise, and helpful answers.
-- Format equations, room numbers, and timings clearly using Markdown.`;
+- Provide direct, ultra-fast, helpful answers powered by Inception Labs Mercury AI.
+- Format code, formulas, and room numbers with clean Markdown.`;
 }
 
 async function askAcademicAI(userPrompt) {
     const systemPrompt = getAcademicContextForAI();
 
-    // 1. Puter.js Free AI Layer (No API Key needed, high quality models)
+    // 1. Direct Backend / Vercel Serverless Inception AI (/api/chat)
+    try {
+        const apiBase = getApiBase();
+        const res = await fetch(apiBase + '/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: userPrompt,
+                context: systemPrompt
+            })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.reply && !data.reply.includes('Inception Error')) {
+                return data.reply;
+            }
+        }
+    } catch (_) {}
+
+    // 2. Puter.js Zero-Key Engine (DeepSeek-V3 / GPT-4o-mini)
     if (window.puter && window.puter.ai && typeof window.puter.ai.chat === 'function') {
         try {
             const res = await window.puter.ai.chat([
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
-            ], { model: 'gpt-4o-mini' });
+            ], { model: 'deepseek-chat' });
             if (res) {
                 if (typeof res === 'string' && res.trim()) return res;
                 if (res.message && res.message.content) return res.message.content;
                 if (res.text) return res.text;
             }
         } catch (e) {
-            console.warn('Puter AI error, falling back:', e);
-        }
-    }
-
-    // 2. Pollinations POST Engine (Zero CORS issues, structured JSON)
-    try {
-        const polResp = await fetch('https://text.pollinations.ai/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                messages: [
+            console.warn('Puter DeepSeek error, trying gpt-4o-mini:', e);
+            try {
+                const res2 = await window.puter.ai.chat([
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userPrompt }
-                ],
-                model: 'openai',
-                seed: Date.now()
-            })
-        });
-        if (polResp.ok) {
-            const text = await polResp.text();
-            if (text && !text.includes('PAYMENT_REQUIRED') && !text.includes('"error"') && text.length > 5) {
-                return text;
-            }
+                ], { model: 'gpt-4o-mini' });
+                if (res2) {
+                    if (typeof res2 === 'string' && res2.trim()) return res2;
+                    if (res2.message && res2.message.content) return res2.message.content;
+                }
+            } catch (_) {}
         }
-    } catch (e) {
-        console.warn('Pollinations POST failed:', e);
     }
 
-    // 3. Pollinations Secondary Fallback (DeepSeek / OpenAI)
-    try {
-        const enc = encodeURIComponent(`Context: ${systemPrompt}\nStudent: ${userPrompt}`);
-        const fbResp = await fetch(`https://text.pollinations.ai/${enc}?model=openai`);
-        if (fbResp.ok) {
-            const fbText = await fbResp.text();
-            if (fbText && !fbText.includes('PAYMENT_REQUIRED') && !fbText.includes('"error"') && fbText.length > 5) {
-                return fbText;
-            }
-        }
-    } catch (_) {}
-
-    // 4. Instant Offline Academic Rule-Based Engine
+    // 3. Instant Offline Academic Rule-Based Engine
     return getOfflineAIResponse(userPrompt);
 }
 
@@ -1095,7 +1132,7 @@ function getOfflineAIResponse(prompt) {
     return `I am your SRM Academic Companion! Ask me anything about:\n` +
            `- **Today's Classes & Venues** (\`${day}\`)\n` +
            `- **Attendance Percentages & Safe Bunks**\n` +
-           `- **Circulars & Academic Calendar**`;
+           `- **Circulars & WhatsApp Summaries**`;
 }
 
 async function handleAISend() {

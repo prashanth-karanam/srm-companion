@@ -158,6 +158,22 @@
             <!-- Quick Search Bar -->
             <input type="text" id="ann-search-input" class="ai-input-field" style="margin-bottom:12px;width:100%;font-size:0.82rem;" placeholder="🔍 Search notices (e.g. Pink building, Xerox, Sheeba, Test)...">
 
+            <!-- AI Smart Summary of Notices & WhatsApp Messages -->
+            <div id="ai-notice-summary-card" class="card" style="margin-bottom:14px;background:#18181c;border:1px solid #27272a;border-radius:14px;padding:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:1rem;">✨</span>
+                        <span style="font-weight:700;font-size:0.85rem;color:#f4f4f5;">AI Notices & WhatsApp Briefing</span>
+                    </div>
+                    <button id="btn-generate-summary" onclick="generateAINoticeSummary()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:0.75rem;font-weight:700;cursor:pointer;">
+                        ⚡ Summarize All
+                    </button>
+                </div>
+                <div id="ai-notice-summary-content" style="font-size:0.8rem;color:#a1a1aa;line-height:1.5;">
+                    Tap <b>"Summarize All"</b> to get a real-time AI breakdown of all urgent class cancellations, venue shifts, lab instructions, and assignment deadlines from your notices & WhatsApp messages.
+                </div>
+            </div>
+
             <!-- Announcements Feed -->
             <div id="announcements-container" style="display:flex;flex-direction:column;gap:10px;">
                 <!-- Populated by JS -->
@@ -167,21 +183,25 @@
         <!-- Section 3: Inception Labs Mercury AI Copilot -->
         <div id="view-ai" class="tab-view" style="display: none;">
             <div class="ai-view">
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
-                    <span class="status-dot"></span>
-                    <span style="font-size:0.75rem;font-weight:600;color:var(--text-sub);">Inception Labs Mercury AI (Zero Login &bull; Unlimited)</span>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span class="status-dot"></span>
+                        <span style="font-size:0.78rem;font-weight:700;color:var(--text-main);">Inception Labs Mercury AI Copilot</span>
+                    </div>
+                    <span style="font-size:0.7rem;color:var(--accent);font-weight:600;">Live Academic Engine</span>
                 </div>
 
                 <div class="ai-prompts">
+                    <div class="ai-prompt-pill" data-prompt="Analyze my real-time attendance, tell me which subjects are below 75%, and give me an exact safe bunk budget.">📊 Attendance Analysis</div>
+                    <div class="ai-prompt-pill" data-prompt="What is my schedule for today, what room is my next class in, and are there any cancellations?">🕒 Today's Schedule</div>
+                    <div class="ai-prompt-pill" data-prompt="Summarize all latest WhatsApp notices, lab xerox requirements, and urgent class updates.">📢 Notices Summary</div>
                     <div class="ai-prompt-pill" data-prompt="Explain matrix eigenvalues and eigenvectors step-by-step for Calculus 26MAB1001T">📐 Calculus Matrix</div>
                     <div class="ai-prompt-pill" data-prompt="Give me the C program and logic for prime numbers range in PPS 26CSE1002J">💻 C Code Practice</div>
-                    <div class="ai-prompt-pill" data-prompt="Explain fuel cells and lithium-ion batteries working principles for Chemistry 26CYB1002J">🧪 Chemistry Batteries</div>
-                    <div class="ai-prompt-pill" data-prompt="What is sequence alignment (BLAST/FASTA) in Computational Biology 26BTB1001T?">🧬 Comp Bio BLAST</div>
                 </div>
 
                 <div id="chat-history" class="chat-stream">
                     <div class="bubble bubble-ai">
-                        Hey! I'm your AI Companion. Powered by <b>Inception Labs Mercury AI</b>. Ask me anything about your subjects or code debugging with zero limits.
+                        Hey! I'm your SRM Academic Copilot powered by <b>Inception Labs Mercury AI</b>. I have real-time access to your Day Order schedule, live attendance margins, and WhatsApp notice summaries. Ask me anything!
                     </div>
                 </div>
 
