@@ -10,7 +10,7 @@ Features:
    - Java X-Domain-Proof Nonce & Linked data-src CAPTCHA Binding
    - Reverse-Domain Token & Delimiter Timing Trap Emulation (domainFieldName & captchaFieldName)
    - Full Canvas & Device Telemetry Payload Generation (telemetryPayload)
-   - Anti-Bot Honeypot Integrity
+   - Safe Multi-Path Cookie Extraction (Eliminates CookieConflictError)
    - Live Attendance, Timetable & Real Student Name Extraction
 """
 
@@ -68,7 +68,6 @@ class AdvancedAIClient:
             "User-Agent": HEADERS["User-Agent"]
         }
 
-        # 1. Try with primary session
         s = self._get_session()
         try:
             s.get("https://chat.inceptionlabs.ai", headers=headers, timeout=10)
@@ -80,7 +79,6 @@ class AdvancedAIClient:
         except Exception:
             pass
 
-        # 2. Fallback to fresh standard requests.Session
         self.session = requests.Session()
         s = self.session
         s.get("https://chat.inceptionlabs.ai", headers=headers, timeout=10)
@@ -225,7 +223,8 @@ def fetch_srm_captcha():
     
     captcha_res = sess.get(captcha_url, timeout=10)
     
-    cookies_str = "; ".join([f"{k}={v}" for k, v in sess.cookies.items()])
+    # Safe cookie extraction avoiding CookieConflictError
+    cookies_str = "; ".join([f"{c.name}={c.value}" for c in sess.cookies])
     b64_img = base64.b64encode(captcha_res.content).decode('utf-8')
     
     return {
@@ -252,9 +251,9 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
         sess.headers['Cookie'] = cookies_str
 
     login_payload = {
-        'username': username,
-        'password': password,
-        'captcha': captcha
+        'username': username.strip().lower(),
+        'password': password.strip(),
+        'captcha': captcha.strip()
     }
     
     if hidden_fields and isinstance(hidden_fields, dict):
@@ -303,14 +302,25 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
     # 3. Post to LoginServlet
     login_res = sess.post('https://sp.srmist.edu.in/srmiststudentportal/LoginServlet', data=login_payload, timeout=15, allow_redirects=True)
     
-    # Strict validation: Check if login was rejected
-    if "Invalid" in login_res.text or "loginFailed" in login_res.url or "youLogin.jsp" in login_res.url:
+    # 4. Strict validation: Check for specific rejection messages
+    res_text = login_res.text
+    if "Invalid Captcha" in res_text:
         return {
             "success": False,
-            "error": "❌ Invalid SRM ID, Password, or CAPTCHA. Please verify your credentials."
+            "error": "❌ Invalid CAPTCHA code. Please check the image and type the exact letters."
+        }
+    if "Invalid User" in res_text or "Invalid Password" in res_text or "loginFailed" in login_res.url:
+        return {
+            "success": False,
+            "error": "❌ Invalid SRM NetID or password. Please verify your credentials."
+        }
+    if "youLogin.jsp" in login_res.url and "HRDSystem.jsp" not in login_res.url and "welcome" not in res_text.lower():
+        return {
+            "success": False,
+            "error": "❌ Login failed on SRM Portal. Please check your NetID, password, and CAPTCHA."
         }
 
-    # 4. Extract Real Student Name & Registration Number
+    # 5. Extract Real Student Name & Registration Number
     student_name = username.upper()
     reg_no = ""
     try:
@@ -327,7 +337,7 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
     except Exception:
         pass
 
-    # 5. Scrape Live Attendance Table
+    # 6. Scrape Live Attendance Table
     attendance_list = []
     try:
         r_att = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/report/attendanceReport.jsp', timeout=12)
@@ -356,9 +366,10 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
     except Exception:
         pass
 
-    fresh_cookies = "; ".join([f"{k}={v}" for k, v in sess.cookies.items()])
+    # Safe cookie extraction avoiding CookieConflictError
+    fresh_cookies = "; ".join([f"{c.name}={c.value}" for c in sess.cookies])
 
-    if attendance_list or "Welcome" in login_res.text or "student" in login_res.url:
+    if "HRDSystem.jsp" in login_res.url or "student" in login_res.url or "welcome" in res_text.lower() or attendance_list:
         return {
             "success": True,
             "name": student_name,
