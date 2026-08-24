@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>SRM Companion</title>
-    <link rel="stylesheet" href="style.css?v=2.0.2">
+    <link rel="stylesheet" href="style.css?v=2.2.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -16,18 +16,21 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="SRM Companion">
+    <!-- Zero-Cost Keyless AI (DeepSeek / GPT-4o-mini in Browser) -->
     <script src="https://js.puter.com/v2/"></script>
+    <!-- Zero-Cost Realtime P2P WebRTC Device-to-Device Mesh -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 
 <body>
 
-<!-- Login Screen (shown when no JWT stored) — MUST be inside body -->
+<!-- Login Screen (shown when no session stored) -->
 <div id="login-screen" class="login-screen" style="display:flex;">
     <div class="login-card">
         <div class="login-logo">
             <div class="user-avatar" style="width:52px;height:52px;font-size:1.1rem;margin:0 auto 12px;">SRM</div>
             <h1 style="font-size:1.2rem;font-weight:700;margin-bottom:4px;">SRM Companion</h1>
-            <p class="section-stamp" style="margin-bottom:0;">Sign in with your SRM academia ID</p>
+            <p class="section-stamp" style="margin-bottom:0;">Sign in with your SRM NetID</p>
         </div>
         <div class="login-form">
             <div class="login-field">
@@ -41,22 +44,22 @@
             <div class="login-field" id="captcha-container">
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                     <label class="login-label">Security CAPTCHA</label>
-                    <button type="button" onclick="refreshCaptcha()" style="background:none;border:none;color:#2563eb;font-size:0.75rem;font-weight:600;cursor:pointer;">🔄 Refresh</button>
+                    <button type="button" onclick="refreshCaptcha()" style="background:none;border:none;color:#38bdf8;font-size:0.75rem;font-weight:600;cursor:pointer;">🔄 Refresh</button>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;">
-                    <div id="captcha-box" style="background:#e2e8f0;border-radius:10px;padding:8px 12px;font-family:var(--font-mono);font-size:1.05rem;font-weight:700;letter-spacing:4px;color:#0f172a;min-width:110px;text-align:center;user-select:none;">
-                        R7B9K
+                    <div id="captcha-box" style="background:#1e293b;border-radius:10px;padding:6px 10px;font-family:var(--font-mono);font-size:1.05rem;font-weight:700;letter-spacing:3px;color:#38bdf8;min-width:110px;text-align:center;user-select:none;display:flex;align-items:center;justify-content:center;min-height:38px;">
+                        <span id="captcha-text">R7B9K</span>
                     </div>
                     <input id="login-captcha" class="login-input" type="text" placeholder="Enter code" style="flex:1;" autocomplete="off">
                 </div>
             </div>
             <p id="login-error" class="login-error" style="display:none;"></p>
-            <button id="login-btn" class="login-btn" onclick="doAutoLogin()">Sign In</button>
+            <button id="login-btn" class="login-btn" onclick="doAutoLogin()">Sign In & Sync</button>
             
             <div style="display:flex;align-items:center;margin:10px 0 6px;gap:10px;">
-                <div style="flex:1;height:1px;background:#e2e8f0;"></div>
-                <span style="font-size:0.72rem;color:#64748b;font-weight:600;">OR LIVE PORTAL</span>
-                <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+                <div style="flex:1;height:1px;background:#27272a;"></div>
+                <span style="font-size:0.72rem;color:#71717a;font-weight:600;">PORTAL WEBVIEW</span>
+                <div style="flex:1;height:1px;background:#27272a;"></div>
             </div>
 
             <button type="button" class="portal-open-btn" onclick="openPortalModal()">
@@ -64,21 +67,23 @@
             </button>
 
             <p class="section-stamp" style="text-align:center;margin-top:8px;">
-                Direct authentication enabled. Credentials stay on your device.
+                Direct authentication enabled. 100% $0 free forever.
             </p>
-
         </div>
     </div>
 </div>
 
-<!-- Interactive SRM Portal Modal & CAPTCHA Solver -->
+<!-- Interactive SRM Portal Modal -->
 <div id="portal-modal" class="portal-modal" style="display:none;">
     <div class="portal-modal-header">
         <div style="display:flex;align-items:center;gap:8px;">
             <span class="status-dot"></span>
-            <span style="font-weight:600;font-size:0.9rem;color:#f4f4f5;">SRM Academia Live Portal</span>
+            <span style="font-weight:600;font-size:0.9rem;color:#f4f4f5;">SRM Student Portal</span>
         </div>
-        <button class="portal-done-btn" onclick="finishPortalLogin()">✅ Done & Continue</button>
+        <div style="display:flex;gap:6px;">
+            <button class="portal-done-btn" onclick="finishPortalLogin()">✅ Done & Continue</button>
+            <button class="portal-done-btn" style="background:#3f3f46;" onclick="closePortalModal()">✕</button>
+        </div>
     </div>
     <div class="portal-modal-body">
         <iframe id="portal-frame" src="about:blank" allow="forms; scripts; same-origin"></iframe>
@@ -91,7 +96,7 @@
             <div class="user-tag">
                 <div class="user-avatar" id="header-avatar">SC</div>
                 <div class="user-meta">
-                    <h2 id="header-name">Student</h2>
+                    <h2 id="header-name">Welcome</h2>
                     <p id="header-reg">SRM Companion &bull; SRMIST</p>
                 </div>
             </div>
@@ -106,7 +111,6 @@
 
         <!-- Section 1: Today / Timetable View -->
         <div id="view-schedule" class="tab-view" style="display: block;">
-            
             <!-- Live Hero Card -->
             <div class="live-hero">
                 <div class="hero-status-row">
@@ -141,7 +145,50 @@
             </div>
         </div>
 
-        <!-- Section 2: Categorized Announcements Hub -->
+        <!-- Section 2: Attendance Hub -->
+        <div id="view-attendance" class="tab-view" style="display:none;">
+            <div class="section-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <h3 style="font-size:1rem;font-weight:700;">Live Attendance & Margin HUD</h3>
+                <button id="scrape-btn" class="pill-btn" onclick="triggerManualScrape()" style="background:#2563eb;color:#fff;border:none;padding:5px 12px;border-radius:8px;font-size:0.75rem;font-weight:600;cursor:pointer;">Sync Portal</button>
+            </div>
+            <p id="att-stamp" class="section-stamp" style="font-size:0.72rem;color:var(--text-muted);margin-bottom:12px;">Synced recently</p>
+            <div id="att-wrap" class="att-list" style="display:flex;flex-direction:column;gap:10px;">
+                <p class="att-empty" style="text-align:center;color:var(--text-muted);padding:30px 0;">Tap "Sync Portal" to fetch attendance records.</p>
+            </div>
+        </div>
+
+        <!-- Section 3: Inception / Puter AI Academic Copilot -->
+        <div id="view-ai" class="tab-view" style="display: none;">
+            <div class="ai-view">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span class="status-dot"></span>
+                        <span style="font-size:0.78rem;font-weight:700;color:var(--text-main);">SRM Academic AI Copilot</span>
+                    </div>
+                    <span style="font-size:0.7rem;color:var(--accent);font-weight:600;">Zero-Timeout Engine</span>
+                </div>
+
+                <div class="ai-prompts">
+                    <div class="ai-prompt-pill" data-prompt="Analyze my real-time attendance, tell me which subjects are below 75%, and calculate safe bunks.">📊 Attendance Analysis</div>
+                    <div class="ai-prompt-pill" data-prompt="What is my schedule for today, what room is my next class in, and are there any cancellations?">🕒 Today's Schedule</div>
+                    <div class="ai-prompt-pill" data-prompt="Explain matrix eigenvalues and eigenvectors step-by-step for Calculus 26MAB1001T">📐 Calculus Matrix</div>
+                    <div class="ai-prompt-pill" data-prompt="Give me the C program and logic for prime numbers range in PPS 26CSE1002J">💻 C Code Practice</div>
+                </div>
+
+                <div id="chat-history" class="chat-stream">
+                    <div class="bubble bubble-ai">
+                        Hey! I'm your SRM Academic Copilot. I have real-time access to your Day Order schedule, live attendance margins, and exam syllabus. Ask me anything!
+                    </div>
+                </div>
+
+                <div class="ai-input-bar">
+                    <input type="text" id="ai-input" class="ai-input-field" placeholder="Ask AI (C code, matrix, safe bunks)...">
+                    <button id="ai-send-btn" class="ai-send-action">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 4: Categorized Announcements Hub -->
         <div id="view-announcements" class="tab-view" style="display: none;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
                 <h3 style="font-size:0.92rem;font-weight:700;letter-spacing:0.02em;">📢 Faculty Notices & Xerox Log</h3>
@@ -161,61 +208,13 @@
             <!-- Quick Search Bar -->
             <input type="text" id="ann-search-input" class="ai-input-field" style="margin-bottom:12px;width:100%;font-size:0.82rem;" placeholder="🔍 Search notices (e.g. Pink building, Xerox, Sheeba, Test)...">
 
-            <!-- AI Smart Summary of Notices & WhatsApp Messages -->
-            <div id="ai-notice-summary-card" class="card" style="margin-bottom:14px;background:#18181c;border:1px solid #27272a;border-radius:14px;padding:14px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                    <div style="display:flex;align-items:center;gap:6px;">
-                        <span style="font-size:1rem;">✨</span>
-                        <span style="font-weight:700;font-size:0.85rem;color:#f4f4f5;">AI Notices & WhatsApp Briefing</span>
-                    </div>
-                    <button id="btn-generate-summary" onclick="generateAINoticeSummary()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:0.75rem;font-weight:700;cursor:pointer;">
-                        ⚡ Summarize All
-                    </button>
-                </div>
-                <div id="ai-notice-summary-content" style="font-size:0.8rem;color:#a1a1aa;line-height:1.5;">
-                    Tap <b>"Summarize All"</b> to get a real-time AI breakdown of all urgent class cancellations, venue shifts, lab instructions, and assignment deadlines from your notices & WhatsApp messages.
-                </div>
-            </div>
-
             <!-- Announcements Feed -->
             <div id="announcements-container" style="display:flex;flex-direction:column;gap:10px;">
                 <!-- Populated by JS -->
             </div>
         </div>
 
-        <!-- Section 3: Inception Labs Mercury AI Copilot -->
-        <div id="view-ai" class="tab-view" style="display: none;">
-            <div class="ai-view">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-                    <div style="display:flex;align-items:center;gap:6px;">
-                        <span class="status-dot"></span>
-                        <span style="font-size:0.78rem;font-weight:700;color:var(--text-main);">Inception Labs Mercury AI Copilot</span>
-                    </div>
-                    <span style="font-size:0.7rem;color:var(--accent);font-weight:600;">Live Academic Engine</span>
-                </div>
-
-                <div class="ai-prompts">
-                    <div class="ai-prompt-pill" data-prompt="Analyze my real-time attendance, tell me which subjects are below 75%, and give me an exact safe bunk budget.">📊 Attendance Analysis</div>
-                    <div class="ai-prompt-pill" data-prompt="What is my schedule for today, what room is my next class in, and are there any cancellations?">🕒 Today's Schedule</div>
-                    <div class="ai-prompt-pill" data-prompt="Summarize all latest WhatsApp notices, lab xerox requirements, and urgent class updates.">📢 Notices Summary</div>
-                    <div class="ai-prompt-pill" data-prompt="Explain matrix eigenvalues and eigenvectors step-by-step for Calculus 26MAB1001T">📐 Calculus Matrix</div>
-                    <div class="ai-prompt-pill" data-prompt="Give me the C program and logic for prime numbers range in PPS 26CSE1002J">💻 C Code Practice</div>
-                </div>
-
-                <div id="chat-history" class="chat-stream">
-                    <div class="bubble bubble-ai">
-                        Hey! I'm your SRM Academic Copilot powered by <b>Inception Labs Mercury AI</b>. I have real-time access to your Day Order schedule, live attendance margins, and WhatsApp notice summaries. Ask me anything!
-                    </div>
-                </div>
-
-                <div class="ai-input-bar">
-                    <input type="text" id="ai-input" class="ai-input-field" placeholder="Ask Inception AI (C code, matrix, chem)...">
-                    <button id="ai-send-btn" class="ai-send-action">Send</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Section 4: Calendar & Holidays -->
+        <!-- Section 5: Calendar & Holidays -->
         <div id="view-calendar" class="tab-view" style="display: none;">
             <input type="text" id="cal-search-input" class="ai-input-field" style="margin-bottom:12px;width:100%;" placeholder="🔍 Search dates (e.g. 04-09, Oct), Day Order, Holidays...">
             <div class="cal-list" id="cal-list-container">
@@ -223,7 +222,32 @@
             </div>
         </div>
 
-        <!-- Section 5: Tools & Sync -->
+        <!-- Section 6: Real P2P WebRTC Device-to-Device Mesh Chat -->
+        <div id="view-p2p" class="tab-view" style="display: none;">
+            <div class="ai-view">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span class="status-dot" style="background:#22c55e;"></span>
+                        <span style="font-size:0.75rem;font-weight:600;color:var(--text-sub);">P2P Classroom Mesh (WebRTC &bull; Zero Server DB)</span>
+                    </div>
+                    <span id="p2p-peer-count" style="font-size:0.7rem;background:#18181b;padding:2px 8px;border-radius:9999px;color:var(--accent);border:1px solid #27272a;">Connecting...</span>
+                </div>
+
+                <div id="p2p-chat-history" class="chat-stream">
+                    <div class="bubble bubble-ai" style="background:#121215;border:1px solid #222227;">
+                        🌐 <b>True Device-to-Device P2P Classroom Mesh</b><br>
+                        Messages travel directly between student devices via WebRTC data channels with zero server storage.
+                    </div>
+                </div>
+
+                <div class="ai-input-bar">
+                    <input type="text" id="p2p-input" class="ai-input-field" placeholder="Send P2P message to classmates...">
+                    <button id="p2p-send-btn" class="ai-send-action" onclick="sendP2PMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 7: Tools & ICS Export -->
         <div id="view-tools" class="tab-view" style="display: none;">
             <div style="display:flex;flex-direction:column;gap:10px;">
                 <button id="btn-share-wa" class="quick-action-btn">
@@ -237,50 +261,14 @@
                 </button>
 
                 <div class="hero-info-box" style="margin-top:10px;padding:16px;">
-                    <div class="k">Automatic WhatsApp Ingestion Status</div>
+                    <div class="k">App Architecture Status</div>
                     <div style="font-size:0.8rem;color:var(--text-sub);margin-top:4px;line-height:1.4;">
-                        🟢 <b>4 WhatsApp Groups Monitored:</b><br>
-                        • P1 C programming<br>
-                        • AI ML P1 Chemistry<br>
-                        • AI ML P1 MATHS 26-27 odd<br>
-                        • P1 26-30 CSE AI ML BIO<br><br>
-                        Incoming messages are automatically categorized by Inception AI.
+                        ⚡ <b>100% $0-Forever Zero-Bottleneck Setup:</b><br>
+                        • Pure HTTP Session Proxy (15MB RAM)<br>
+                        • Stale-While-Revalidate 0ms App Boot<br>
+                        • Multi-Tier Client AI (Puter.js + Pollinations)<br>
+                        • WebRTC True Device-to-Device P2P Mesh
                     </div>
-                </div>
-            </div>
-        <!-- Attendance Tab -->
-        <div id="view-attendance" class="tab-view" style="display:none;">
-            <div class="section-header">
-                <h3>Attendance</h3>
-                <button id="scrape-btn" class="pill-btn" onclick="triggerManualScrape()">Sync Portal</button>
-            </div>
-            <p id="att-stamp" class="section-stamp">Never synced</p>
-            <div id="att-wrap" class="att-list">
-                <p class="att-empty">Fetching from SRM portal…</p>
-            </div>
-        </div>
-
-        <!-- Section 7: P2P Zero-DB Offline Mesh Chat -->
-        <div id="view-p2p" class="tab-view" style="display: none;">
-            <div class="ai-view">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <div style="display:flex;align-items:center;gap:6px;">
-                        <span class="status-dot" style="background:#22c55e;"></span>
-                        <span style="font-size:0.75rem;font-weight:600;color:var(--text-sub);">P2P Nearby Mesh (Zero Server DB &bull; Offline)</span>
-                    </div>
-                    <span id="p2p-peer-count" style="font-size:0.7rem;background:#18181b;padding:2px 8px;border-radius:9999px;color:var(--accent);border:1px solid #27272a;">1 peer active</span>
-                </div>
-
-                <div id="p2p-chat-history" class="chat-stream">
-                    <div class="bubble bubble-ai" style="background:#121215;border:1px solid #222227;">
-                        🌐 <b>Zero-Database P2P Classroom Chat</b><br>
-                        Messages are sent directly device-to-device without passing through any server database. Stored strictly on your phone!
-                    </div>
-                </div>
-
-                <div class="ai-input-bar">
-                    <input type="text" id="p2p-input" class="ai-input-field" placeholder="Send P2P message to nearby peers...">
-                    <button id="p2p-send-btn" class="ai-send-action" onclick="sendP2PMessage()">Send</button>
                 </div>
             </div>
         </div>
@@ -297,6 +285,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
             <span>Attendance</span>
         </button>
+        <button class="dock-item" data-tab="view-ai">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            <span>AI Copilot</span>
+        </button>
         <button class="dock-item" data-tab="view-p2p">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
             <span>P2P Chat</span>
@@ -305,17 +297,13 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
             <span>Notices</span>
         </button>
-        <button class="dock-item" data-tab="view-ai">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-            <span>Inception AI</span>
-        </button>
         <button class="dock-item" data-tab="view-calendar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
             <span>Holidays</span>
         </button>
     </div>
 
-    <script src="data.js?v=2.0.2"></script>
-    <script src="app.js?v=2.0.2"></script>
+    <script src="data.js?v=2.2.0"></script>
+    <script src="app.js?v=2.2.0"></script>
 </body>
 </html>
