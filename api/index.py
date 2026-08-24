@@ -25,7 +25,7 @@ from bs4 import BeautifulSoup
 try:
     from curl_cffi.requests import Session as CurlSession
     CURL_CFFI_AVAILABLE = True
-except ImportError:
+except Exception:
     CURL_CFFI_AVAILABLE = False
 
 HEADERS = {
@@ -46,7 +46,10 @@ class AdvancedAIClient:
     def _get_session(self):
         if self.session is None:
             if CURL_CFFI_AVAILABLE:
-                self.session = CurlSession(impersonate=self.browser_profile)
+                try:
+                    self.session = CurlSession(impersonate=self.browser_profile)
+                except Exception:
+                    self.session = requests.Session()
             else:
                 self.session = requests.Session()
         return self.session
@@ -74,16 +77,17 @@ class AdvancedAIClient:
         raise ConnectionError(f"Session initiation failed: HTTP {res.status_code}")
 
     def query(self, user_text: str, system_context: str = "") -> dict:
+        err_detail = ""
         try:
             token = self._ensure_valid_token()
-        except Exception:
-            # Refresh session on error and retry once
+        except Exception as e:
             self.session = None
             self._token = None
             try:
                 token = self._ensure_valid_token()
-            except Exception:
-                return self._fallback_pollinations(user_text, system_context)
+            except Exception as e2:
+                err_detail = f"Token error: {e2}"
+                return self._fallback_pollinations(user_text, system_context, err_detail)
 
         s = self._get_session()
         headers = {
@@ -147,12 +151,12 @@ class AdvancedAIClient:
                     "provider": "Inception Labs Mercury (Stateful TLS Emulation)",
                     "status": "success"
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            err_detail = f"Stream error: {e}"
 
-        return self._fallback_pollinations(user_text, system_context)
+        return self._fallback_pollinations(user_text, system_context, err_detail)
 
-    def _fallback_pollinations(self, user_text: str, system_context: str = "") -> dict:
+    def _fallback_pollinations(self, user_text: str, system_context: str = "", err_detail: str = "") -> dict:
         try:
             payload = {
                 "messages": [
@@ -176,6 +180,7 @@ class AdvancedAIClient:
             "success": True,
             "reply": "I am your SRM Academic Copilot. Please ask a specific question regarding PPS, Calculus, Chemistry, Comp Bio, or attendance margins.",
             "reasoning": "",
+            "debug": err_detail,
             "provider": "Offline Rule Engine",
             "status": "success"
         }
@@ -387,7 +392,7 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
             except Exception as e:
                 self._set_headers(500)
-                self.wfile.write(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False).encode('utf-8'))
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
 
         elif path == '/api/chat':
             message = body.get('message') or body.get('prompt') or ''
@@ -404,7 +409,7 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
             except Exception as e:
                 self._set_headers(500)
-                self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode('utf-8'))
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
 
         else:
             self._set_headers(404)
