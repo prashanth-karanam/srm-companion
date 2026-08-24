@@ -95,6 +95,16 @@ function showDashboard() {
     if (nameEl) nameEl.textContent = displayName;
     if (regEl) regEl.textContent = regNo;
     if (avEl) avEl.textContent = displayName.substring(0, 2).toUpperCase();
+
+    // Update global SRM_DATA profile
+    if (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) {
+        SRM_DATA.profile.name = displayName;
+        SRM_DATA.profile.regNo = regNo;
+        const prog = localStorage.getItem('srm_program');
+        if (prog) SRM_DATA.profile.degree = prog;
+        const sec = localStorage.getItem('srm_section');
+        if (sec) SRM_DATA.profile.batch = 'Section ' + sec;
+    }
 }
 
 // ─── Live CAPTCHA Engine (sp.srmist.edu.in) ───────────────────────────────────
@@ -401,6 +411,15 @@ async function syncWithBackend() {
                 updateLiveHUD();
             }
         }
+
+        // 2. Fetch live announcements / schedule overrides from backend if available
+        try {
+            const annRes = await apiFetch('/api/announcements');
+            if (annRes && annRes.success && annRes.announcements && annRes.announcements.length > 0) {
+                announcementsData = annRes.announcements;
+                renderAnnouncements();
+            }
+        } catch (_) {}
     } catch (_) {}
 }
 
@@ -430,23 +449,33 @@ function renderAttendance(syncedAt) {
         return;
     }
 
-    wrap.innerHTML = portalAttendance.map(item => {
+    let totCon = 0, totAtt = 0, totAbs = 0;
+
+    const cardsHtml = portalAttendance.map(item => {
         const title = item.title || item.subject || item.code || 'Academic Subject';
         const code  = item.code || '';
-        const pct   = parseFloat(item.percentage || 0);
-        const con   = parseInt(item.conducted || 0);
-        const att   = parseInt(item.attended || 0);
-        const abs   = parseInt(item.absent || 0);
+        const con   = parseInt(item.conducted || 0, 10);
+        const att   = parseInt(item.attended || 0, 10);
+        const abs   = parseInt(item.absent || 0, 10);
+        
+        totCon += con;
+        totAtt += att;
+        totAbs += abs;
 
-        const danger = pct < 75;
-        const needed   = Math.max(0, Math.ceil(3 * con - 4 * att));
-        const bunkable = Math.max(0, Math.floor((4 * att - 3 * con) / 3));
+        const isUnconducted = con === 0;
+        const pct = isUnconducted ? 100.0 : (item.percentage ? parseFloat(item.percentage) : parseFloat(((att / con) * 100).toFixed(2)));
+        const danger = !isUnconducted && pct < 75;
+        
+        const needed   = isUnconducted ? 0 : Math.max(0, 3 * con - 4 * att);
+        const bunkable = isUnconducted ? 0 : Math.max(0, Math.floor((4 * att - 3 * con) / 3));
 
-        const hint = danger
-            ? `<span class="att-hint danger" style="color:#f87171;font-size:0.73rem;font-weight:600;">⚠️ Attend ${needed} more class${needed > 1 ? 'es' : ''} to reach 75%</span>`
-            : bunkable > 0
-                ? `<span class="att-hint safe" style="color:#34d399;font-size:0.73rem;font-weight:600;">✅ Safe Margin: Can skip ${bunkable} class${bunkable > 1 ? 'es' : ''}</span>`
-                : `<span class="att-hint warn" style="color:#fbbf24;font-size:0.73rem;font-weight:600;">⚖️ Exactly at 75% margin — do not miss!</span>`;
+        const hint = isUnconducted
+            ? `<span class="att-hint safe" style="color:#38bdf8;font-size:0.73rem;font-weight:600;">ℹ️ No classes conducted yet</span>`
+            : danger
+                ? `<span class="att-hint danger" style="color:#f87171;font-size:0.73rem;font-weight:600;">⚠️ Attend ${needed} more class${needed > 1 ? 'es' : ''} to reach 75%</span>`
+                : bunkable > 0
+                    ? `<span class="att-hint safe" style="color:#34d399;font-size:0.73rem;font-weight:600;">✅ Safe Margin: Can skip ${bunkable} class${bunkable > 1 ? 'es' : ''}</span>`
+                    : `<span class="att-hint warn" style="color:#fbbf24;font-size:0.73rem;font-weight:600;">⚖️ Exactly at 75% margin — do not miss!</span>`;
 
         return `
         <div class="att-card ${danger ? 'att-danger' : 'att-safe'}" style="background:#18181c;border:1px solid ${danger ? '#451a1a' : '#1e293b'};border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;">
@@ -468,6 +497,31 @@ function renderAttendance(syncedAt) {
             ${hint}
         </div>`;
     }).join('');
+
+    const overallPct = totCon > 0 ? parseFloat(((totAtt / totCon) * 100).toFixed(2)) : 100.0;
+    const overallDanger = totCon > 0 && overallPct < 75;
+    const overallBunk = totCon > 0 ? Math.max(0, Math.floor((4 * totAtt - 3 * totCon) / 3)) : 0;
+    const overallNeeded = totCon > 0 ? Math.max(0, 3 * totCon - 4 * totAtt) : 0;
+
+    const summaryHtml = `
+    <div class="att-summary-card" style="background:linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);border:1px solid #3730a3;border-radius:14px;padding:16px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <span style="font-size:0.72rem;color:#818cf8;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Semester Overview</span>
+                <div style="font-size:1.05rem;font-weight:800;color:#f8fafc;margin-top:2px;">Overall Attendance</div>
+            </div>
+            <div style="font-size:1.6rem;font-weight:900;color:${overallDanger ? '#f87171' : '#34d399'};font-family:var(--font-mono);">${overallPct}%</div>
+        </div>
+        <div class="att-bar-track" style="background:#1e293b;height:8px;border-radius:9999px;overflow:hidden;margin:10px 0 8px;">
+            <div class="att-bar-fill" style="width:${Math.min(overallPct,100)}%;background:${overallDanger ? '#ef4444' : '#22c55e'};height:100%;border-radius:9999px;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.76rem;color:#cbd5e1;">
+            <span>Total: <b>${totCon} hrs</b> (${totAtt} attended, ${totAbs} absent)</span>
+            <span style="font-weight:700;color:${overallDanger ? '#f87171' : '#38bdf8'};">${overallDanger ? `⚠️ Need ${overallNeeded} hrs to reach 75%` : `✅ ${overallBunk} hrs safe margin`}</span>
+        </div>
+    </div>`;
+
+    wrap.innerHTML = summaryHtml + cardsHtml;
 }
 
 // ─── Clock, Calendar & HUD ────────────────────────────────────────────────────
@@ -821,8 +875,19 @@ Answer clearly and concisely with markdown formatting.`;
 async function askAcademicAI(userPrompt) {
     const systemPrompt = getAcademicContextForAI();
 
-    // 1. Primary: Puter.js in-browser AI (DeepSeek-V3 / GPT-4o-mini - 100% Free & Unlimited)
-    if (window.puter && window.puter.ai && typeof window.puter.ai.chat === 'function') {
+    // 1. Primary: Direct 100% Free Zero-Login Gateway (/api/chat)
+    try {
+        const res = await apiFetch('/api/chat', {
+            method: 'POST',
+            body: JSON.stringify({ message: userPrompt, context: systemPrompt })
+        });
+        if (res && res.reply && res.reply.trim()) {
+            return res.reply;
+        }
+    } catch (_) {}
+
+    // 2. Secondary: If user is ALREADY authenticated in Puter, use Puter AI without triggering popups
+    if (window.puter && window.puter.auth && typeof window.puter.auth.isSignedIn === 'function' && window.puter.auth.isSignedIn()) {
         try {
             const res = await window.puter.ai.chat([
                 { role: 'system', content: systemPrompt },
@@ -838,18 +903,7 @@ async function askAcademicAI(userPrompt) {
         }
     }
 
-    // 2. Secondary: Stateful Protocol Emulation Backend (/api/chat)
-    try {
-        const res = await apiFetch('/api/chat', {
-            method: 'POST',
-            body: JSON.stringify({ message: userPrompt, context: systemPrompt })
-        });
-        if (res && res.reply && !res.reply.includes('Unable to connect') && !res.reply.includes('Offline Rule Engine')) {
-            return res.reply;
-        }
-    } catch (_) {}
-
-    // 3. Tertiary: Instant Offline Calculation Engine
+    // 3. Tertiary: Instant Client-Side Academic Calculation & Knowledge Engine
     return getOfflineAIResponse(userPrompt);
 }
 
@@ -858,25 +912,93 @@ function getOfflineAIResponse(prompt) {
     const day = currentDayOrder || 'Day 1';
     const schedule = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[day]) || [];
 
+    if (q.includes('eigen') || q.includes('matrix') || q.includes('calculus') || q.includes('26mab1001t')) {
+        return `### 📐 Calculus & Linear Algebra (26MAB1001T) — Eigenvalues & Diagonalization\n\n` +
+               `**1. Characteristic Equation:**\n` +
+               `Solve $|A - \\lambda I| = 0$ to obtain the characteristic polynomial and eigenvalues $\\lambda_1, \\lambda_2, \\dots, \\lambda_n$.\n\n` +
+               `**2. Eigenvector Calculation:**\n` +
+               `For each eigenvalue $\\lambda_i$, solve the homogeneous system $(A - \\lambda_i I)X = 0$.\n\n` +
+               `**3. Cayley-Hamilton Theorem:**\n` +
+               `Every square matrix satisfies its own characteristic equation: $P(A) = 0$.\n` +
+               `- **Matrix Inverse:** $A^{-1} = -\\frac{1}{a_0}(A^{n-1} + a_1 A^{n-2} + \\dots + a_{n-1} I)$\n` +
+               `- **Higher Powers:** $A^k = Q(A)P(A) + R(A) = R(A)$\n\n` +
+               `**4. Quadratic Forms & Orthogonal Reduction:**\n` +
+               `A real symmetric matrix $A$ can be diagonalized as $P^T A P = D$ where $P$ is the orthogonal matrix of normalized eigenvectors.`;
+    }
+
+    if (q.includes('c code') || q.includes('prime') || q.includes('pps') || q.includes('26cse1002j') || q.includes('c program')) {
+        return `### 💻 PPS (26CSE1002J) — Prime Numbers Range in C\n\n` +
+               `\`\`\`c\n` +
+               `#include <stdio.h>\n` +
+               `#include <stdbool.h>\n\n` +
+               `// Returns true if n is prime (O(sqrt(n)) complexity)\n` +
+               `bool isPrime(int n) {\n` +
+               `    if (n <= 1) return false;\n` +
+               `    for (int i = 2; i * i <= n; i++) {\n` +
+               `        if (n % i == 0) return false;\n` +
+               `    }\n` +
+               `    return true;\n` +
+               `}\n\n` +
+               `int main() {\n` +
+               `    int start = 10, end = 50;\n` +
+               `    printf("Prime numbers between %d and %d:\\n", start, end);\n` +
+               `    for (int i = start; i <= end; i++) {\n` +
+               `        if (isPrime(i)) {\n` +
+               `            printf("%d ", i);\n` +
+               `        }\n` +
+               `    }\n` +
+               `    printf("\\n");\n` +
+               `    return 0;\n` +
+               `}\n` +
+               `\`\`\`\n` +
+               `**Complexity:** Checking factors up to $\\sqrt{n}$ reduces runtime from $O(n)$ to $O(\\sqrt{n})$ per number.`;
+    }
+
+    if (q.includes('bunk') || q.includes('attendance') || q.includes('75') || q.includes('margin') || q.includes('analyze')) {
+        if (portalAttendance && portalAttendance.length > 0) {
+            let out = `### 📊 Live Attendance Breakdown & Safe Bunks\n\n`;
+            let totalCon = 0, totalAtt = 0;
+
+            portalAttendance.forEach(a => {
+                const con = parseInt(a.conducted || 0, 10);
+                const att = parseInt(a.attended || 0, 10);
+                const pct = con > 0 ? parseFloat(a.percentage || ((att / con) * 100).toFixed(1)) : 100;
+                totalCon += con;
+                totalAtt += att;
+
+                const danger = con > 0 && pct < 75;
+                const bunks = con > 0 ? Math.max(0, Math.floor((4 * att - 3 * con) / 3)) : 0;
+                const needed = con > 0 ? Math.max(0, 3 * con - 4 * att) : 0;
+
+                const statusIcon = danger ? '❌' : (bunks > 0 ? '✅' : '⚖️');
+                const marginText = danger ? `Need **${needed}** more class(es)` : (bunks > 0 ? `Can skip **${bunks}** class(es)` : `Exactly at margin`);
+
+                out += `- ${statusIcon} **${a.code}** (${a.title || a.subject}): **${pct}%** (${att}/${con} hrs) &rarr; ${marginText}\n`;
+            });
+
+            const overallPct = totalCon > 0 ? ((totalAtt / totalCon) * 100).toFixed(1) : 100;
+            out += `\n**Overall Semester Attendance:** **${overallPct}%** (${totalAtt}/${totalCon} hours)`;
+            return out;
+        }
+
+        return `### 📊 SRM Attendance Regulations & Formulas\n\n` +
+               `- **Mandatory Minimum:** 75% per registered course.\n` +
+               `- **Safe Bunk Formula:** \`Math.floor((4 * Attended - 3 * Conducted) / 3)\`\n` +
+               `- **Recovery Formula:** \`Math.max(0, 3 * Conducted - 4 * Attended)\`\n` +
+               `- Sync your portal in the **Attendance Tab** to see live margins for all your subjects!`;
+    }
+
     if (q.includes('next') || q.includes('class') || q.includes('timetable') || q.includes('schedule') || q.includes('today')) {
         const classes = schedule.filter(s => s.type !== 'Free');
-        if (classes.length === 0) return `No classes scheduled for **${day}**! You are free today.`;
-        let out = `### Today's Schedule (${day})\n`;
+        if (classes.length === 0) return `No classes scheduled for **${day}**! You have a free day.`;
+        let out = `### 🕒 Today's Schedule (${day})\n\n`;
         classes.forEach(c => {
-            out += `- **Hour ${c.hour}**: ${c.title} at \`${c.venue}\`\n`;
+            out += `- **Hour ${c.hour}**: **${c.title}** (${c.type}) at \`${c.venue}\` [Faculty: ${c.faculty || '-'}]\n`;
         });
         return out;
     }
 
-    if (q.includes('bunk') || q.includes('attendance') || q.includes('75') || q.includes('margin')) {
-        return `### SRM Attendance & Safe Bunk Calculation\n` +
-               `- **Minimum Requirement**: 75% per course to qualify for Semester Exams.\n` +
-               `- **Safe Bunk Formula**: \`Math.floor((Attended - 0.75 * Conducted) / 0.75)\`\n` +
-               `- **Recovery Formula**: \`Math.ceil((0.75 * Conducted - Attended) / 0.25)\`\n` +
-               `- Check the Attendance Tab on your home screen for course-by-course live margins.`;
-    }
-
-    return `I am your SRM Academic Copilot. Ask me about **today's timetable**, **attendance safe bunks**, or **exam notes**!`;
+    return `I am your **SRM Academic Copilot**. Ask me about **today's timetable**, **attendance safe bunks**, **C programming code**, or **Calculus formulas**!`;
 }
 
 async function handleAISend() {

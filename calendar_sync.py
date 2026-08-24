@@ -8,14 +8,24 @@ import os
 
 def generate_ics():
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    calendar_json_path = os.path.join(base_dir, '..', 'calendar_data.json')
+    calendar_json_path = os.path.join(base_dir, 'calendar_data.json')
+    parent_json_path = os.path.join(base_dir, '..', 'calendar_data.json')
+    data_js_path = os.path.join(base_dir, 'data.js')
     
-    # Fallback to local if not found in parent
-    if not os.path.exists(calendar_json_path):
-        calendar_json_path = r'C:\Users\Praashu\.gemini\antigravity\scratch\calendar_data.json'
-        
-    with open(calendar_json_path, 'r', encoding='utf-8') as f:
-        calendar_data = json.load(f)
+    calendar_data = []
+    if os.path.exists(calendar_json_path):
+        with open(calendar_json_path, 'r', encoding='utf-8') as f:
+            calendar_data = json.load(f)
+    elif os.path.exists(parent_json_path):
+        with open(parent_json_path, 'r', encoding='utf-8') as f:
+            calendar_data = json.load(f)
+    elif os.path.exists(data_js_path):
+        content = open(data_js_path, 'r', encoding='utf-8').read()
+        import re
+        match = re.search(r'calendar\s*:\s*(\[\s*\{[\s\S]*?\}\s*\])', content)
+        if match:
+            calendar_data = json.loads(match.group(1))
+
 
     # Time slots definition
     time_slots = [

@@ -1,7 +1,30 @@
 # Sensitive Credentials & Cookies (NEVER commit to GitHub)
 credentials.json
 srm_cookies.json
+auth_cookies.json
+*.json
+!package.json
+!package-lock.json
+!manifest.json
+!vercel.json
+!capacitor.config.json
 .env
+
+# Test scripts & debug scratch dumps
+test_*.py
+debug_*.py
+goal_*.py
+shot_*.py
+fetch_*.py
+live_login_instant.py
+scrape_portal_data.py
+*.jpg
+*.jpeg
+*.png
+*_output.html
+*_tab.html
+instant_response.html
+loggedin_page.html
 
 # Python bytecode & venv
 __pycache__/

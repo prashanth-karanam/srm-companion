@@ -242,7 +242,7 @@ Output STRICT JSON only:
             d = json.loads(match.group(0))
             if d.get("isScheduleChange") and d.get("confidence") in ["HIGH", "MEDIUM"]:
                 override = {
-                    "id": f"ov-{Date.now() if 'Date' in globals() else uuid.uuid4().hex[:6]}",
+                    "id": f"ov-{uuid.uuid4().hex[:8]}",
                     "type": d.get("type", "CLASS_CANCELLED"),
                     "subject": d.get("subject", "General"),
                     "code": d.get("code", "GENERAL"),
@@ -265,17 +265,20 @@ class APIHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
         self.end_headers()
 
     def do_OPTIONS(self):
         self._set_headers(204)
 
     def do_GET(self):
-        if self.path == '/api/overrides':
+        path = self.path.split('?')[0].rstrip('/').lower()
+        if not path: path = '/'
+
+        if path in ['/api/overrides', '/overrides']:
             self._set_headers(200)
             self.wfile.write(json.dumps({"success": True, "overrides": SCHEDULE_OVERRIDES}).encode('utf-8'))
-        elif self.path == '/api/tasks' or self.path == '/api/announcements':
+        elif path in ['/api/tasks', '/api/announcements', '/announcements', '/tasks']:
             self._set_headers(200)
             self.wfile.write(json.dumps({
                 "success": True, 
@@ -283,13 +286,23 @@ class APIHandler(BaseHTTPRequestHandler):
                 "overrides": SCHEDULE_OVERRIDES
             }).encode('utf-8'))
 
-        elif self.path == '/api/portal-data':
+        elif path in ['/api/captcha', '/api/sp/captcha', '/captcha']:
+            try:
+                from api.index import fetch_srm_captcha
+                res = fetch_srm_captcha()
+                self._set_headers(200)
+                self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
+
+        elif path in ['/api/portal-data', '/portal-data']:
             # Serve latest scraped portal data (attendance, calendar, circulars)
             self._set_headers(200)
             portal_data = load_scraped_data()
             self.wfile.write(json.dumps({"success": True, "data": portal_data}).encode('utf-8'))
 
-        elif self.path == '/api/portal-scrape':
+        elif path in ['/api/portal-scrape', '/portal-scrape']:
             # Trigger a fresh scrape right now (runs in background thread)
             self._set_headers(200)
             if SCRAPER_AVAILABLE:
@@ -311,12 +324,18 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
-        post_data = self.rfile.read(content_length)
+        post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
+        try:
+            body = json.loads(post_data.decode('utf-8'))
+        except Exception:
+            body = {}
 
-        if self.path == '/api/chat':
+        path = self.path.split('?')[0].rstrip('/').lower()
+        if not path: path = '/'
+
+        if path in ['/api/chat', '/chat']:
             try:
-                data = json.loads(post_data.decode('utf-8'))
-                user_msg = data.get('message', '')
+                user_msg = body.get('message') or body.get('prompt') or ''
                 sys_context = "You are a concise, brilliant academic tutor for Karanam Sai Prasanth, 1st year B.Tech student at SRMIST Kattankulathur studying PPS, Calculus, Chemistry, Comp Bio, and Workshop. Keep answers brief, clean, and direct with code or math formulas."
                 
                 reply = ai_engine.get_reply(user_msg, sys_context)
@@ -326,99 +345,20 @@ class APIHandler(BaseHTTPRequestHandler):
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
 
-        elif self.path == '/api/sp/captcha':
-            # Generate a fresh live session with sp.srmist.edu.in and stream real CAPTCHA image
-            try:
-                sess = requests.Session()
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-                }
-                res = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp', headers=headers, timeout=12)
-                
-                # Fetch live captcha image from SCaptchaServlet
-                import base64
-                ts = int(time.time() * 1000)
-                captcha_res = sess.get(f'https://sp.srmist.edu.in/srmiststudentportal/SCaptchaServlet?ts={ts}', headers=headers, timeout=12)
-                
-                sess_id = str(uuid.uuid4())
-                _active_sessions[sess_id] = sess
-                
-                b64_img = base64.b64encode(captcha_res.content).decode('utf-8')
-                self._set_headers(200)
-                self.wfile.write(json.dumps({
-                    "success": True,
-                    "sessionId": sess_id,
-                    "captchaImg": f"data:image/jpeg;base64,{b64_img}"
-                }).encode('utf-8'))
-            except Exception as e:
-                self._set_headers(500)
-                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
-
-        elif self.path == '/api/sp/login':
+        elif path in ['/api/login', '/api/sp/login', '/login', '/sp/login']:
             # Submit credentials & solved CAPTCHA to sp.srmist.edu.in
             try:
-                body = json.loads(post_data.decode('utf-8'))
-                sess_id = body.get('sessionId')
-                username = body.get('username')
-                password = body.get('password')
-                captcha = body.get('captcha')
+                from api.index import login_and_scrape_portal
+                username = body.get('username') or body.get('srm_id') or ''
+                password = body.get('password') or ''
+                captcha = body.get('captcha') or body.get('captcha_text') or ''
+                cookies = body.get('cookies') or ''
+                hidden_fields = body.get('hidden_fields') or {}
+                sec_config = body.get('sec_config') or {}
 
-                sess = _active_sessions.get(sess_id) or requests.Session()
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp'
-                }
-
-                login_payload = {
-                    'username': username,
-                    'password': password,
-                    'captcha': captcha
-                }
-
-                r_login = sess.post('https://sp.srmist.edu.in/srmiststudentportal/LoginServlet', data=login_payload, headers=headers, timeout=15)
-                
-                # Fetch attendance table
-                r_att = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/report/attendanceReport.jsp', headers=headers, timeout=15)
-                
-                # Scrape attendance rows
-                from bs4 import BeautifulSoup
-                soup = BeautifulSoup(r_att.text, 'html.parser')
-                attendance_list = []
-                
-                tables = soup.find_all('table')
-                for table in tables:
-                    rows = table.find_all('tr')
-                    for row in rows[1:]:
-                        cols = [c.text.strip() for c in row.find_all(['td', 'th'])]
-                        if len(cols) >= 6 and any(c.isdigit() for c in cols):
-                            attendance_list.append({
-                                "code": cols[0],
-                                "title": cols[1],
-                                "conducted": cols[2],
-                                "attended": cols[3],
-                                "absent": cols[4] if len(cols) > 4 else "0",
-                                "percentage": cols[5] if len(cols) > 5 else "0"
-                            })
-
-                if attendance_list:
-                    scraped = load_scraped_data()
-                    scraped["attendance"] = attendance_list
-                    scraped["status"] = "success"
-                    scraped["last_scraped"] = time.strftime("%d-%m-%Y %H:%M:%S")
-                    with open(os.path.join(os.path.dirname(__file__), "scraped_data.json"), "w") as f:
-                        json.dump(scraped, f, indent=2)
-
-                    self._set_headers(200)
-                    self.wfile.write(json.dumps({
-                        "success": True,
-                        "attendance": attendance_list
-                    }).encode('utf-8'))
-                else:
-                    self._set_headers(200)
-                    self.wfile.write(json.dumps({
-                        "success": False,
-                        "error": "Login rejected or no attendance table found. Check credentials/CAPTCHA."
-                    }).encode('utf-8'))
+                res = login_and_scrape_portal(username, password, captcha, cookies, hidden_fields, sec_config)
+                self._set_headers(200 if res.get('success') else 401)
+                self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
             except Exception as e:
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))

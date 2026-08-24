@@ -166,11 +166,72 @@ class AdvancedAIClient:
         return self._fallback_pollinations(user_text, system_context)
 
     def _fallback_pollinations(self, user_text: str, system_context: str = "") -> dict:
+        q = (user_text or "").lower()
+        if "eigen" in q or "matrix" in q or "calculus" in q or "26mab1001t" in q:
+            reply = (
+                "### 📐 Calculus & Linear Algebra (26MAB1001T) - Matrix Eigenvalues\n\n"
+                "**1. Characteristic Equation:**\n"
+                "For square matrix $A$, solve $|A - \\lambda I| = 0$ to find eigenvalues $\\lambda$.\n\n"
+                "**2. Cayley-Hamilton Theorem:**\n"
+                "Every square matrix satisfies its own characteristic equation: $P(A) = 0$.\n"
+                "- Used to compute inverse: $A^{-1} = -\\frac{1}{a_0}(A^{n-1} + a_1 A^{n-2} + \\dots)$\n"
+                "- Used for matrix powers: $A^k = q(A)P(A) + r(A)$\n\n"
+                "**3. Quadratic Forms & Diagonalization:**\n"
+                "- Orthogonal matrix $P$ formed by normalized eigenvectors ($P^T A P = D$)."
+            )
+        elif "c code" in q or "prime" in q or "pps" in q or "26cse1002j" in q or "program" in q:
+            reply = (
+                "### 💻 Programming for Problem Solving (26CSE1002J) - C Code\n\n"
+                "```c\n"
+                "#include <stdio.h>\n"
+                "#include <stdbool.h>\n\n"
+                "bool isPrime(int n) {\n"
+                "    if (n <= 1) return false;\n"
+                "    for (int i = 2; i * i <= n; i++) {\n"
+                "        if (n % i == 0) return false;\n"
+                "    }\n"
+                "    return true;\n"
+                "}\n\n"
+                "int main() {\n"
+                "    int low = 10, high = 50;\n"
+                "    printf(\"Primes between %d and %d: \", low, high);\n"
+                "    for (int i = low; i <= high; i++) {\n"
+                "        if (isPrime(i)) printf(\"%d \", i);\n"
+                "    }\n"
+                "    printf(\"\\n\");\n"
+                "    return 0;\n"
+                "}\n"
+                "```\n"
+                "**Key Logic:** Check divisors up to $\\sqrt{n}$ for $O(\\sqrt{n})$ complexity."
+            )
+        elif "bunk" in q or "attendance" in q or "margin" in q or "75" in q:
+            reply = (
+                "### 📊 SRM Attendance & Safe Bunk Regulations\n\n"
+                "- **Mandatory Threshold:** 75% per registered course.\n"
+                "- **Safe Bunk Margin Formula:** `floor((4 * Attended - 3 * Conducted) / 3)`\n"
+                "- **Recovery Classes Needed:** `max(0, 3 * Conducted - 4 * Attended)`\n"
+                "- Check the **Attendance Hub** in the app for your real-time course margins!"
+            )
+        elif "schedule" in q or "today" in q or "timetable" in q or "class" in q or "room" in q:
+            reply = (
+                "### 🕒 SRM Academic Schedule & Venues\n\n"
+                "- Your active Day Order schedule is visible on the **Schedule Tab**.\n"
+                "- **Core Venues:** UB 601 (Theory), Tech Park 3rd Fl (PPS Lab), BEL Ground Fl (Workshop), Pink Building (Chemistry Lab)."
+            )
+        else:
+            reply = (
+                "I am your **SRM Academic Copilot**. I can help you with:\n"
+                "- 📊 Attendance calculations & safe bunk margins\n"
+                "- 🕒 Today's Day Order schedule & class venues\n"
+                "- 💻 C Programming (PPS 26CSE1002J) exercises\n"
+                "- 📐 Calculus (26MAB1001T) step-by-step math\n"
+                "- 🧪 Chemistry & Computational Biology notes"
+            )
         return {
             "success": True,
-            "reply": "I am your SRM Academic Copilot. Ask me about today's timetable, attendance safe bunks, or exam notes.",
+            "reply": reply,
             "reasoning": "",
-            "provider": "Offline Rule Engine",
+            "provider": "SRM Offline Academic Engine",
             "status": "success"
         }
 
@@ -249,90 +310,110 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
     sess.headers['Referer'] = 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp'
     sess.headers['Origin'] = 'https://sp.srmist.edu.in'
     
+    base_report = 'https://sp.srmist.edu.in/srmiststudentportal/students/report/'
+    report_headers = {
+        'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/template/HRDSystem.jsp',
+        'X-Requested-With': 'XMLHttpRequest'
+    }
+    
+    is_session_authenticated = False
+    
     if cookies_str:
         for item in cookies_str.split(';'):
             if '=' in item:
                 k, v = item.strip().split('=', 1)
                 sess.cookies.set(k.strip(), v.strip(), domain='sp.srmist.edu.in', path='/')
+        
+        # Fast-path probe: Check if existing session cookie is still valid (avoids CAPTCHA rejection on background sync)
+        try:
+            probe_headers = dict(sess.headers)
+            probe_headers.update(report_headers)
+            r_probe = sess.post(base_report + 'studentProfile.jsp', data={'iden': '1', 'filter': '', 'hdnFormDetails': '1', 'csrfPreventionSalt': ''}, headers=probe_headers, timeout=6)
+            if r_probe.status_code == 200 and ('Student Name' in r_probe.text or 'Register No' in r_probe.text):
+                is_session_authenticated = True
+        except Exception:
+            pass
 
-    login_payload = {
-        'username': username.strip().lower(),
-        'password': password.strip(),
-        'captcha': captcha.strip()
-    }
-    
-    if hidden_fields and isinstance(hidden_fields, dict):
-        login_payload.update(hidden_fields)
-
-    # 1. Attach Dynamic Domain Proof & Cryptographic Header
-    if sec_config and isinstance(sec_config, dict):
-        nonce = sec_config.get('nonce', '')
-        if nonce:
-            sess.headers['X-Domain-Proof'] = base64.b64encode(f"{nonce}:sp.srmist.edu.in".encode('utf-8')).decode('utf-8')
-
-        df_name = sec_config.get('domainFieldName')
-        if df_name:
-            reversed_host = "sp.srmist.edu.in"[::-1]
-            login_payload[df_name] = base64.b64encode(reversed_host.encode('utf-8')).decode('utf-8')
-
-        cf_name = sec_config.get('captchaFieldName')
-        rd = sec_config.get('randomDelimiter', '')
-        if cf_name:
-            trap_payload = f"4{rd}12"
-            login_payload[cf_name] = base64.b64encode(trap_payload.encode('utf-8')).decode('utf-8')
-
-    # 2. Attach Telemetry Payload
-    now_ms = int(time.time() * 1000)
-    telemetry = {
-        "startTime": now_ms - 4200,
-        "currentDomain": "sp.srmist.edu.in",
-        "timezoneOffset": -330,
-        "screenWidth": 1920,
-        "screenHeight": 1080,
-        "colorDepth": 24,
-        "devicePixelRatio": 1,
-        "platform": "Win32",
-        "userAgent": sess.headers['User-Agent'],
-        "language": "en-US",
-        "hardwareConcurrency": 8,
-        "deviceMemory": 8,
-        "touchSupport": False,
-        "webdriver": False,
-        "mouseClicks": 2,
-        "mouseMovements": 14,
-        "keystrokeCount": 18,
-        "typingSpeedMs": 240,
-        "canvasHash": "c4d812a",
-        "submitTime": now_ms,
-        "timeOnPageMs": 4200
-    }
-    login_payload['telemetryPayload'] = base64.b64encode(json.dumps(telemetry).encode('utf-8')).decode('utf-8')
-
-    # 3. Post to LoginServlet
-    login_res = sess.post('https://sp.srmist.edu.in/srmiststudentportal/LoginServlet', data=login_payload, timeout=15, allow_redirects=True)
-    
-    # 4. Strict validation: Check for specific rejection messages
-    res_text = login_res.text
-    if "Invalid Captcha" in res_text:
-        return {
-            "success": False,
-            "error": "❌ Invalid CAPTCHA code. Please check the image and type the exact letters."
+    if not is_session_authenticated:
+        # Perform fresh authentication through LoginServlet
+        login_payload = {
+            'username': username.strip().lower(),
+            'password': password.strip(),
+            'captcha': captcha.strip()
         }
-    if "Captcha expired" in res_text:
-        return {
-            "success": False,
-            "error": "⚠️ CAPTCHA code expired. A fresh CAPTCHA has been loaded. Please try again."
+        
+        if hidden_fields and isinstance(hidden_fields, dict):
+            login_payload.update(hidden_fields)
+
+        # 1. Attach Dynamic Domain Proof & Cryptographic Header
+        if sec_config and isinstance(sec_config, dict):
+            nonce = sec_config.get('nonce', '')
+            if nonce:
+                sess.headers['X-Domain-Proof'] = base64.b64encode(f"{nonce}:sp.srmist.edu.in".encode('utf-8')).decode('utf-8')
+
+            df_name = sec_config.get('domainFieldName')
+            if df_name:
+                reversed_host = "sp.srmist.edu.in"[::-1]
+                login_payload[df_name] = base64.b64encode(reversed_host.encode('utf-8')).decode('utf-8')
+
+            cf_name = sec_config.get('captchaFieldName')
+            rd = sec_config.get('randomDelimiter', '')
+            if cf_name:
+                trap_payload = f"4{rd}12"
+                login_payload[cf_name] = base64.b64encode(trap_payload.encode('utf-8')).decode('utf-8')
+
+        # 2. Attach Telemetry Payload
+        now_ms = int(time.time() * 1000)
+        telemetry = {
+            "startTime": now_ms - 4200,
+            "currentDomain": "sp.srmist.edu.in",
+            "timezoneOffset": -330,
+            "screenWidth": 1920,
+            "screenHeight": 1080,
+            "colorDepth": 24,
+            "devicePixelRatio": 1,
+            "platform": "Win32",
+            "userAgent": sess.headers['User-Agent'],
+            "language": "en-US",
+            "hardwareConcurrency": 8,
+            "deviceMemory": 8,
+            "touchSupport": False,
+            "webdriver": False,
+            "mouseClicks": 2,
+            "mouseMovements": 14,
+            "keystrokeCount": 18,
+            "typingSpeedMs": 240,
+            "canvasHash": "c4d812a",
+            "submitTime": now_ms,
+            "timeOnPageMs": 4200
         }
-    if "Invalid User" in res_text or "Invalid Password" in res_text or "loginFailed" in login_res.url:
-        return {
-            "success": False,
-            "error": "❌ Invalid SRM NetID or password. Please verify your credentials."
-        }
-    if "HRDSystem" not in login_res.url and "HRDSystem" not in res_text and "studentProfile" not in res_text:
-        return {
-            "success": False,
-            "error": "❌ SRM Portal rejected login. Please verify NetID, password, and CAPTCHA."
-        }
+        login_payload['telemetryPayload'] = base64.b64encode(json.dumps(telemetry).encode('utf-8')).decode('utf-8')
+
+        # 3. Post to LoginServlet
+        login_res = sess.post('https://sp.srmist.edu.in/srmiststudentportal/LoginServlet', data=login_payload, timeout=15, allow_redirects=True)
+        
+        # 4. Strict validation: Check for specific rejection messages
+        res_text = login_res.text
+        if "Invalid Captcha" in res_text:
+            return {
+                "success": False,
+                "error": "❌ Invalid CAPTCHA code. Please check the image and type the exact letters."
+            }
+        if "Captcha expired" in res_text:
+            return {
+                "success": False,
+                "error": "⚠️ CAPTCHA code expired. A fresh CAPTCHA has been loaded. Please try again."
+            }
+        if "Invalid User" in res_text or "Invalid Password" in res_text or "loginFailed" in login_res.url:
+            return {
+                "success": False,
+                "error": "❌ Invalid SRM NetID or password. Please verify your credentials."
+            }
+        if "HRDSystem" not in login_res.url and "HRDSystem" not in res_text and "studentProfile" not in res_text:
+            return {
+                "success": False,
+                "error": "❌ SRM Portal rejected login. Please verify NetID, password, and CAPTCHA."
+            }
 
     # 5. Extract Real Student Name & Registration Number from studentProfile.jsp (Form 1)
     student_name = username.upper()
@@ -340,11 +421,6 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
     program = ""
     section = ""
     
-    base_report = 'https://sp.srmist.edu.in/srmiststudentportal/students/report/'
-    report_headers = {
-        'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/template/HRDSystem.jsp',
-        'X-Requested-With': 'XMLHttpRequest'
-    }
     sess.headers.update(report_headers)
 
     try:
@@ -406,18 +482,33 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
             if len(tables) >= 2:
                 for row in tables[1].find_all('tr')[1:]:
                     cols = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
-                    if len(cols) >= 8:
+                    if len(cols) >= 5:
                         c_code = cols[0]
                         c_name = cols[1]
                         c_slot = cols[3]
                         c_fac = cols[4].split('[')[0].strip()
-                        c_venue = f"{cols[6]} {cols[7]}".strip()
-                        course_map[c_code] = {
+                        
+                        venue_parts = []
+                        if len(cols) > 6 and cols[6] and cols[6] != '-':
+                            venue_parts.append(cols[6])
+                        if len(cols) > 7 and cols[7] and cols[7] != '-':
+                            venue_parts.append(cols[7])
+                        if len(cols) > 8 and cols[8] and cols[8] != '-':
+                            venue_parts.append(cols[8])
+                        
+                        c_venue = " - ".join(venue_parts) if venue_parts else "University Building"
+                        
+                        entry = {
                             "title": c_name,
                             "slot": c_slot,
                             "faculty": c_fac,
                             "venue": c_venue
                         }
+                        
+                        course_map[f"{c_code}_{c_slot}"] = entry
+                        course_map[c_code] = entry
+                        if any(k in c_name.upper() for k in ['LAB', 'PRACTICE']) or any(s.startswith('P') for s in c_slot.split(',')):
+                            course_map[f"{c_code}_LAB"] = entry
 
             if len(tables) >= 1:
                 for row in tables[0].find_all('tr'):
@@ -432,12 +523,14 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
                                     "type": "Free",
                                     "title": "Free Period",
                                     "code": "",
-                                    "venue": "",
+                                    "venue": "-",
                                     "faculty": "-"
                                 })
                             else:
-                                info = course_map.get(code_clean, {})
-                                is_lab = 'LAB' in info.get('title', '').upper() or 'PRACTICE' in info.get('title', '').upper() or code_clean.endswith('L') or code_clean.endswith('J')
+                                is_lab_period = hour_idx in [7, 8, 9, 10] or code_clean.endswith('L')
+                                info = course_map.get(f"{code_clean}_LAB") if (is_lab_period and f"{code_clean}_LAB" in course_map) else course_map.get(code_clean, {})
+                                is_lab = 'LAB' in info.get('title', '').upper() or 'PRACTICE' in info.get('title', '').upper() or code_clean.endswith('L') or (code_clean.endswith('J') and is_lab_period)
+                                
                                 timetable_schedule[day_key].append({
                                     "hour": hour_idx,
                                     "type": "Lab" if is_lab else "Theory",
@@ -472,16 +565,18 @@ class handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
         self.end_headers()
 
     def do_OPTIONS(self):
         self._set_headers(200)
 
     def do_GET(self):
-        path = self.path.split('?')[0].rstrip('/')
+        path = self.path.split('?')[0].rstrip('/').lower()
+        if not path:
+            path = '/'
         
-        if path in ['/api/captcha', '/api/sp/captcha']:
+        if path in ['/api/captcha', '/api/sp/captcha', '/captcha', '/sp/captcha']:
             try:
                 res = fetch_srm_captcha()
                 self._set_headers(200)
@@ -490,7 +585,7 @@ class handler(BaseHTTPRequestHandler):
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False).encode('utf-8'))
 
-        elif path in ['/api/health', '/health', '']:
+        elif path in ['/api/health', '/health', '/', '/api']:
             self._set_headers(200)
             self.wfile.write(json.dumps({
                 "status": "online",
@@ -515,9 +610,11 @@ class handler(BaseHTTPRequestHandler):
         except Exception:
             body = {}
 
-        path = self.path.split('?')[0].rstrip('/')
+        path = self.path.split('?')[0].rstrip('/').lower()
+        if not path:
+            path = '/'
 
-        if path in ['/api/login', '/api/sp/login']:
+        if path in ['/api/login', '/api/sp/login', '/login', '/sp/login']:
             username = body.get('username') or body.get('srm_id') or ''
             password = body.get('password') or ''
             captcha = body.get('captcha') or body.get('captcha_text') or ''
@@ -525,7 +622,7 @@ class handler(BaseHTTPRequestHandler):
             hidden_fields = body.get('hidden_fields') or {}
             sec_config = body.get('sec_config') or {}
 
-            if not username or not password or not captcha:
+            if not username and not cookies:
                 self._set_headers(400)
                 self.wfile.write(json.dumps({
                     "success": False,
@@ -541,7 +638,7 @@ class handler(BaseHTTPRequestHandler):
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False).encode('utf-8'))
 
-        elif path == '/api/chat':
+        elif path in ['/api/chat', '/chat']:
             message = body.get('message') or body.get('prompt') or ''
             context = body.get('context') or ''
 
@@ -561,3 +658,4 @@ class handler(BaseHTTPRequestHandler):
         else:
             self._set_headers(404)
             self.wfile.write(json.dumps({"error": "Route not found"}, ensure_ascii=False).encode('utf-8'))
+
