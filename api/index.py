@@ -250,7 +250,10 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
     sess.headers['Origin'] = 'https://sp.srmist.edu.in'
     
     if cookies_str:
-        sess.headers['Cookie'] = cookies_str
+        for item in cookies_str.split(';'):
+            if '=' in item:
+                k, v = item.strip().split('=', 1)
+                sess.cookies.set(k.strip(), v.strip(), domain='sp.srmist.edu.in', path='/')
 
     login_payload = {
         'username': username.strip().lower(),
