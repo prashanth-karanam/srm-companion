@@ -264,8 +264,12 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
     if hidden_fields and isinstance(hidden_fields, dict):
         login_payload.update(hidden_fields)
 
-    # 1. Attach Dynamic Domain Proof
+    # 1. Attach Dynamic Domain Proof & Cryptographic Header
     if sec_config and isinstance(sec_config, dict):
+        nonce = sec_config.get('nonce', '')
+        if nonce:
+            sess.headers['X-Domain-Proof'] = base64.b64encode(f"{nonce}:sp.srmist.edu.in".encode('utf-8')).decode('utf-8')
+
         df_name = sec_config.get('domainFieldName')
         if df_name:
             reversed_host = "sp.srmist.edu.in"[::-1]
@@ -324,10 +328,10 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
             "success": False,
             "error": "❌ Invalid SRM NetID or password. Please verify your credentials."
         }
-    if "youLogin.jsp" in login_res.url and "HRDSystem.jsp" not in login_res.url:
+    if "HRDSystem" not in login_res.url and "HRDSystem" not in res_text and "studentProfile" not in res_text:
         return {
             "success": False,
-            "error": "❌ Login failed on SRM Portal. Please verify NetID, password, and CAPTCHA."
+            "error": "❌ SRM Portal rejected login. Please verify NetID, password, and CAPTCHA."
         }
 
     # 5. Extract Real Student Name & Registration Number from studentProfile.jsp (Form 1)
