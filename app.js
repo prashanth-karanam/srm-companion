@@ -802,18 +802,7 @@ Answer clearly and concisely with markdown formatting.`;
 async function askAcademicAI(userPrompt) {
     const systemPrompt = getAcademicContextForAI();
 
-    // 1. Primary: Stateful Protocol Emulation Backend (/api/chat)
-    try {
-        const res = await apiFetch('/api/chat', {
-            method: 'POST',
-            body: JSON.stringify({ message: userPrompt, context: systemPrompt })
-        });
-        if (res && res.reply && !res.reply.includes('Unable to connect')) {
-            return res.reply;
-        }
-    } catch (_) {}
-
-    // 2. Secondary: Puter.js in-browser AI (DeepSeek-V3)
+    // 1. Primary: Puter.js in-browser AI (DeepSeek-V3 / GPT-4o-mini - 100% Free & Unlimited)
     if (window.puter && window.puter.ai && typeof window.puter.ai.chat === 'function') {
         try {
             const res = await window.puter.ai.chat([
@@ -830,26 +819,18 @@ async function askAcademicAI(userPrompt) {
         }
     }
 
-    // 3. Tertiary: Pollinations.ai Edge API
+    // 2. Secondary: Stateful Protocol Emulation Backend (/api/chat)
     try {
-        const res = await fetch('https://text.pollinations.ai/', {
+        const res = await apiFetch('/api/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                model: 'openai'
-            })
+            body: JSON.stringify({ message: userPrompt, context: systemPrompt })
         });
-        if (res.ok) {
-            const text = await res.text();
-            if (text && text.trim()) return text.trim();
+        if (res && res.reply && !res.reply.includes('Unable to connect') && !res.reply.includes('Offline Rule Engine')) {
+            return res.reply;
         }
     } catch (_) {}
 
-    // 4. Quaternary: Instant Offline Calculation Engine
+    // 3. Tertiary: Instant Offline Calculation Engine
     return getOfflineAIResponse(userPrompt);
 }
 
