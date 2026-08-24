@@ -182,16 +182,24 @@ async function doAutoLogin(isBackgroundRefresh = false) {
             // Authentic login verified! Save real scraped data
             const realName = res.name || rawId.toUpperCase();
             const regNo = res.reg_no || '';
+            const program = res.program || '';
+            const section = res.section || '';
             
             localStorage.setItem('srm_auto_id', rawId);
             localStorage.setItem('srm_auto_pass', pass);
             localStorage.setItem('srm_display_name', realName);
             if (regNo) localStorage.setItem('srm_reg_no', regNo);
+            if (program) localStorage.setItem('srm_program', program);
+            if (section) localStorage.setItem('srm_section', section);
             setToken('srm_session_' + rawId + '_' + Date.now());
 
             if (res.attendance && res.attendance.length > 0) {
                 portalAttendance = res.attendance;
                 localStorage.setItem('srm_cached_attendance', JSON.stringify(res.attendance));
+            }
+            if (res.timetable && typeof res.timetable === 'object' && Object.keys(res.timetable).length > 0) {
+                SRM_DATA.dayOrderSchedule = res.timetable;
+                localStorage.setItem('srm_cached_schedule', JSON.stringify(res.timetable));
             }
             if (res.cookies) {
                 _liveCookies = res.cookies;
@@ -373,6 +381,8 @@ async function syncWithBackend() {
                 localStorage.setItem('srm_display_name', res.name);
                 const nameEl = document.getElementById('header-name');
                 if (nameEl) nameEl.textContent = res.name;
+                const avEl = document.getElementById('header-avatar');
+                if (avEl) avEl.textContent = res.name.substring(0, 2).toUpperCase();
             }
             if (res.reg_no) {
                 localStorage.setItem('srm_reg_no', res.reg_no);
@@ -383,6 +393,12 @@ async function syncWithBackend() {
                 portalAttendance = res.attendance;
                 localStorage.setItem('srm_cached_attendance', JSON.stringify(res.attendance));
                 renderAttendance(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+            }
+            if (res.timetable && typeof res.timetable === 'object' && Object.keys(res.timetable).length > 0) {
+                SRM_DATA.dayOrderSchedule = res.timetable;
+                localStorage.setItem('srm_cached_schedule', JSON.stringify(res.timetable));
+                renderDaySchedule(selectedDay);
+                updateLiveHUD();
             }
         }
     } catch (_) {}

@@ -6,12 +6,14 @@ Features:
    - Dual Engine (curl_cffi with instant requests.Session fallback)
    - Predictive Token Lifecycle (Pre-minting & 15m rotation)
    - TCP Packet Stitching & Resilient SSE Buffer Parser
-2. High-Precision SRM Student Portal Protocol Emulation (sp.srmist.edu.in)
+2. High-Precision SRM Student Portal Full Protocol Scraper (sp.srmist.edu.in)
    - Java X-Domain-Proof Nonce & Linked data-src CAPTCHA Binding
    - Reverse-Domain Token & Delimiter Timing Trap Emulation (domainFieldName & captchaFieldName)
    - Full Canvas & Device Telemetry Payload Generation (telemetryPayload)
    - Safe Multi-Path Cookie Extraction (Eliminates CookieConflictError)
-   - Live Attendance, Timetable & Real Student Name Extraction
+   - Live Student Profile Extraction (Real Name, Reg No, Program, Section)
+   - Live Attendance Table Extraction (All Course Codes, Conducted, Attended, Absent, %)
+   - Live Dynamic Timetable Scraper (Day 1 - Day 5 Full Matrix with Faculty & Venues)
 """
 
 import sys
@@ -309,79 +311,151 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
             "success": False,
             "error": "❌ Invalid CAPTCHA code. Please check the image and type the exact letters."
         }
+    if "Captcha expired" in res_text:
+        return {
+            "success": False,
+            "error": "⚠️ CAPTCHA code expired. A fresh CAPTCHA has been loaded. Please try again."
+        }
     if "Invalid User" in res_text or "Invalid Password" in res_text or "loginFailed" in login_res.url:
         return {
             "success": False,
             "error": "❌ Invalid SRM NetID or password. Please verify your credentials."
         }
-    if "youLogin.jsp" in login_res.url and "HRDSystem.jsp" not in login_res.url and "welcome" not in res_text.lower():
+    if "youLogin.jsp" in login_res.url and "HRDSystem.jsp" not in login_res.url:
         return {
             "success": False,
-            "error": "❌ Login failed on SRM Portal. Please check your NetID, password, and CAPTCHA."
+            "error": "❌ Login failed on SRM Portal. Please verify NetID, password, and CAPTCHA."
         }
 
-    # 5. Extract Real Student Name & Registration Number
+    # 5. Extract Real Student Name & Registration Number from studentProfile.jsp (Form 1)
     student_name = username.upper()
     reg_no = ""
+    program = ""
+    section = ""
+    
+    base_report = 'https://sp.srmist.edu.in/srmiststudentportal/students/report/'
+    report_headers = {
+        'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/template/HRDSystem.jsp',
+        'X-Requested-With': 'XMLHttpRequest'
+    }
+    sess.headers.update(report_headers)
+
     try:
-        r_home = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/template/portalWelcome.jsp', timeout=10)
-        soup_home = BeautifulSoup(r_home.text, 'html.parser')
-        text_content = soup_home.get_text()
-        
-        name_match = re.search(r'Welcome\s*:\s*([^(\n\r]+)', text_content, re.IGNORECASE)
-        if name_match:
-            student_name = name_match.group(1).strip()
-        reg_match = re.search(r'(RA\d{13})', text_content)
-        if reg_match:
-            reg_no = reg_match.group(1).strip()
+        r_prof = sess.post(base_report + 'studentProfile.jsp', data={'iden': '1', 'filter': '', 'hdnFormDetails': '1', 'csrfPreventionSalt': ''}, timeout=10)
+        if r_prof.status_code == 200:
+            soup_prof = BeautifulSoup(r_prof.text, 'html.parser')
+            for td in soup_prof.find_all('td'):
+                txt = td.get_text(strip=True)
+                if 'Student Name' in txt:
+                    nxt = td.find_next_sibling('td')
+                    if nxt and nxt.get_text(strip=True):
+                        student_name = nxt.get_text(strip=True)
+                elif 'Register No' in txt:
+                    nxt = td.find_next_sibling('td')
+                    if nxt and nxt.get_text(strip=True):
+                        reg_no = nxt.get_text(strip=True)
+                elif 'Program' in txt:
+                    nxt = td.find_next_sibling('td')
+                    if nxt and nxt.get_text(strip=True):
+                        program = nxt.get_text(strip=True)
+                elif 'Section' in txt:
+                    nxt = td.find_next_sibling('td')
+                    if nxt and nxt.get_text(strip=True):
+                        section = nxt.get_text(strip=True)
     except Exception:
         pass
 
-    # 6. Scrape Live Attendance Table
+    # 6. Scrape Live Attendance Table from studentAttendanceDetails.jsp (Form 9)
     attendance_list = []
     try:
-        r_att = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/report/attendanceReport.jsp', timeout=12)
-        soup_att = BeautifulSoup(r_att.text, 'html.parser')
-        
-        for table in soup_att.find_all('table'):
-            for row in table.find_all('tr')[1:]:
-                cols = [c.text.strip() for c in row.find_all(['td', 'th'])]
-                if len(cols) >= 6 and any(c.isdigit() for c in cols):
-                    try:
-                        conducted = float(cols[2]) if cols[2].replace('.', '', 1).isdigit() else 0
-                        attended = float(cols[3]) if cols[3].replace('.', '', 1).isdigit() else 0
-                        absent = float(cols[4]) if len(cols) > 4 and cols[4].replace('.', '', 1).isdigit() else 0
-                        pct = cols[5] if len(cols) > 5 else (f"{(attended/conducted*100):.1f}" if conducted > 0 else "0")
-                    except Exception:
-                        conducted, attended, absent, pct = 0, 0, 0, "0"
+        r_att = sess.post(base_report + 'studentAttendanceDetails.jsp', data={'iden': '9', 'filter': '', 'hdnFormDetails': '9', 'csrfPreventionSalt': ''}, timeout=12)
+        if r_att.status_code == 200:
+            soup_att = BeautifulSoup(r_att.text, 'html.parser')
+            table_att = soup_att.find('table')
+            if table_att:
+                for row in table_att.find_all('tr')[1:]:
+                    cols = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
+                    if len(cols) >= 8 and cols[0] not in ['Total', 'Code']:
+                        attendance_list.append({
+                            "code": cols[0],
+                            "title": cols[1],
+                            "conducted": cols[2],
+                            "attended": cols[3],
+                            "absent": cols[4],
+                            "percentage": cols[7].replace('%', '').strip()
+                        })
+    except Exception:
+        pass
 
-                    attendance_list.append({
-                        "code": cols[0],
-                        "title": cols[1],
-                        "conducted": cols[2],
-                        "attended": cols[3],
-                        "absent": cols[4] if len(cols) > 4 else "0",
-                        "percentage": str(pct).replace("%", "").strip()
-                    })
+    # 7. Scrape Timetable from studentTimeTableDetails.jsp (Form 10)
+    timetable_schedule = {"Day 1": [], "Day 2": [], "Day 3": [], "Day 4": [], "Day 5": []}
+    try:
+        r_tt = sess.post(base_report + 'studentTimeTableDetails.jsp', data={'iden': '10', 'filter': '', 'hdnFormDetails': '10', 'csrfPreventionSalt': ''}, timeout=12)
+        if r_tt.status_code == 200:
+            soup_tt = BeautifulSoup(r_tt.text, 'html.parser')
+            tables = soup_tt.find_all('table')
+
+            course_map = {}
+            if len(tables) >= 2:
+                for row in tables[1].find_all('tr')[1:]:
+                    cols = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
+                    if len(cols) >= 8:
+                        c_code = cols[0]
+                        c_name = cols[1]
+                        c_slot = cols[3]
+                        c_fac = cols[4].split('[')[0].strip()
+                        c_venue = f"{cols[6]} {cols[7]}".strip()
+                        course_map[c_code] = {
+                            "title": c_name,
+                            "slot": c_slot,
+                            "faculty": c_fac,
+                            "venue": c_venue
+                        }
+
+            if len(tables) >= 1:
+                for row in tables[0].find_all('tr'):
+                    cols = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
+                    if cols and cols[0] in timetable_schedule:
+                        day_key = cols[0]
+                        for hour_idx, code in enumerate(cols[1:], start=1):
+                            code_clean = code.strip()
+                            if not code_clean or code_clean == '-':
+                                timetable_schedule[day_key].append({
+                                    "hour": hour_idx,
+                                    "type": "Free",
+                                    "title": "Free Period",
+                                    "code": "",
+                                    "venue": "",
+                                    "faculty": "-"
+                                })
+                            else:
+                                info = course_map.get(code_clean, {})
+                                is_lab = 'LAB' in info.get('title', '').upper() or 'PRACTICE' in info.get('title', '').upper() or code_clean.endswith('L') or code_clean.endswith('J')
+                                timetable_schedule[day_key].append({
+                                    "hour": hour_idx,
+                                    "type": "Lab" if is_lab else "Theory",
+                                    "title": info.get('title', code_clean),
+                                    "code": code_clean,
+                                    "slot": info.get('slot', ''),
+                                    "venue": info.get('venue', 'University Building'),
+                                    "faculty": info.get('faculty', '-')
+                                })
     except Exception:
         pass
 
     # Safe cookie extraction avoiding CookieConflictError
     fresh_cookies = "; ".join([f"{c.name}={c.value}" for c in sess.cookies])
 
-    if "HRDSystem.jsp" in login_res.url or "student" in login_res.url or "welcome" in res_text.lower() or attendance_list:
-        return {
-            "success": True,
-            "name": student_name,
-            "reg_no": reg_no,
-            "attendance": attendance_list,
-            "cookies": fresh_cookies
-        }
-    else:
-        return {
-            "success": False,
-            "error": "❌ Authentication failed on SRM portal. Check NetID, password, and CAPTCHA."
-        }
+    return {
+        "success": True,
+        "name": student_name,
+        "reg_no": reg_no,
+        "program": program,
+        "section": section,
+        "attendance": attendance_list,
+        "timetable": timetable_schedule,
+        "cookies": fresh_cookies
+    }
 
 
 # ─── Vercel Serverless HTTP Handler ──────────────────────────────────────────
