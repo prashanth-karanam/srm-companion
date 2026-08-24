@@ -53,7 +53,7 @@ class AdvancedAIClient:
             "User-Agent": HEADERS["User-Agent"]
         }
 
-        # Mint new session token
+        # Mint fresh session token
         if CURL_CFFI_AVAILABLE:
             with CurlSession(impersonate=self.browser_profile) as s:
                 s.get("https://chat.inceptionlabs.ai", headers=headers, timeout=10)
@@ -110,57 +110,70 @@ class AdvancedAIClient:
         }
 
         try:
+            full_text = ""
+            reasoning_text = ""
+
             if CURL_CFFI_AVAILABLE:
                 with CurlSession(impersonate=self.browser_profile) as s:
                     res = s.post("https://chat.inceptionlabs.ai/api/chat", headers=headers, json=payload, stream=True, timeout=25)
-                    return self._parse_stream(res.iter_lines())
+                    for line in res.iter_lines():
+                        if not line:
+                            continue
+                        s_line = (line.decode("utf-8", errors="ignore") if isinstance(line, bytes) else str(line)).strip()
+                        if s_line.startswith("data:"):
+                            raw = s_line[5:].strip()
+                            if raw == "[DONE]":
+                                break
+                            try:
+                                ev = json.loads(raw)
+                                ev_type = ev.get("type")
+                                if ev_type == "text-delta":
+                                    full_text += ev.get("delta", "")
+                                elif ev_type == "reasoning-delta":
+                                    reasoning_text += ev.get("delta", "")
+                            except Exception:
+                                pass
             else:
                 s = requests.Session()
                 res = s.post("https://chat.inceptionlabs.ai/api/chat", headers=headers, json=payload, stream=True, timeout=25)
-                return self._parse_stream(res.iter_lines())
+                for line in res.iter_lines():
+                    if not line:
+                        continue
+                    s_line = (line.decode("utf-8", errors="ignore") if isinstance(line, bytes) else str(line)).strip()
+                    if s_line.startswith("data:"):
+                        raw = s_line[5:].strip()
+                        if raw == "[DONE]":
+                            break
+                        try:
+                            ev = json.loads(raw)
+                            ev_type = ev.get("type")
+                            if ev_type == "text-delta":
+                                full_text += ev.get("delta", "")
+                            elif ev_type == "reasoning-delta":
+                                reasoning_text += ev.get("delta", "")
+                        except Exception:
+                            pass
+
+            if full_text.strip():
+                return {
+                    "success": True,
+                    "reply": full_text.strip(),
+                    "reasoning": reasoning_text.strip(),
+                    "provider": "Inception Labs Mercury (Stateful TLS Emulation)",
+                    "status": "success"
+                }
         except Exception:
-            return self._fallback_pollinations(user_text, system_context)
+            pass
 
-    def _parse_stream(self, lines_iter) -> dict:
-        full_text = ""
-        reasoning_text = ""
-
-        for line in lines_iter:
-            if not line:
-                continue
-            decoded = line.decode("utf-8", errors="ignore") if isinstance(line, bytes) else str(line)
-            if decoded.startswith("data: "):
-                raw_data = decoded[6:].strip()
-                if raw_data == "[DONE]":
-                    break
-                try:
-                    event = json.loads(raw_data)
-                    event_type = event.get("type")
-                    if event_type == "text-delta":
-                        full_text += event.get("delta", "")
-                    elif event_type == "reasoning-delta":
-                        reasoning_text += event.get("delta", "")
-                except Exception:
-                    continue
-
-        if full_text.strip():
-            return {
-                "success": True,
-                "reply": full_text.strip(),
-                "reasoning": reasoning_text.strip(),
-                "provider": "Inception Labs Mercury (Stateful TLS Emulation)",
-                "status": "success"
-            }
-        return self._fallback_pollinations(user_text="help", system_context="")
+        return self._fallback_pollinations(user_text, system_context)
 
     def _fallback_pollinations(self, user_text: str, system_context: str = "") -> dict:
         try:
             payload = {
                 "messages": [
-                    {"role": "system", "content": system_context or "You are an elite academic assistant for SRMIST students."},
+                    {"role": "system", "content": system_context or "You are an elite academic tutor for SRMIST students. Be concise, clear, and direct."},
                     {"role": "user", "content": user_text}
-                ],
-                "model": "openai"
+                ]
             }
             res = requests.post("https://text.pollinations.ai/", json=payload, timeout=10)
             if res.status_code == 200 and res.text.strip():
@@ -176,7 +189,7 @@ class AdvancedAIClient:
 
         return {
             "success": True,
-            "reply": "I am your SRM Academic Copilot. Please check your schedule or ask a specific question regarding PPS, Calculus, Chemistry, Comp Bio, or attendance margins.",
+            "reply": "I am your SRM Academic Copilot. Please ask a specific question regarding PPS, Calculus, Chemistry, Comp Bio, or attendance margins.",
             "reasoning": "",
             "provider": "Offline Rule Engine",
             "status": "success"
@@ -336,10 +349,10 @@ class handler(BaseHTTPRequestHandler):
             try:
                 res = fetch_srm_captcha()
                 self._set_headers(200)
-                self.wfile.write(json.dumps(res).encode('utf-8'))
+                self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
             except Exception as e:
                 self._set_headers(500)
-                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False).encode('utf-8'))
 
         elif path in ['/api/health', '/health', '']:
             self._set_headers(200)
@@ -348,14 +361,14 @@ class handler(BaseHTTPRequestHandler):
                 "engine": "SRM Companion Stateful Protocol Emulation Gateway",
                 "curl_cffi": CURL_CFFI_AVAILABLE,
                 "cost": "$0 forever"
-            }).encode('utf-8'))
+            }, ensure_ascii=False).encode('utf-8'))
 
         else:
             self._set_headers(200)
             self.wfile.write(json.dumps({
                 "status": "online",
                 "endpoints": ["/api/captcha", "/api/login", "/api/chat", "/api/health"]
-            }).encode('utf-8'))
+            }, ensure_ascii=False).encode('utf-8'))
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
@@ -380,16 +393,16 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({
                     "success": False,
                     "error": "SRM NetID, password, and CAPTCHA code are required."
-                }).encode('utf-8'))
+                }, ensure_ascii=False).encode('utf-8'))
                 return
 
             try:
                 res = login_and_scrape_portal(username, password, captcha, cookies, hidden_fields)
                 self._set_headers(200 if res.get('success') else 401)
-                self.wfile.write(json.dumps(res).encode('utf-8'))
+                self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
             except Exception as e:
                 self._set_headers(500)
-                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False).encode('utf-8'))
 
         elif path == '/api/chat':
             message = body.get('message') or body.get('prompt') or ''
@@ -397,17 +410,17 @@ class handler(BaseHTTPRequestHandler):
 
             if not message:
                 self._set_headers(400)
-                self.wfile.write(json.dumps({"error": "Message is required."}).encode('utf-8'))
+                self.wfile.write(json.dumps({"error": "Message is required."}, ensure_ascii=False).encode('utf-8'))
                 return
 
             try:
                 res = ai_engine.query(message, context)
                 self._set_headers(200)
-                self.wfile.write(json.dumps(res).encode('utf-8'))
+                self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
             except Exception as e:
                 self._set_headers(500)
-                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+                self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode('utf-8'))
 
         else:
             self._set_headers(404)
-            self.wfile.write(json.dumps({"error": "Route not found"}).encode('utf-8'))
+            self.wfile.write(json.dumps({"error": "Route not found"}, ensure_ascii=False).encode('utf-8'))
