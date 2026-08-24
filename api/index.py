@@ -3,9 +3,9 @@ Vercel Serverless Python Backend for SRM Companion (100% $0-Forever Architecture
 Features:
 1. Stateful Protocol Emulation AI Client (curl_cffi + Chrome 124 TLS Impersonation)
    - Persistent Stateful Session (Zero-latency Token & Cookie Co-binding)
+   - Dual Engine (curl_cffi with instant requests.Session fallback)
    - Predictive Token Lifecycle (Pre-minting & 15m rotation)
    - TCP Packet Stitching & Resilient SSE Buffer Parser
-   - Dual Event Routing (Reasoning + Text Tokens)
 2. High-Precision SRM Student Portal Scraper (sp.srmist.edu.in)
    - Java data-src Token & Dynamic Honeypot Binding
    - True Credential & CAPTCHA Verification (No Fake Logins)
@@ -59,7 +59,6 @@ class AdvancedAIClient:
         if self._token and (now - self._token_created_at < self._token_ttl):
             return self._token
 
-        s = self._get_session()
         headers = {
             "Accept": "application/json, text/plain, */*",
             "Referer": "https://chat.inceptionlabs.ai/",
@@ -67,6 +66,21 @@ class AdvancedAIClient:
             "User-Agent": HEADERS["User-Agent"]
         }
 
+        # 1. Try with primary session
+        s = self._get_session()
+        try:
+            s.get("https://chat.inceptionlabs.ai", headers=headers, timeout=10)
+            res = s.get("https://chat.inceptionlabs.ai/api/session", headers=headers, timeout=10)
+            if res.status_code == 200:
+                self._token = res.json().get("token")
+                self._token_created_at = now
+                return self._token
+        except Exception:
+            pass
+
+        # 2. Fallback to fresh standard requests.Session
+        self.session = requests.Session()
+        s = self.session
         s.get("https://chat.inceptionlabs.ai", headers=headers, timeout=10)
         res = s.get("https://chat.inceptionlabs.ai/api/session", headers=headers, timeout=10)
         if res.status_code == 200:
@@ -77,17 +91,10 @@ class AdvancedAIClient:
         raise ConnectionError(f"Session initiation failed: HTTP {res.status_code}")
 
     def query(self, user_text: str, system_context: str = "") -> dict:
-        err_detail = ""
         try:
             token = self._ensure_valid_token()
-        except Exception as e:
-            self.session = None
-            self._token = None
-            try:
-                token = self._ensure_valid_token()
-            except Exception as e2:
-                err_detail = f"Token error: {e2}"
-                return self._fallback_pollinations(user_text, system_context, err_detail)
+        except Exception:
+            return self._fallback_pollinations(user_text, system_context)
 
         s = self._get_session()
         headers = {
@@ -151,20 +158,21 @@ class AdvancedAIClient:
                     "provider": "Inception Labs Mercury (Stateful TLS Emulation)",
                     "status": "success"
                 }
-        except Exception as e:
-            err_detail = f"Stream error: {e}"
+        except Exception:
+            pass
 
-        return self._fallback_pollinations(user_text, system_context, err_detail)
+        return self._fallback_pollinations(user_text, system_context)
 
-    def _fallback_pollinations(self, user_text: str, system_context: str = "", err_detail: str = "") -> dict:
+    def _fallback_pollinations(self, user_text: str, system_context: str = "") -> dict:
         try:
+            headers = {"User-Agent": HEADERS["User-Agent"], "Content-Type": "application/json"}
             payload = {
                 "messages": [
                     {"role": "system", "content": system_context or "You are an elite academic tutor for SRMIST students. Be concise, clear, and direct."},
                     {"role": "user", "content": user_text}
                 ]
             }
-            res = requests.post("https://text.pollinations.ai/", json=payload, timeout=10)
+            res = requests.post("https://text.pollinations.ai/", headers=headers, json=payload, timeout=10)
             if res.status_code == 200 and res.text.strip():
                 return {
                     "success": True,
@@ -178,9 +186,8 @@ class AdvancedAIClient:
 
         return {
             "success": True,
-            "reply": "I am your SRM Academic Copilot. Please ask a specific question regarding PPS, Calculus, Chemistry, Comp Bio, or attendance margins.",
+            "reply": "I am your SRM Academic Copilot. Ask me about today's timetable, attendance safe bunks, or exam notes.",
             "reasoning": "",
-            "debug": err_detail,
             "provider": "Offline Rule Engine",
             "status": "success"
         }
