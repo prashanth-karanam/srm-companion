@@ -7,7 +7,7 @@ function getApiBase() {
     if (window.location.hostname.includes('vercel.app')) {
         return window.location.origin;
     }
-    return ''; // Relative or Vercel backend
+    return 'https://srm-companion-omega.vercel.app'; // Live Vercel Backend
 }
 const API_BASE = getApiBase();
 
@@ -1072,10 +1072,66 @@ Instructions:
 - Format code, formulas, and room numbers with clean Markdown.`;
 }
 
+// ─── Native Inception AI Client (Zero-Key Direct Execution on Android APK) ───
+async function nativeInceptionChat(userText, systemContext) {
+    if (!window.Capacitor || !window.Capacitor.Plugins || !window.Capacitor.Plugins.CapacitorHttp) return null;
+    const { CapacitorHttp } = window.Capacitor.Plugins;
+    try {
+        const sessRes = await CapacitorHttp.request({
+            url: 'https://chat.inceptionlabs.ai/api/session',
+            method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Referer': 'https://chat.inceptionlabs.ai/'
+            }
+        });
+        if (sessRes.status !== 200 || !sessRes.data || !sessRes.data.token) return null;
+        const token = sessRes.data.token;
+
+        const chatRes = await CapacitorHttp.request({
+            url: 'https://chat.inceptionlabs.ai/api/chat',
+            method: 'POST',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Content-Type': 'application/json',
+                'x-session-token': token,
+                'Referer': 'https://chat.inceptionlabs.ai/'
+            },
+            data: {
+                messages: [
+                    { id: 'sys-' + Date.now(), role: 'system', parts: [{ type: 'text', text: systemContext }] },
+                    { id: 'usr-' + Date.now(), role: 'user', parts: [{ type: 'text', text: userText }] }
+                ],
+                reasoningEffort: 'medium',
+                webSearchEnabled: false,
+                voiceMode: false,
+                timezone: 'Asia/Kolkata'
+            }
+        });
+        if (chatRes.status === 200 && chatRes.data) {
+            let text = typeof chatRes.data === 'string' ? chatRes.data : JSON.stringify(chatRes.data);
+            let fullReply = '';
+            const lines = text.split('\n');
+            for (const line of lines) {
+                if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+                    try {
+                        const parsed = JSON.parse(line.slice(6));
+                        if (parsed.type === 'text-delta' && parsed.delta) fullReply += parsed.delta;
+                    } catch (_) {}
+                }
+            }
+            if (fullReply.trim()) return fullReply;
+        }
+    } catch (e) {
+        console.warn('Native Inception error:', e);
+    }
+    return null;
+}
+
 async function askAcademicAI(userPrompt) {
     const systemPrompt = getAcademicContextForAI();
 
-    // 1. Direct Backend / Vercel Serverless Inception AI (/api/chat)
+    // 1. Primary: Direct Vercel Serverless Inception AI (/api/chat)
     try {
         const apiBase = getApiBase();
         const res = await fetch(apiBase + '/api/chat', {
@@ -1094,7 +1150,13 @@ async function askAcademicAI(userPrompt) {
         }
     } catch (_) {}
 
-    // 2. Puter.js Zero-Key Engine (DeepSeek-V3 / GPT-4o-mini)
+    // 2. Secondary: Direct Native Capacitor Inception AI (Inside Android APK)
+    try {
+        const nativeReply = await nativeInceptionChat(userPrompt, systemPrompt);
+        if (nativeReply) return nativeReply;
+    } catch (_) {}
+
+    // 3. Tertiary: Puter.js Zero-Key Engine (DeepSeek-V3 / GPT-4o-mini)
     if (window.puter && window.puter.ai && typeof window.puter.ai.chat === 'function') {
         try {
             const res = await window.puter.ai.chat([
@@ -1121,7 +1183,7 @@ async function askAcademicAI(userPrompt) {
         }
     }
 
-    // 3. Instant Offline Academic Rule-Based Engine
+    // 4. Quaternary: Instant Offline Academic Rule-Based Engine
     return getOfflineAIResponse(userPrompt);
 }
 
