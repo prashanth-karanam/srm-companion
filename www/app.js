@@ -19,6 +19,7 @@ function authHeader()        { return { 'Authorization': 'Bearer ' + (getToken()
 
 let _liveCookies = '';
 let _hiddenFields = {};
+let _secConfig = {};
 
 // ─── Native Capacitor HTTP Engine (Android APK CORS Bypass) ───────────────────
 async function nativeHttp(url, opts = {}) {
@@ -116,6 +117,7 @@ async function fetchLiveCaptcha() {
         if (res && res.success && res.captchaImg) {
             _liveCookies = res.cookies || '';
             _hiddenFields = res.hidden_fields || {};
+            _secConfig = res.sec_config || {};
             if (box) {
                 box.innerHTML = `<img src="${res.captchaImg}" style="height:34px;border-radius:6px;" alt="CAPTCHA">`;
             }
@@ -171,7 +173,8 @@ async function doAutoLogin(isBackgroundRefresh = false) {
                 password: pass,
                 captcha: captchaVal,
                 cookies: _liveCookies,
-                hidden_fields: _hiddenFields
+                hidden_fields: _hiddenFields,
+                sec_config: _secConfig
             })
         });
 

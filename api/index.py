@@ -6,9 +6,11 @@ Features:
    - Dual Engine (curl_cffi with instant requests.Session fallback)
    - Predictive Token Lifecycle (Pre-minting & 15m rotation)
    - TCP Packet Stitching & Resilient SSE Buffer Parser
-2. High-Precision SRM Student Portal Scraper (sp.srmist.edu.in)
-   - Java data-src Token & Dynamic Honeypot Binding
-   - True Credential & CAPTCHA Verification (No Fake Logins)
+2. High-Precision SRM Student Portal Protocol Emulation (sp.srmist.edu.in)
+   - Java X-Domain-Proof Nonce & Linked data-src CAPTCHA Binding
+   - Reverse-Domain Token & Delimiter Timing Trap Emulation (domainFieldName & captchaFieldName)
+   - Full Canvas & Device Telemetry Payload Generation (telemetryPayload)
+   - Anti-Bot Honeypot Integrity
    - Live Attendance, Timetable & Real Student Name Extraction
 """
 
@@ -30,7 +32,7 @@ except Exception:
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    'Accept': 'application/json, text/html, */*',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
 }
 
@@ -164,26 +166,6 @@ class AdvancedAIClient:
         return self._fallback_pollinations(user_text, system_context)
 
     def _fallback_pollinations(self, user_text: str, system_context: str = "") -> dict:
-        try:
-            headers = {"User-Agent": HEADERS["User-Agent"], "Content-Type": "application/json"}
-            payload = {
-                "messages": [
-                    {"role": "system", "content": system_context or "You are an elite academic tutor for SRMIST students. Be concise, clear, and direct."},
-                    {"role": "user", "content": user_text}
-                ]
-            }
-            res = requests.post("https://text.pollinations.ai/", headers=headers, json=payload, timeout=10)
-            if res.status_code == 200 and res.text.strip():
-                return {
-                    "success": True,
-                    "reply": res.text.strip(),
-                    "reasoning": "",
-                    "provider": "Pollinations AI (Edge Fallback)",
-                    "status": "success"
-                }
-        except Exception:
-            pass
-
         return {
             "success": True,
             "reply": "I am your SRM Academic Copilot. Ask me about today's timetable, attendance safe bunks, or exam notes.",
@@ -195,15 +177,28 @@ class AdvancedAIClient:
 ai_engine = AdvancedAIClient()
 
 
-# ─── High-Precision SRM Student Portal Scraper ──────────────────────────────
+# ─── High-Precision SRM Student Portal Security & Scraper ───────────────────
 def fetch_srm_captcha():
     sess = requests.Session()
     sess.headers.update(HEADERS)
     
-    # 1. Fetch login page and extract Java data-src token and dynamic inputs
+    # 1. Fetch login page and extract Java security nonces & dynamic tokens
     r_page = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp', timeout=12)
-    soup = BeautifulSoup(r_page.text, 'html.parser')
+    html = r_page.text
+    soup = BeautifulSoup(html, 'html.parser')
     
+    nonce_match = re.search(r"nonce\s*:\s*['\"]([^'\"]+)['\"]", html)
+    nonce = nonce_match.group(1) if nonce_match else ""
+
+    df_match = re.search(r"domainFieldName\s*=\s*['\"]([^'\"]+)['\"]", html)
+    domainFieldName = df_match.group(1) if df_match else ""
+
+    cf_match = re.search(r"captchaFieldName\s*=\s*['\"]([^'\"]+)['\"]", html)
+    captchaFieldName = cf_match.group(1) if cf_match else ""
+
+    rd_match = re.search(r"randomDelimiter\s*=\s*['\"]([^'\"]+)['\"]", html)
+    randomDelimiter = rd_match.group(1) if rd_match else ""
+
     # Extract exact captcha URL with token from data-src
     img = soup.find('img', id='secure_captcha')
     data_src = img.get('data-src') if img else None
@@ -214,6 +209,7 @@ def fetch_srm_captcha():
         ts = int(time.time() * 1000)
         captcha_url = f"https://sp.srmist.edu.in/srmiststudentportal/SCaptchaServlet?ts={ts}"
 
+    # Extract form inputs & honeypots
     form = soup.find('form')
     hidden_fields = {}
     if form:
@@ -222,7 +218,11 @@ def fetch_srm_captcha():
             if name and name not in ['username', 'password', 'captcha']:
                 hidden_fields[name] = inp.get('value', '')
 
-    # 2. Fetch CAPTCHA image bound to this exact session
+    # 2. Fetch CAPTCHA image with mandatory X-Domain-Proof header
+    domain_proof = base64.b64encode(f"{nonce}:sp.srmist.edu.in".encode('utf-8')).decode('utf-8')
+    sess.headers['X-Domain-Proof'] = domain_proof
+    sess.headers['Referer'] = 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp'
+    
     captcha_res = sess.get(captcha_url, timeout=10)
     
     cookies_str = "; ".join([f"{k}={v}" for k, v in sess.cookies.items()])
@@ -232,11 +232,17 @@ def fetch_srm_captcha():
         "success": True,
         "cookies": cookies_str,
         "hidden_fields": hidden_fields,
+        "sec_config": {
+            "nonce": nonce,
+            "domainFieldName": domainFieldName,
+            "captchaFieldName": captchaFieldName,
+            "randomDelimiter": randomDelimiter
+        },
         "captchaImg": f"data:image/jpeg;base64,{b64_img}"
     }
 
 
-def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_fields=None):
+def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_fields=None, sec_config=None):
     sess = requests.Session()
     sess.headers.update(HEADERS)
     sess.headers['Referer'] = 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp'
@@ -250,10 +256,51 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
         'password': password,
         'captcha': captcha
     }
+    
     if hidden_fields and isinstance(hidden_fields, dict):
         login_payload.update(hidden_fields)
 
-    # 1. Post to LoginServlet
+    # 1. Attach Dynamic Domain Proof
+    if sec_config and isinstance(sec_config, dict):
+        df_name = sec_config.get('domainFieldName')
+        if df_name:
+            reversed_host = "sp.srmist.edu.in"[::-1]
+            login_payload[df_name] = base64.b64encode(reversed_host.encode('utf-8')).decode('utf-8')
+
+        cf_name = sec_config.get('captchaFieldName')
+        rd = sec_config.get('randomDelimiter', '')
+        if cf_name:
+            trap_payload = f"4{rd}12"
+            login_payload[cf_name] = base64.b64encode(trap_payload.encode('utf-8')).decode('utf-8')
+
+    # 2. Attach Telemetry Payload
+    now_ms = int(time.time() * 1000)
+    telemetry = {
+        "startTime": now_ms - 4200,
+        "currentDomain": "sp.srmist.edu.in",
+        "timezoneOffset": -330,
+        "screenWidth": 1920,
+        "screenHeight": 1080,
+        "colorDepth": 24,
+        "devicePixelRatio": 1,
+        "platform": "Win32",
+        "userAgent": sess.headers['User-Agent'],
+        "language": "en-US",
+        "hardwareConcurrency": 8,
+        "deviceMemory": 8,
+        "touchSupport": False,
+        "webdriver": False,
+        "mouseClicks": 2,
+        "mouseMovements": 14,
+        "keystrokeCount": 18,
+        "typingSpeedMs": 240,
+        "canvasHash": "c4d812a",
+        "submitTime": now_ms,
+        "timeOnPageMs": 4200
+    }
+    login_payload['telemetryPayload'] = base64.b64encode(json.dumps(telemetry).encode('utf-8')).decode('utf-8')
+
+    # 3. Post to LoginServlet
     login_res = sess.post('https://sp.srmist.edu.in/srmiststudentportal/LoginServlet', data=login_payload, timeout=15, allow_redirects=True)
     
     # Strict validation: Check if login was rejected
@@ -263,7 +310,7 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
             "error": "❌ Invalid SRM ID, Password, or CAPTCHA. Please verify your credentials."
         }
 
-    # 2. Extract Real Student Name & Registration Number
+    # 4. Extract Real Student Name & Registration Number
     student_name = username.upper()
     reg_no = ""
     try:
@@ -280,7 +327,7 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
     except Exception:
         pass
 
-    # 3. Scrape Live Attendance Table
+    # 5. Scrape Live Attendance Table
     attendance_list = []
     try:
         r_att = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/report/attendanceReport.jsp', timeout=12)
@@ -384,6 +431,7 @@ class handler(BaseHTTPRequestHandler):
             captcha = body.get('captcha') or body.get('captcha_text') or ''
             cookies = body.get('cookies') or ''
             hidden_fields = body.get('hidden_fields') or {}
+            sec_config = body.get('sec_config') or {}
 
             if not username or not password or not captcha:
                 self._set_headers(400)
@@ -394,12 +442,12 @@ class handler(BaseHTTPRequestHandler):
                 return
 
             try:
-                res = login_and_scrape_portal(username, password, captcha, cookies, hidden_fields)
+                res = login_and_scrape_portal(username, password, captcha, cookies, hidden_fields, sec_config)
                 self._set_headers(200 if res.get('success') else 401)
                 self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
             except Exception as e:
                 self._set_headers(500)
-                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False).encode('utf-8'))
 
         elif path == '/api/chat':
             message = body.get('message') or body.get('prompt') or ''
@@ -416,7 +464,7 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
             except Exception as e:
                 self._set_headers(500)
-                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+                self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode('utf-8'))
 
         else:
             self._set_headers(404)
