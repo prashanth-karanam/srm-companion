@@ -1,6 +1,6 @@
-// SRM Student Companion - Dynamic Timetable Mutation & AI Engine (100% $0-Forever Architecture)
+// SRM Student Companion - Dynamic Timetable Mutation & AI Protocol Engine (100% $0-Forever Architecture)
 
-// ─── API Config ──────────────────────────────────────────────────────────────
+// ─── API Gateway Resolution ──────────────────────────────────────────────────
 function getApiBase() {
     const saved = localStorage.getItem('srm_api_base');
     if (saved) return saved.replace(/\/$/, '');
@@ -11,16 +11,16 @@ function getApiBase() {
 }
 const API_BASE = getApiBase();
 
-// ─── Auth Storage ─────────────────────────────────────────────────────────────
+// ─── Auth Session Storage ─────────────────────────────────────────────────────
 function getToken()          { return localStorage.getItem('srm_jwt'); }
 function setToken(t)         { localStorage.setItem('srm_jwt', t); }
 function clearToken()        { localStorage.removeItem('srm_jwt'); }
 function authHeader()        { return { 'Authorization': 'Bearer ' + (getToken() || '') }; }
 
 let _liveCookies = '';
-let _isRefreshing = false;
+let _hiddenFields = {};
 
-// ─── Native Capacitor HTTP Engine (Bypasses CORS on Android APK) ──────────────
+// ─── Native Capacitor HTTP Engine (Android APK CORS Bypass) ───────────────────
 async function nativeHttp(url, opts = {}) {
     if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
         try {
@@ -42,7 +42,7 @@ async function nativeHttp(url, opts = {}) {
                 text: async () => (typeof res.data === 'object' ? JSON.stringify(res.data) : String(res.data))
             };
         } catch (err) {
-            console.warn('CapacitorHttp request fallback:', err);
+            console.warn('CapacitorHttp fallback:', err);
         }
     }
     return fetch(url, opts);
@@ -60,7 +60,7 @@ async function apiFetch(path, opts = {}) {
     
     try {
         const r = await nativeHttp(base + path, opts);
-        if (!r.ok) return null;
+        if (!r.ok && r.status !== 401 && r.status !== 400) return null;
         return await r.json();
     } catch (_) {
         return null;
@@ -87,15 +87,16 @@ function showDashboard() {
     if (dock) dock.style.display = 'flex';
     
     const displayName = localStorage.getItem('srm_display_name') || 'Student';
+    const regNo = localStorage.getItem('srm_reg_no') || 'SRMIST Kattankulathur';
     const regEl = document.getElementById('header-reg');
     const nameEl = document.getElementById('header-name');
     const avEl = document.getElementById('header-avatar');
-    if (nameEl) nameEl.textContent = 'Welcome';
-    if (regEl) regEl.textContent = displayName;
+    if (nameEl) nameEl.textContent = displayName;
+    if (regEl) regEl.textContent = regNo;
     if (avEl) avEl.textContent = displayName.substring(0, 2).toUpperCase();
 }
 
-// ─── Live CAPTCHA Engine ──────────────────────────────────────────────────────
+// ─── Live CAPTCHA Engine (sp.srmist.edu.in) ───────────────────────────────────
 let _currentCaptcha = 'R7B9K';
 
 function generateRandomCaptcha() {
@@ -114,8 +115,9 @@ async function fetchLiveCaptcha() {
         const res = await apiFetch('/api/captcha');
         if (res && res.success && res.captchaImg) {
             _liveCookies = res.cookies || '';
+            _hiddenFields = res.hidden_fields || {};
             if (box) {
-                box.innerHTML = `<img src="${res.captchaImg}" style="height:32px;border-radius:6px;" alt="CAPTCHA">`;
+                box.innerHTML = `<img src="${res.captchaImg}" style="height:34px;border-radius:6px;" alt="CAPTCHA">`;
             }
             return;
         }
@@ -134,7 +136,7 @@ function refreshCaptcha() {
     fetchLiveCaptcha();
 }
 
-// ─── Authentication Flow ──────────────────────────────────────────────────────
+// ─── Authentication Flow (Strict Validation - No Fake Logins) ────────────────
 function doLogin() {
     return doAutoLogin(false);
 }
@@ -142,7 +144,7 @@ function doLogin() {
 async function doAutoLogin(isBackgroundRefresh = false) {
     const rawId = isBackgroundRefresh ? localStorage.getItem('srm_auto_id') : document.getElementById('login-id')?.value.trim().toLowerCase().replace('@srmist.edu.in', '');
     const pass  = isBackgroundRefresh ? localStorage.getItem('srm_auto_pass') : document.getElementById('login-pass')?.value;
-    const captchaVal = document.getElementById('login-captcha')?.value.trim().toUpperCase();
+    const captchaVal = document.getElementById('login-captcha')?.value.trim();
     const btn   = document.getElementById('login-btn');
 
     if (!rawId || !pass) { 
@@ -152,27 +154,38 @@ async function doAutoLogin(isBackgroundRefresh = false) {
 
     if (!isBackgroundRefresh) {
         if (!captchaVal) {
-            showErr('Please enter the security CAPTCHA code');
+            showErr('Please enter the security CAPTCHA code shown in the box');
             return false;
         }
-        if (btn) { btn.disabled = true; btn.textContent = 'Authenticating…'; }
+        if (btn) { btn.disabled = true; btn.textContent = 'Authenticating on SRM Portal…'; }
         const errEl = document.getElementById('login-error');
         if (errEl) errEl.style.display = 'none';
     }
 
     try {
-        // Attempt live portal login via stateless HTTP proxy
+        // Authenticate directly against SRM portal through the stateless proxy
         const res = await apiFetch('/api/login', {
             method: 'POST',
             body: JSON.stringify({
                 username: rawId,
                 password: pass,
                 captcha: captchaVal,
-                cookies: _liveCookies
+                cookies: _liveCookies,
+                hidden_fields: _hiddenFields
             })
         });
 
         if (res && res.success) {
+            // Authentic login verified! Save real scraped data
+            const realName = res.name || rawId.toUpperCase();
+            const regNo = res.reg_no || '';
+            
+            localStorage.setItem('srm_auto_id', rawId);
+            localStorage.setItem('srm_auto_pass', pass);
+            localStorage.setItem('srm_display_name', realName);
+            if (regNo) localStorage.setItem('srm_reg_no', regNo);
+            setToken('srm_session_' + rawId + '_' + Date.now());
+
             if (res.attendance && res.attendance.length > 0) {
                 portalAttendance = res.attendance;
                 localStorage.setItem('srm_cached_attendance', JSON.stringify(res.attendance));
@@ -181,21 +194,27 @@ async function doAutoLogin(isBackgroundRefresh = false) {
                 _liveCookies = res.cookies;
                 localStorage.setItem('srm_live_cookies', res.cookies);
             }
+
+            if (!isBackgroundRefresh) {
+                onLoginSuccess();
+            }
+            return true;
+        } else {
+            // Authentication rejected by portal!
+            if (!isBackgroundRefresh) {
+                const errorMsg = (res && res.error) ? res.error : '❌ Invalid SRM ID, password, or CAPTCHA. Please check your credentials and try again.';
+                showErr(errorMsg);
+                refreshCaptcha();
+            }
+            return false;
         }
-    } catch (_) {
-        // Offline or proxy unreachable
+    } catch (err) {
+        if (!isBackgroundRefresh) {
+            showErr('⚠️ Unable to connect to authentication server. Please check your internet connection.');
+            refreshCaptcha();
+        }
+        return false;
     }
-
-    // Persist login state
-    localStorage.setItem('srm_auto_id', rawId);
-    localStorage.setItem('srm_auto_pass', pass);
-    localStorage.setItem('srm_display_name', rawId.toUpperCase());
-    setToken('srm_session_' + rawId + '_' + Date.now());
-
-    if (!isBackgroundRefresh) {
-        onLoginSuccess();
-    }
-    return true;
 }
 
 function openPortalModal() {
@@ -239,6 +258,7 @@ function doLogout() {
     localStorage.removeItem('srm_auto_id');
     localStorage.removeItem('srm_auto_pass');
     localStorage.removeItem('srm_display_name');
+    localStorage.removeItem('srm_reg_no');
     localStorage.removeItem('srm_cached_attendance');
     location.reload();
 }
@@ -317,7 +337,7 @@ function _initApp() {
     updateLiveHUD();
     initP2PMesh();
 
-    // On-demand background sync on launch (without 15s rapid polling)
+    // On-demand background sync on launch
     syncWithBackend();
 
     if (!window._appIntervalsSet) {
@@ -340,15 +360,27 @@ async function syncWithBackend() {
                 username: rawId,
                 password: pass,
                 captcha: 'SYNC',
-                cookies: localStorage.getItem('srm_live_cookies') || ''
+                cookies: localStorage.getItem('srm_live_cookies') || '',
+                hidden_fields: _hiddenFields
             })
         });
 
-        if (res && res.success && res.attendance && res.attendance.length > 0) {
-            portalAttendance = res.attendance;
-            localStorage.setItem('srm_cached_attendance', JSON.stringify(res.attendance));
-            const now = new Date();
-            renderAttendance(now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+        if (res && res.success) {
+            if (res.name) {
+                localStorage.setItem('srm_display_name', res.name);
+                const nameEl = document.getElementById('header-name');
+                if (nameEl) nameEl.textContent = res.name;
+            }
+            if (res.reg_no) {
+                localStorage.setItem('srm_reg_no', res.reg_no);
+                const regEl = document.getElementById('header-reg');
+                if (regEl) regEl.textContent = res.reg_no;
+            }
+            if (res.attendance && res.attendance.length > 0) {
+                portalAttendance = res.attendance;
+                localStorage.setItem('srm_cached_attendance', JSON.stringify(res.attendance));
+                renderAttendance(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+            }
         }
     } catch (_) {}
 }
@@ -367,7 +399,7 @@ async function triggerManualScrape() {
     }, 1200);
 }
 
-// ─── Attendance Renderer (Bug Fixed: Supports item.title & item.code) ─────────
+// ─── Attendance Renderer (Clean Mapping & Margin Calculations) ────────────────
 function renderAttendance(syncedAt) {
     const wrap = document.getElementById('att-wrap');
     const stamp = document.getElementById('att-stamp');
@@ -714,7 +746,7 @@ function initAnnouncementsSearch() {
     if (input) input.oninput = (e) => renderAnnouncements(activeSubjectFilter, e.target.value);
 }
 
-// ─── Keyless Zero-Timeout AI Copilot ──────────────────────────────────────────
+// ─── Stateful Protocol Emulation AI Client Caller ─────────────────────────────
 function initAI() {
     const sendBtn = document.getElementById('ai-send-btn');
     const input = document.getElementById('ai-input');
@@ -770,7 +802,18 @@ Answer clearly and concisely with markdown formatting.`;
 async function askAcademicAI(userPrompt) {
     const systemPrompt = getAcademicContextForAI();
 
-    // 1. Tier 1: Puter.js in-browser AI (Zero timeout, $0 forever, DeepSeek-V3)
+    // 1. Primary: Stateful Protocol Emulation Backend (/api/chat)
+    try {
+        const res = await apiFetch('/api/chat', {
+            method: 'POST',
+            body: JSON.stringify({ message: userPrompt, context: systemPrompt })
+        });
+        if (res && res.reply && !res.reply.includes('Unable to connect')) {
+            return res.reply;
+        }
+    } catch (_) {}
+
+    // 2. Secondary: Puter.js in-browser AI (DeepSeek-V3)
     if (window.puter && window.puter.ai && typeof window.puter.ai.chat === 'function') {
         try {
             const res = await window.puter.ai.chat([
@@ -787,7 +830,7 @@ async function askAcademicAI(userPrompt) {
         }
     }
 
-    // 2. Tier 2: Pollinations.ai Keyless Direct HTTP
+    // 3. Tertiary: Pollinations.ai Edge API
     try {
         const res = await fetch('https://text.pollinations.ai/', {
             method: 'POST',
@@ -806,16 +849,7 @@ async function askAcademicAI(userPrompt) {
         }
     } catch (_) {}
 
-    // 3. Tier 3: Vercel Serverless Proxy
-    try {
-        const res = await apiFetch('/api/chat', {
-            method: 'POST',
-            body: JSON.stringify({ message: userPrompt, context: systemPrompt })
-        });
-        if (res && res.reply) return res.reply;
-    } catch (_) {}
-
-    // 4. Tier 4: Instant Offline Calculation Engine
+    // 4. Quaternary: Instant Offline Calculation Engine
     return getOfflineAIResponse(userPrompt);
 }
 
@@ -917,9 +951,7 @@ function initP2PMesh() {
     if (typeof Peer !== 'undefined') {
         try {
             const peerId = 'srm-' + (localStorage.getItem('srm_auto_id') || Math.random().toString(36).substring(2, 8));
-            _peer = new Peer(peerId, {
-                debug: 0
-            });
+            _peer = new Peer(peerId, { debug: 0 });
 
             _peer.on('open', () => {
                 if (badge) { badge.textContent = '🟢 WebRTC Mesh Live'; badge.style.color = '#34d399'; }
