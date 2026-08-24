@@ -2,6 +2,7 @@
 Vercel Serverless Python Backend for SRM Companion (100% $0-Forever Architecture)
 Features:
 1. Stateful Protocol Emulation AI Client (curl_cffi + Chrome 124 TLS Impersonation)
+   - Persistent Stateful Session (Zero-latency Token & Cookie Co-binding)
    - Predictive Token Lifecycle (Pre-minting & 15m rotation)
    - TCP Packet Stitching & Resilient SSE Buffer Parser
    - Dual Event Routing (Reasoning + Text Tokens)
@@ -37,15 +38,25 @@ HEADERS = {
 class AdvancedAIClient:
     def __init__(self, browser_profile: str = "chrome124"):
         self.browser_profile = browser_profile
+        self.session = None
         self._token = None
         self._token_created_at = 0.0
         self._token_ttl = 900.0  # 15-minute predictive token rotation
+
+    def _get_session(self):
+        if self.session is None:
+            if CURL_CFFI_AVAILABLE:
+                self.session = CurlSession(impersonate=self.browser_profile)
+            else:
+                self.session = requests.Session()
+        return self.session
 
     def _ensure_valid_token(self):
         now = time.time()
         if self._token and (now - self._token_created_at < self._token_ttl):
             return self._token
 
+        s = self._get_session()
         headers = {
             "Accept": "application/json, text/plain, */*",
             "Referer": "https://chat.inceptionlabs.ai/",
@@ -53,32 +64,28 @@ class AdvancedAIClient:
             "User-Agent": HEADERS["User-Agent"]
         }
 
-        # Mint fresh session token
-        if CURL_CFFI_AVAILABLE:
-            with CurlSession(impersonate=self.browser_profile) as s:
-                s.get("https://chat.inceptionlabs.ai", headers=headers, timeout=10)
-                res = s.get("https://chat.inceptionlabs.ai/api/session", headers=headers, timeout=10)
-                if res.status_code == 200:
-                    self._token = res.json().get("token")
-                    self._token_created_at = now
-                    return self._token
-        else:
-            s = requests.Session()
-            s.get("https://chat.inceptionlabs.ai", headers=headers, timeout=10)
-            res = s.get("https://chat.inceptionlabs.ai/api/session", headers=headers, timeout=10)
-            if res.status_code == 200:
-                self._token = res.json().get("token")
-                self._token_created_at = now
-                return self._token
+        s.get("https://chat.inceptionlabs.ai", headers=headers, timeout=10)
+        res = s.get("https://chat.inceptionlabs.ai/api/session", headers=headers, timeout=10)
+        if res.status_code == 200:
+            self._token = res.json().get("token")
+            self._token_created_at = now
+            return self._token
 
-        raise ConnectionError("Failed to initiate Inception Labs AI session")
+        raise ConnectionError(f"Session initiation failed: HTTP {res.status_code}")
 
     def query(self, user_text: str, system_context: str = "") -> dict:
         try:
             token = self._ensure_valid_token()
         except Exception:
-            return self._fallback_pollinations(user_text, system_context)
+            # Refresh session on error and retry once
+            self.session = None
+            self._token = None
+            try:
+                token = self._ensure_valid_token()
+            except Exception:
+                return self._fallback_pollinations(user_text, system_context)
 
+        s = self._get_session()
         headers = {
             "Content-Type": "application/json",
             "Accept": "text/event-stream",
@@ -110,49 +117,27 @@ class AdvancedAIClient:
         }
 
         try:
+            res = s.post("https://chat.inceptionlabs.ai/api/chat", headers=headers, json=payload, stream=True, timeout=25)
             full_text = ""
             reasoning_text = ""
 
-            if CURL_CFFI_AVAILABLE:
-                with CurlSession(impersonate=self.browser_profile) as s:
-                    res = s.post("https://chat.inceptionlabs.ai/api/chat", headers=headers, json=payload, stream=True, timeout=25)
-                    for line in res.iter_lines():
-                        if not line:
-                            continue
-                        s_line = (line.decode("utf-8", errors="ignore") if isinstance(line, bytes) else str(line)).strip()
-                        if s_line.startswith("data:"):
-                            raw = s_line[5:].strip()
-                            if raw == "[DONE]":
-                                break
-                            try:
-                                ev = json.loads(raw)
-                                ev_type = ev.get("type")
-                                if ev_type == "text-delta":
-                                    full_text += ev.get("delta", "")
-                                elif ev_type == "reasoning-delta":
-                                    reasoning_text += ev.get("delta", "")
-                            except Exception:
-                                pass
-            else:
-                s = requests.Session()
-                res = s.post("https://chat.inceptionlabs.ai/api/chat", headers=headers, json=payload, stream=True, timeout=25)
-                for line in res.iter_lines():
-                    if not line:
-                        continue
-                    s_line = (line.decode("utf-8", errors="ignore") if isinstance(line, bytes) else str(line)).strip()
-                    if s_line.startswith("data:"):
-                        raw = s_line[5:].strip()
-                        if raw == "[DONE]":
-                            break
-                        try:
-                            ev = json.loads(raw)
-                            ev_type = ev.get("type")
-                            if ev_type == "text-delta":
-                                full_text += ev.get("delta", "")
-                            elif ev_type == "reasoning-delta":
-                                reasoning_text += ev.get("delta", "")
-                        except Exception:
-                            pass
+            for line in res.iter_lines():
+                if not line:
+                    continue
+                s_line = (line.decode("utf-8", errors="ignore") if isinstance(line, bytes) else str(line)).strip()
+                if s_line.startswith("data:"):
+                    raw = s_line[5:].strip()
+                    if raw == "[DONE]":
+                        break
+                    try:
+                        ev = json.loads(raw)
+                        ev_type = ev.get("type")
+                        if ev_type == "text-delta":
+                            full_text += ev.get("delta", "")
+                        elif ev_type == "reasoning-delta":
+                            reasoning_text += ev.get("delta", "")
+                    except Exception:
+                        pass
 
             if full_text.strip():
                 return {
