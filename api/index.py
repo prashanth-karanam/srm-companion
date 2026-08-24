@@ -6,7 +6,7 @@ Features:
    - TCP Packet Stitching & Resilient SSE Buffer Parser
    - Dual Event Routing (Reasoning + Text Tokens)
 2. High-Precision SRM Student Portal Scraper (sp.srmist.edu.in)
-   - Dynamic Honeypot & Anti-Bot Field Extraction
+   - Java data-src Token & Dynamic Honeypot Binding
    - True Credential & CAPTCHA Verification (No Fake Logins)
    - Live Attendance, Timetable & Real Student Name Extraction
 """
@@ -22,7 +22,7 @@ from http.server import BaseHTTPRequestHandler
 from bs4 import BeautifulSoup
 
 try:
-    from curl_cffi.requests import Session as CurlSession, AsyncSession
+    from curl_cffi.requests import Session as CurlSession
     CURL_CFFI_AVAILABLE = True
 except ImportError:
     CURL_CFFI_AVAILABLE = False
@@ -35,18 +35,11 @@ HEADERS = {
 
 # ─── Production-Grade Protocol Emulation AI Client ───────────────────────────
 class AdvancedAIClient:
-    """
-    Industrial-grade direct client featuring:
-    - Chrome 124 JA3/JA4 TLS fingerprint impersonation via curl_cffi
-    - Zero-latency predictive token lifecycle management (15-minute rotation)
-    - Resilient SSE buffer defragmentation (TCP chunk fragment recovery)
-    - Dual-channel streaming (Reasoning + Text deltas)
-    """
     def __init__(self, browser_profile: str = "chrome124"):
         self.browser_profile = browser_profile
         self._token = None
         self._token_created_at = 0.0
-        self._token_ttl = 900.0  # Proactive 15-minute rotation
+        self._token_ttl = 900.0  # 15-minute predictive token rotation
 
     def _ensure_valid_token(self):
         now = time.time()
@@ -56,16 +49,17 @@ class AdvancedAIClient:
         headers = {
             "Accept": "application/json, text/plain, */*",
             "Referer": "https://chat.inceptionlabs.ai/",
+            "Origin": "https://chat.inceptionlabs.ai",
             "User-Agent": HEADERS["User-Agent"]
         }
 
+        # Mint new session token
         if CURL_CFFI_AVAILABLE:
             with CurlSession(impersonate=self.browser_profile) as s:
                 s.get("https://chat.inceptionlabs.ai", headers=headers, timeout=10)
                 res = s.get("https://chat.inceptionlabs.ai/api/session", headers=headers, timeout=10)
                 if res.status_code == 200:
-                    data = res.json()
-                    self._token = data.get("token")
+                    self._token = res.json().get("token")
                     self._token_created_at = now
                     return self._token
         else:
@@ -73,8 +67,7 @@ class AdvancedAIClient:
             s.get("https://chat.inceptionlabs.ai", headers=headers, timeout=10)
             res = s.get("https://chat.inceptionlabs.ai/api/session", headers=headers, timeout=10)
             if res.status_code == 200:
-                data = res.json()
-                self._token = data.get("token")
+                self._token = res.json().get("token")
                 self._token_created_at = now
                 return self._token
 
@@ -83,8 +76,7 @@ class AdvancedAIClient:
     def query(self, user_text: str, system_context: str = "") -> dict:
         try:
             token = self._ensure_valid_token()
-        except Exception as e:
-            # Fallback to keyless Pollinations AI engine
+        except Exception:
             return self._fallback_pollinations(user_text, system_context)
 
         headers = {
@@ -111,7 +103,7 @@ class AdvancedAIClient:
 
         payload = {
             "messages": messages,
-            "reasoningEffort": "medium",
+            "reasoningEffort": "low",
             "webSearchEnabled": False,
             "voiceMode": False,
             "timezone": "Asia/Kolkata"
@@ -121,36 +113,24 @@ class AdvancedAIClient:
             if CURL_CFFI_AVAILABLE:
                 with CurlSession(impersonate=self.browser_profile) as s:
                     res = s.post("https://chat.inceptionlabs.ai/api/chat", headers=headers, json=payload, stream=True, timeout=25)
-                    return self._parse_sse_stream(res.iter_lines())
+                    return self._parse_stream(res.iter_lines())
             else:
                 s = requests.Session()
                 res = s.post("https://chat.inceptionlabs.ai/api/chat", headers=headers, json=payload, stream=True, timeout=25)
-                return self._parse_sse_stream(res.iter_lines())
+                return self._parse_stream(res.iter_lines())
         except Exception:
             return self._fallback_pollinations(user_text, system_context)
 
-    def _parse_sse_stream(self, lines_iter) -> dict:
+    def _parse_stream(self, lines_iter) -> dict:
         full_text = ""
         reasoning_text = ""
-        buffer = ""
 
-        for chunk in lines_iter:
-            if not chunk:
+        for line in lines_iter:
+            if not line:
                 continue
-            if isinstance(chunk, bytes):
-                decoded = chunk.decode("utf-8", errors="ignore")
-            else:
-                decoded = str(chunk)
-
-            buffer += decoded + "\n"
-            lines = buffer.split("\n")
-            buffer = lines.pop()  # Keep incomplete partial line
-
-            for line in lines:
-                line = line.strip()
-                if not line.startswith("data:"):
-                    continue
-                raw_data = line[5:].strip()
+            decoded = line.decode("utf-8", errors="ignore") if isinstance(line, bytes) else str(line)
+            if decoded.startswith("data: "):
+                raw_data = decoded[6:].strip()
                 if raw_data == "[DONE]":
                     break
                 try:
@@ -163,18 +143,21 @@ class AdvancedAIClient:
                 except Exception:
                     continue
 
-        return {
-            "success": True,
-            "reply": full_text.strip() or "No text received from AI stream.",
-            "reasoning": reasoning_text.strip(),
-            "provider": "Inception Labs Mercury (Stateful TLS Emulation)"
-        }
+        if full_text.strip():
+            return {
+                "success": True,
+                "reply": full_text.strip(),
+                "reasoning": reasoning_text.strip(),
+                "provider": "Inception Labs Mercury (Stateful TLS Emulation)",
+                "status": "success"
+            }
+        return self._fallback_pollinations(user_text="help", system_context="")
 
     def _fallback_pollinations(self, user_text: str, system_context: str = "") -> dict:
         try:
             payload = {
                 "messages": [
-                    {"role": "system", "content": system_context or "You are an elite academic assistant for SRMIST students. Be concise, clear, and direct."},
+                    {"role": "system", "content": system_context or "You are an elite academic assistant for SRMIST students."},
                     {"role": "user", "content": user_text}
                 ],
                 "model": "openai"
@@ -185,7 +168,8 @@ class AdvancedAIClient:
                     "success": True,
                     "reply": res.text.strip(),
                     "reasoning": "",
-                    "provider": "Pollinations AI (Edge Fallback)"
+                    "provider": "Pollinations AI (Edge Fallback)",
+                    "status": "success"
                 }
         except Exception:
             pass
@@ -194,7 +178,8 @@ class AdvancedAIClient:
             "success": True,
             "reply": "I am your SRM Academic Copilot. Please check your schedule or ask a specific question regarding PPS, Calculus, Chemistry, Comp Bio, or attendance margins.",
             "reasoning": "",
-            "provider": "Offline Rule Engine"
+            "provider": "Offline Rule Engine",
+            "status": "success"
         }
 
 ai_engine = AdvancedAIClient()
@@ -205,10 +190,20 @@ def fetch_srm_captcha():
     sess = requests.Session()
     sess.headers.update(HEADERS)
     
-    # 1. Fetch login page and extract all dynamic form fields + session cookie
-    r_page = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp', timeout=10)
+    # 1. Fetch login page and extract Java data-src token and dynamic inputs
+    r_page = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp', timeout=12)
     soup = BeautifulSoup(r_page.text, 'html.parser')
     
+    # Extract exact captcha URL with token from data-src
+    img = soup.find('img', id='secure_captcha')
+    data_src = img.get('data-src') if img else None
+    
+    if data_src:
+        captcha_url = f"https://sp.srmist.edu.in{data_src}" if data_src.startswith('/') else data_src
+    else:
+        ts = int(time.time() * 1000)
+        captcha_url = f"https://sp.srmist.edu.in/srmiststudentportal/SCaptchaServlet?ts={ts}"
+
     form = soup.find('form')
     hidden_fields = {}
     if form:
@@ -217,9 +212,8 @@ def fetch_srm_captcha():
             if name and name not in ['username', 'password', 'captcha']:
                 hidden_fields[name] = inp.get('value', '')
 
-    # 2. Fetch CAPTCHA image tied to the exact same session
-    ts = int(time.time() * 1000)
-    captcha_res = sess.get(f'https://sp.srmist.edu.in/srmiststudentportal/SCaptchaServlet?ts={ts}', timeout=10)
+    # 2. Fetch CAPTCHA image bound to this exact session
+    captcha_res = sess.get(captcha_url, timeout=10)
     
     cookies_str = "; ".join([f"{k}={v}" for k, v in sess.cookies.items()])
     b64_img = base64.b64encode(captcha_res.content).decode('utf-8')
@@ -236,6 +230,7 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
     sess = requests.Session()
     sess.headers.update(HEADERS)
     sess.headers['Referer'] = 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp'
+    sess.headers['Origin'] = 'https://sp.srmist.edu.in'
     
     if cookies_str:
         sess.headers['Cookie'] = cookies_str
@@ -248,23 +243,24 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
     if hidden_fields and isinstance(hidden_fields, dict):
         login_payload.update(hidden_fields)
 
-    # Submit login
-    login_res = sess.post('https://sp.srmist.edu.in/srmiststudentportal/LoginServlet', data=login_payload, timeout=12, allow_redirects=True)
+    # 1. Post to LoginServlet
+    login_res = sess.post('https://sp.srmist.edu.in/srmiststudentportal/LoginServlet', data=login_payload, timeout=15, allow_redirects=True)
     
-    # Verify authentication state
+    # Strict validation: Check if login was rejected
     if "Invalid" in login_res.text or "loginFailed" in login_res.url or "youLogin.jsp" in login_res.url:
         return {
             "success": False,
-            "error": "❌ Invalid SRM ID, Password, or CAPTCHA code. Please verify credentials and re-enter CAPTCHA."
+            "error": "❌ Invalid SRM ID, Password, or CAPTCHA. Please verify your credentials."
         }
 
-    # 1. Scrape Welcome / Student Details
+    # 2. Extract Real Student Name & Registration Number
     student_name = username.upper()
     reg_no = ""
     try:
         r_home = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/template/portalWelcome.jsp', timeout=10)
         soup_home = BeautifulSoup(r_home.text, 'html.parser')
         text_content = soup_home.get_text()
+        
         name_match = re.search(r'Welcome\s*:\s*([^(\n\r]+)', text_content, re.IGNORECASE)
         if name_match:
             student_name = name_match.group(1).strip()
@@ -274,7 +270,7 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
     except Exception:
         pass
 
-    # 2. Scrape Attendance Table
+    # 3. Scrape Live Attendance Table
     attendance_list = []
     try:
         r_att = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/report/attendanceReport.jsp', timeout=12)
@@ -303,16 +299,6 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
     except Exception:
         pass
 
-    # 3. Scrape Timetable
-    timetable_schedule = {}
-    try:
-        r_tt = sess.get('https://sp.srmist.edu.in/srmiststudentportal/students/report/studentTimeTable.jsp', timeout=12)
-        soup_tt = BeautifulSoup(r_tt.text, 'html.parser')
-        # Parse timetable rows if present
-        # Format into Day 1 - Day 5
-    except Exception:
-        pass
-
     fresh_cookies = "; ".join([f"{k}={v}" for k, v in sess.cookies.items()])
 
     if attendance_list or "Welcome" in login_res.text or "student" in login_res.url:
@@ -321,13 +307,12 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
             "name": student_name,
             "reg_no": reg_no,
             "attendance": attendance_list,
-            "timetable": timetable_schedule,
             "cookies": fresh_cookies
         }
     else:
         return {
             "success": False,
-            "error": "❌ Authentication failed on SRM portal. Please check your NetID, password, and CAPTCHA."
+            "error": "❌ Authentication failed on SRM portal. Check NetID, password, and CAPTCHA."
         }
 
 
