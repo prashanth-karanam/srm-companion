@@ -973,17 +973,17 @@ const SRM_DATA = {
     {
         "date": "24-08-2026",
         "day": "Monday",
-        "status": "Working day",
-        "week": "Wk 5",
-        "day_order": "Day 5",
-        "remarks": "-"
+        "status": "Holiday",
+        "week": "Wk 0",
+        "day_order": "-",
+        "remarks": "Declared Campus Holiday"
     },
     {
         "date": "25-08-2026",
         "day": "Tuesday",
         "status": "Working day",
-        "week": "Wk 6",
-        "day_order": "Day 1",
+        "week": "Wk 5",
+        "day_order": "Day 5",
         "remarks": "-"
     },
     {
@@ -997,6 +997,14 @@ const SRM_DATA = {
     {
         "date": "27-08-2026",
         "day": "Thursday",
+        "status": "Working day",
+        "week": "Wk 6",
+        "day_order": "Day 1",
+        "remarks": "-"
+    },
+    {
+        "date": "28-08-2026",
+        "day": "Friday",
         "status": "Working day",
         "week": "Wk 6",
         "day_order": "Day 2",

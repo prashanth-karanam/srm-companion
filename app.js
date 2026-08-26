@@ -349,16 +349,21 @@ let activeSubjectFilter = 'ALL';
 let portalAttendance = [];
 
 function _initApp() {
-    // 1. Instant 0ms Restore from Cache
     try {
         const cachedAtt = localStorage.getItem('srm_cached_attendance');
         if (cachedAtt) {
             portalAttendance = JSON.parse(cachedAtt);
-            renderAttendance('Cached');
         }
         const cachedTt = localStorage.getItem('srm_cached_schedule');
         if (cachedTt) {
             SRM_DATA.dayOrderSchedule = JSON.parse(cachedTt);
+        }
+        const cachedCal = localStorage.getItem('srm_cached_calendar');
+        if (cachedCal) {
+            const parsedCal = JSON.parse(cachedCal);
+            if (Array.isArray(parsedCal) && parsedCal.length > 0) {
+                SRM_DATA.calendar = parsedCal;
+            }
         }
     } catch (_) {}
 
@@ -372,6 +377,14 @@ function _initApp() {
     initAnnouncementsSearch();
     updateLiveHUD();
     initP2PMesh();
+
+    // Attach interactive Day Order switcher to Island Pill
+    const pill = document.getElementById('island-pill');
+    if (pill) {
+        pill.style.cursor = 'pointer';
+        pill.title = 'Tap to change Day Order or set Holiday';
+        pill.onclick = openDayOrderSwitcher;
+    }
 
     // On-demand background sync on launch
     syncWithBackend();
@@ -427,12 +440,22 @@ async function syncWithBackend() {
             }
         }
 
-        // 2. Fetch live announcements / schedule overrides from backend if available
+        // 2. Fetch live announcements / schedule overrides & calendar updates from backend if available
         try {
             const annRes = await apiFetch('/api/announcements');
             if (annRes && annRes.success && annRes.announcements && annRes.announcements.length > 0) {
                 announcementsData = annRes.announcements;
                 renderAnnouncements();
+            }
+
+            const pDataRes = await apiFetch('/api/portal-data');
+            if (pDataRes && pDataRes.success && pDataRes.data) {
+                if (pDataRes.data.calendar && pDataRes.data.calendar.length > 0) {
+                    SRM_DATA.calendar = pDataRes.data.calendar;
+                    localStorage.setItem('srm_cached_calendar', JSON.stringify(pDataRes.data.calendar));
+                    renderCalendarList();
+                    initClockAndDate();
+                }
             }
         } catch (_) {}
     } catch (_) {}
@@ -545,8 +568,19 @@ function initClockAndDate() {
     const todayStr = getFormattedDateStr(new Date());
     const calEntry = SRM_DATA.calendar.find(c => c.date === todayStr);
     const dayBadge = document.getElementById('current-day-badge');
+    const manualOverride = localStorage.getItem('srm_manual_day_order');
 
-    if (calEntry) {
+    if (manualOverride) {
+        if (manualOverride === 'Holiday') {
+            isTodayHoliday = true;
+            if (dayBadge) { dayBadge.textContent = 'Holiday'; dayBadge.style.color = '#ef4444'; }
+        } else {
+            isTodayHoliday = false;
+            currentDayOrder = manualOverride;
+            selectedDay = currentDayOrder;
+            if (dayBadge) { dayBadge.textContent = manualOverride; dayBadge.style.color = '#38bdf8'; }
+        }
+    } else if (calEntry) {
         if (calEntry.status === 'Holiday') {
             isTodayHoliday = true;
             if (dayBadge) { dayBadge.textContent = 'Holiday'; dayBadge.style.color = '#ef4444'; }
@@ -554,7 +588,7 @@ function initClockAndDate() {
             isTodayHoliday = false;
             currentDayOrder = calEntry.day_order;
             selectedDay = currentDayOrder;
-            if (dayBadge) dayBadge.textContent = calEntry.day_order;
+            if (dayBadge) { dayBadge.textContent = calEntry.day_order; dayBadge.style.color = '#38bdf8'; }
         }
     } else {
         currentDayOrder = 'Day 2';
@@ -564,6 +598,34 @@ function initClockAndDate() {
 
     renderDaySchedule(selectedDay);
     highlightActiveDayBtn(selectedDay);
+}
+
+function openDayOrderSwitcher() {
+    const current = localStorage.getItem('srm_manual_day_order') || 'Auto';
+    const choice = prompt(
+        `⚡ Quick Day Order & Holiday Override\n\n` +
+        `Current Status: ${current}\n\n` +
+        `1. Auto (Official Academic Calendar)\n` +
+        `2. Holiday / Campus Off\n` +
+        `3. Day 1\n` +
+        `4. Day 2\n` +
+        `5. Day 3\n` +
+        `6. Day 4\n` +
+        `7. Day 5\n\n` +
+        `Enter number (1-7):`,
+        current === 'Auto' ? '1' : (current === 'Holiday' ? '2' : String(parseInt(current.replace('Day ', '')) + 2))
+    );
+    if (!choice) return;
+    const num = parseInt(choice.trim(), 10);
+    if (num === 1) {
+        localStorage.removeItem('srm_manual_day_order');
+    } else if (num === 2) {
+        localStorage.setItem('srm_manual_day_order', 'Holiday');
+    } else if (num >= 3 && num <= 7) {
+        localStorage.setItem('srm_manual_day_order', `Day ${num - 2}`);
+    }
+    initClockAndDate();
+    updateLiveHUD();
 }
 
 function updateClock() {
