@@ -11,7 +11,7 @@ import uuid
 import re
 import time
 import requests
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 if hasattr(sys.stdout, 'reconfigure'):
     try:
@@ -260,13 +260,23 @@ Output STRICT JSON only:
     return None
 
 class APIHandler(BaseHTTPRequestHandler):
-    def _set_headers(self, status=200):
-        self.send_response(status)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
-        self.end_headers()
+    def _set_headers(self, status=200, content_type='application/json; charset=utf-8'):
+        try:
+            self.send_response(status)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+            self.end_headers()
+        except Exception:
+            pass
+
+    def _send_json(self, data, status=200):
+        try:
+            self._set_headers(status, 'application/json; charset=utf-8')
+            self.wfile.write(json.dumps(data, ensure_ascii=False).encode('utf-8'))
+        except Exception:
+            pass
 
     def do_OPTIONS(self):
         self._set_headers(204)
@@ -277,34 +287,28 @@ class APIHandler(BaseHTTPRequestHandler):
 
         # 1. API Endpoints
         if path in ['/api/overrides', '/overrides']:
-            self._set_headers(200)
-            self.wfile.write(json.dumps({"success": True, "overrides": SCHEDULE_OVERRIDES}).encode('utf-8'))
+            self._send_json({"success": True, "overrides": SCHEDULE_OVERRIDES})
             return
         elif path in ['/api/tasks', '/api/announcements', '/announcements', '/tasks']:
-            self._set_headers(200)
-            self.wfile.write(json.dumps({
+            self._send_json({
                 "success": True, 
                 "announcements": STRUCTURED_ANNOUNCEMENTS,
                 "overrides": SCHEDULE_OVERRIDES
-            }).encode('utf-8'))
+            })
             return
         elif path in ['/api/captcha', '/api/sp/captcha', '/captcha']:
             try:
                 from api.index import fetch_srm_captcha
                 res = fetch_srm_captcha()
-                self._set_headers(200)
-                self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
+                self._send_json(res, 200)
             except Exception as e:
-                self._set_headers(500)
-                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
+                self._send_json({"success": False, "error": str(e)}, 500)
             return
         elif path in ['/api/portal-data', '/portal-data']:
-            self._set_headers(200)
             portal_data = load_scraped_data()
-            self.wfile.write(json.dumps({"success": True, "data": portal_data}).encode('utf-8'))
+            self._send_json({"success": True, "data": portal_data})
             return
         elif path in ['/api/portal-scrape', '/portal-scrape']:
-            self._set_headers(200)
             if SCRAPER_AVAILABLE:
                 def _do_scrape():
                     try:
@@ -314,9 +318,9 @@ class APIHandler(BaseHTTPRequestHandler):
                         print(f"[Manual Scrape] Error: {e}")
                 import threading
                 threading.Thread(target=_do_scrape, daemon=True).start()
-                self.wfile.write(json.dumps({"success": True, "message": "Scrape started in background"}).encode('utf-8'))
+                self._send_json({"success": True, "message": "Scrape started in background"})
             else:
-                self.wfile.write(json.dumps({"success": False, "message": "Scraper not available"}).encode('utf-8'))
+                self._send_json({"success": False, "message": "Scraper not available"})
             return
 
         # 2. Serve Web Application UI & Static Assets (index.html, app.js, style.css, etc.)
@@ -342,16 +346,16 @@ class APIHandler(BaseHTTPRequestHandler):
             elif req_file.endswith('.svg'):
                 content_type = 'image/svg+xml'
 
-            self.send_response(200)
-            self.send_header('Content-Type', content_type)
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            with open(target_file, 'rb') as f:
-                self.wfile.write(f.read())
+            try:
+                with open(target_file, 'rb') as f:
+                    content_bytes = f.read()
+                self._set_headers(200, content_type)
+                self.wfile.write(content_bytes)
+            except Exception:
+                pass
             return
 
-        self._set_headers(200)
-        self.wfile.write(json.dumps({"status": "SRM Schedule Engine & Inception AI Live"}).encode('utf-8'))
+        self._send_json({"status": "SRM Schedule Engine & Inception AI Live"})
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
@@ -370,11 +374,9 @@ class APIHandler(BaseHTTPRequestHandler):
                 sys_context = "You are a concise, brilliant academic tutor for Karanam Sai Prasanth, 1st year B.Tech student at SRMIST Kattankulathur studying PPS, Calculus, Chemistry, Comp Bio, and Workshop. Keep answers brief, clean, and direct with code or math formulas."
                 
                 reply = ai_engine.get_reply(user_msg, sys_context)
-                self._set_headers(200)
-                self.wfile.write(json.dumps({"reply": reply, "status": "success"}).encode('utf-8'))
+                self._send_json({"reply": reply, "status": "success"})
             except Exception as e:
-                self._set_headers(500)
-                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+                self._send_json({"error": str(e)}, 500)
 
         elif path in ['/api/login', '/api/sp/login', '/login', '/sp/login']:
             # Submit credentials & solved CAPTCHA to sp.srmist.edu.in
@@ -388,17 +390,16 @@ class APIHandler(BaseHTTPRequestHandler):
                 sec_config = body.get('sec_config') or {}
 
                 res = login_and_scrape_portal(username, password, captcha, cookies, hidden_fields, sec_config)
-                self._set_headers(200 if res.get('success') else 401)
-                self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
+                self._send_json(res, 200 if res.get('success') else 401)
             except Exception as e:
-                self._set_headers(500)
-                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
+                self._send_json({"success": False, "error": str(e)}, 500)
 
 def run(port=8000):
     server_address = ('0.0.0.0', port)
-    httpd = HTTPServer(server_address, APIHandler)
+    ThreadingHTTPServer.allow_reuse_address = True
+    httpd = ThreadingHTTPServer(server_address, APIHandler)
     print(f"==================================================")
-    print(f"🚀 SRM SCHEDULE OVERRIDE ENGINE & AI RUNNING (PORT {port})")
+    print(f"🚀 SRM COMPANION MULTITHREADED SERVER RUNNING (PORT {port})")
     print(f"==================================================")
 
     # Auto-start SRM portal background scraper
