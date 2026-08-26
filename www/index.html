@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>SRM Companion</title>
-    <link rel="stylesheet" href="style.css?v=2.4.1">
+    <link rel="stylesheet" href="style.css?v=2.4.2">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -242,15 +242,8 @@
                 <span id="ann-counter" style="font-size:0.72rem;background:#18181b;padding:3px 8px;border-radius:9999px;border:1px solid #27272a;color:var(--accent);">5 notices</span>
             </div>
 
-            <!-- Subject Filter Pills -->
-            <div class="day-scroll" id="ann-filter-scroll" style="margin-bottom:12px;">
-                <div class="day-chip active" onclick="filterAnnouncements('ALL')">All Subjects</div>
-                <div class="day-chip" onclick="filterAnnouncements('26CYB1002J')">🧪 Chemistry</div>
-                <div class="day-chip" onclick="filterAnnouncements('26BTB1001T')">🧬 Comp Bio</div>
-                <div class="day-chip" onclick="filterAnnouncements('26CSE1002J')">💻 PPS C Prog</div>
-                <div class="day-chip" onclick="filterAnnouncements('26MAB1001T')">📐 Calculus</div>
-                <div class="day-chip" onclick="filterAnnouncements('26MEE1001L')">🔧 Workshop</div>
-            </div>
+            <!-- Subject Filter Pills (Populated dynamically by JS) -->
+            <div class="day-scroll" id="ann-filter-scroll" style="margin-bottom:12px;"></div>
 
             <!-- Quick Search Bar -->
             <input type="text" id="ann-search-input" class="ai-input-field" style="margin-bottom:12px;width:100%;font-size:0.82rem;" placeholder="🔍 Search notices (e.g. Pink building, Xerox, Sheeba, Test)...">
@@ -350,7 +343,7 @@
         </button>
     </div>
 
-    <script src="data.js?v=2.4.1"></script>
-    <script src="app.js?v=2.4.1"></script>
+    <script src="data.js?v=2.4.2"></script>
+    <script src="app.js?v=2.4.2"></script>
 </body>
 </html>

@@ -402,6 +402,7 @@ function _initApp() {
                 SRM_DATA.calendar = parsedCal;
             }
         }
+        announcementsData = getUserAnnouncements();
     } catch (_) {}
 
     initClockAndDate();
@@ -410,6 +411,7 @@ function _initApp() {
     initAI();
     initQuickTools();
     renderCalendarList();
+    renderSubjectFilterChips();
     renderAnnouncements();
     renderWhatsAppGroups();
     initAnnouncementsSearch();
@@ -1327,89 +1329,95 @@ function initDockNavigation() {
     });
 }
 
-// ─── Categorized Announcements ────────────────────────────────────────────────
-let announcementsData = [
-    {
-        id: "ann-1",
-        subject: "Comp Biology",
-        code: "26BTB1001T",
-        category: "Schedule",
-        title: "Optional Hours & Today's Class Cancelled",
-        detail: "Prof. Sivasankareswari: Day Order 2 (4:00 PM) optional class cancelled. Day Order 3 (9:45 AM) optional.",
-        faculty: "Prof. Sivasankareswari E",
-        venue: "UB 601 (6th Floor)",
-        sourceGroup: "P1 26-30 CSE AI ML BIO",
-        timestamp: "Today"
-    },
-    {
-        id: "ann-2",
-        subject: "Chemistry for CS",
-        code: "26CYB1002J",
-        category: "Xerox / Lab",
-        title: "Chemistry Lab Venue & Observation Book",
-        detail: "Pink Building opposite to Main University Building, 1st Floor Lab 4. Bring lab manual and observation notebook.",
-        faculty: "Dr. John Bosco A",
-        venue: "Pink Building 1st Fl Lab 4",
-        sourceGroup: "AI ML P1 Chemistry",
-        timestamp: "Today"
-    },
-    {
-        id: "ann-3",
-        subject: "Programming (PPS)",
-        code: "26CSE1002J",
-        category: "Assignment",
-        title: "PPS Lab Program 3 & 4 Submissions",
-        detail: "Complete C programs on pointers, 1D arrays, and recursion with sample outputs. Submit in observation book.",
-        faculty: "Sheeba Rachel S",
-        venue: "Tech Park 3rd Fl Lab",
-        sourceGroup: "P1 C programming",
-        timestamp: "Recent"
-    },
-    {
-        id: "ann-4",
-        subject: "Workshop Practice",
-        code: "26MEE1001L",
-        category: "Materials",
-        title: "Sheet Metal Manual Printout",
-        detail: "Get Sheet Metal & Fitting manuals printed from Tech Park / Java Xerox before Day 3 lab session.",
-        faculty: "Dr. Manoj Samson R",
-        venue: "BEL Ground Fl Sheet Metal Lab",
-        sourceGroup: "Batch 1 Official",
-        timestamp: "Upcoming"
-    },
-    {
-        id: "ann-5",
-        subject: "Calculus & Algebra",
-        code: "26MAB1001T",
-        category: "Tutorial",
-        title: "Unit 1 Matrix Diagonalization Tutorial",
-        detail: "Tutorial problems for Unit 1 Matrix Diagonalization and Quadratic forms to be submitted before CLA-1.",
-        faculty: "Dr. N. Parvathi",
-        venue: "UB 601 (Slot B)",
-        sourceGroup: "AI ML P1 MATHS",
-        timestamp: "Recent"
-    }
-];
+// ─── Categorized Announcements & Dynamic Notice Engine ────────────────────────
+let announcementsData = [];
+
+function getUserAnnouncements() {
+    try {
+        const reg = localStorage.getItem('srm_reg_no') || 'global';
+        const saved = localStorage.getItem('srm_user_announcements_' + reg);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) return parsed;
+        }
+    } catch (_) {}
+    return [];
+}
+
+function saveUserAnnouncements(list) {
+    const reg = localStorage.getItem('srm_reg_no') || 'global';
+    announcementsData = list || [];
+    localStorage.setItem('srm_user_announcements_' + reg, JSON.stringify(announcementsData));
+}
+
+// ─── Dynamic Subject Filter Chips (Derived from Enrolled Courses) ───────────────
+function renderSubjectFilterChips() {
+    const container = document.getElementById('ann-filter-scroll');
+    if (!container) return;
+
+    const courses = (portalAttendance && portalAttendance.length > 0) 
+        ? portalAttendance 
+        : ((typeof SRM_DATA !== 'undefined' && SRM_DATA.courses) ? SRM_DATA.courses : []);
+
+    const iconMap = {
+        'CYB': '🧪', 'CHEM': '🧪',
+        'BTB': '🧬', 'BIO': '🧬',
+        'CSE': '💻', 'PROG': '💻', 'PPS': '💻',
+        'MAB': '📐', 'MATH': '📐', 'CALC': '📐',
+        'MEE': '🔧', 'WORK': '🔧',
+        'PHY': '⚡',
+        'ENG': '📖',
+        'EAA': '🏃'
+    };
+
+    let html = `<div class="day-chip ${activeSubjectFilter === 'ALL' ? 'active' : ''}" onclick="filterAnnouncements('ALL')">All Subjects</div>`;
+
+    const seenCodes = new Set();
+
+    courses.forEach(c => {
+        const code = c.code || '';
+        if (!code || seenCodes.has(code)) return;
+        seenCodes.add(code);
+
+        const title = c.title || c.subject || code;
+        let icon = '📚';
+        const searchStr = (code + ' ' + title).toUpperCase();
+        for (const [k, ic] of Object.entries(iconMap)) {
+            if (searchStr.includes(k)) {
+                icon = ic;
+                break;
+            }
+        }
+
+        // Clean short name
+        let shortName = title.split(' ')[0];
+        if (shortName.length <= 2 && title.split(' ').length > 1) {
+            shortName = title.split(' ').slice(0, 2).join(' ');
+        }
+        if (shortName.length > 14) shortName = shortName.substring(0, 12) + '…';
+
+        html += `<div class="day-chip ${activeSubjectFilter === code ? 'active' : ''}" onclick="filterAnnouncements('${code}')">${icon} ${escapeHtml(shortName)}</div>`;
+    });
+
+    container.innerHTML = html;
+}
 
 // ─── Direct Mobile-to-Mobile WhatsApp Hub ─────────────────────────────────────
-const DEFAULT_WA_GROUPS = [
-    { id: 'wa-1', name: 'P1 26-30 CSE AI ML BIO', code: '26BTB1001T', link: 'https://chat.whatsapp.com/', enabled: true, icon: '📢', members: '68 Classmates • Section P1' },
-    { id: 'wa-2', name: 'AI ML P1 Chemistry Lab', code: '26CYB1002J', link: 'https://chat.whatsapp.com/', enabled: true, icon: '🧪', members: 'Pink Bldg Lab 4' },
-    { id: 'wa-3', name: 'PPS Programming Discussion', code: '26CSE1002J', link: 'https://chat.whatsapp.com/', enabled: true, icon: '💻', members: 'Tech Park Integrative Lab' },
-    { id: 'wa-4', name: 'Calculus & Linear Algebra', code: '26MAB1001T', link: 'https://chat.whatsapp.com/', enabled: true, icon: '📐', members: 'UB 601 Section P1' },
-    { id: 'wa-5', name: 'BEL Workshop Practice', code: '26MEE1001L', link: 'https://chat.whatsapp.com/', enabled: true, icon: '🔧', members: 'Basic Engg Sheet Metal' }
-];
-
 function getLinkedWAGroups() {
     try {
-        const saved = localStorage.getItem('srm_linked_wa_groups');
-        if (saved) return JSON.parse(saved);
+        const reg = localStorage.getItem('srm_reg_no') || 'global';
+        const saved = localStorage.getItem('srm_user_wa_groups_' + reg);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) return parsed;
+        }
     } catch (_) {}
-    return DEFAULT_WA_GROUPS;
+    return [];
 }
 
 function saveLinkedWAGroups(groups) {
-    localStorage.setItem('srm_linked_wa_groups', JSON.stringify(groups));
+    const reg = localStorage.getItem('srm_reg_no') || 'global';
+    localStorage.setItem('srm_user_wa_groups_' + reg, JSON.stringify(groups || []));
 }
 
 function renderWhatsAppGroups() {
@@ -1417,13 +1425,23 @@ function renderWhatsAppGroups() {
     if (!container) return;
     const groups = getLinkedWAGroups();
 
+    if (!groups || groups.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center;padding:16px 12px;background:#141418;border:1px dashed #27272a;border-radius:12px;color:var(--text-muted);font-size:0.75rem;line-height:1.45;">
+                💬 <b style="color:#f4f4f5;">No Class WhatsApp Groups Linked Yet</b><br>
+                Tap <b>"📱 Pair Device (QR)"</b> or <b>"☑️ Pick Groups"</b> above to connect your class chats for AI monitoring.
+            </div>
+        `;
+        return;
+    }
+
     container.innerHTML = groups.map(g => `
         <div class="wa-group-item" style="opacity:${g.enabled ? '1' : '0.5'};">
             <div class="wa-group-left">
                 <div class="wa-group-icon">${g.icon || '💬'}</div>
                 <div style="min-width:0;">
-                    <div class="wa-group-name">${g.name}</div>
-                    <div class="wa-group-sub">${g.members || 'Class Group'}</div>
+                    <div class="wa-group-name">${escapeHtml(g.name)}</div>
+                    <div class="wa-group-sub">${escapeHtml(g.members || 'Class Group')}</div>
                 </div>
             </div>
             <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
@@ -1433,9 +1451,6 @@ function renderWhatsAppGroups() {
                 <button class="wa-toggle-btn ${g.enabled ? 'active' : ''}" onclick="toggleWAGroup('${g.id}')">
                     ${g.enabled ? 'Active' : 'Muted'}
                 </button>
-                <a href="${g.link || 'https://chat.whatsapp.com/'}" target="_blank" rel="noopener noreferrer" class="wa-action-open">
-                    <span>Open ↗</span>
-                </a>
             </div>
         </div>
     `).join('');
@@ -1751,10 +1766,24 @@ function renderAnnouncements(filterSubject, searchQuery) {
         return matchSubject && matchSearch;
     });
 
-    if (counter) counter.textContent = `${filtered.length} notices`;
-
     if (filtered.length === 0) {
-        container.innerHTML = `<div style="font-size:0.8rem;color:var(--text-muted);text-align:center;padding:24px 0;">No notices matching your filter.</div>`;
+        if (!announcementsData || announcementsData.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center;padding:36px 16px;background:#111114;border:1px solid #27272a;border-radius:14px;margin-top:6px;">
+                    <div style="font-size:1.8rem;margin-bottom:8px;">📢</div>
+                    <div style="font-size:0.88rem;font-weight:700;color:#f4f4f5;margin-bottom:4px;">No Class Notices Yet</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);line-height:1.45;max-width:280px;margin:0 auto 14px;">
+                        Pair your WhatsApp companion above or import a chat file to automatically extract real assignment deadlines, cancellations, and lab notices!
+                    </div>
+                    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+                        <button class="pill-btn" onclick="openWALinkedDeviceModal()" style="background:#22c55e;color:#000;border:none;padding:6px 14px;border-radius:8px;font-size:0.75rem;font-weight:700;cursor:pointer;">📱 Pair WhatsApp</button>
+                        <button class="pill-btn" onclick="openPasteChatForAISummaryModal()" style="background:#1e1b4b;border:1px solid #3730a3;color:#818cf8;padding:6px 14px;border-radius:8px;font-size:0.75rem;font-weight:700;cursor:pointer;">🤖 Paste Chat</button>
+                    </div>
+                </div>
+            `;
+        } else {
+            container.innerHTML = `<div style="font-size:0.8rem;color:var(--text-muted);text-align:center;padding:24px 0;">No notices matching subject or search filter.</div>`;
+        }
         return;
     }
 
