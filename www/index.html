@@ -45,10 +45,10 @@
                     <button type="button" onclick="refreshCaptcha()" style="background:none;border:none;color:#38bdf8;font-size:0.75rem;font-weight:600;cursor:pointer;">🔄 Refresh</button>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;">
-                    <div id="captcha-box" style="background:#1e293b;border-radius:10px;padding:6px 10px;font-family:var(--font-mono);font-size:1.05rem;font-weight:700;letter-spacing:3px;color:#38bdf8;min-width:110px;text-align:center;user-select:none;display:flex;align-items:center;justify-content:center;min-height:38px;">
-                        <span id="captcha-text">R7B9K</span>
+                    <div id="captcha-box" style="background:#18181b;border:1px solid #27272a;border-radius:10px;padding:4px 8px;min-width:130px;text-align:center;user-select:none;display:flex;align-items:center;justify-content:center;min-height:44px;">
+                        <span style="color:#71717a;font-size:0.75rem;">Loading CAPTCHA…</span>
                     </div>
-                    <input id="login-captcha" class="login-input" type="text" placeholder="Enter code" style="flex:1;" autocomplete="off">
+                    <input id="login-captcha" class="login-input" type="text" placeholder="6-letter code" style="flex:1;text-transform:none;letter-spacing:1px;font-family:var(--font-mono);font-weight:600;" autocomplete="off">
                 </div>
             </div>
             <p id="login-error" class="login-error" style="display:none;"></p>

@@ -133,7 +133,7 @@ async function fetchLiveCaptcha() {
             _secConfig = res.sec_config || {};
             _captchaLoadTime = Date.now();
             if (box) {
-                box.innerHTML = `<img src="${res.captchaImg}" style="height:34px;border-radius:6px;display:block;" alt="SRM CAPTCHA">`;
+                box.innerHTML = `<img src="${res.captchaImg}" style="height:40px;border-radius:6px;display:block;image-rendering:crisp-edges;" alt="SRM CAPTCHA">`;
             }
             return;
         }
@@ -168,7 +168,7 @@ async function doAutoLogin(isBackgroundRefresh = false) {
 
     if (!isBackgroundRefresh) {
         if (!captchaVal) {
-            showErr('Please enter the security CAPTCHA code shown in the box');
+            showErr('Please enter the 6-letter CAPTCHA code shown in the box');
             return false;
         }
         if (btn) { btn.disabled = true; btn.textContent = 'Authenticating on SRM Portal…'; }
@@ -232,7 +232,10 @@ async function doAutoLogin(isBackgroundRefresh = false) {
         } else {
             // Authentication rejected by portal!
             if (!isBackgroundRefresh) {
-                const errorMsg = (res && res.error) ? res.error : '❌ Invalid SRM ID, password, or CAPTCHA. Please check your credentials and try again.';
+                let errorMsg = (res && res.error) ? res.error : '❌ Invalid credentials or CAPTCHA code. Please check your credentials and try again.';
+                if (errorMsg.includes('Invalid credentials')) {
+                    errorMsg = '❌ SRM Portal: Invalid credentials. Please double-check your SRM NetID, password, and the exact 6-letter CAPTCHA image code (case-sensitive).';
+                }
                 showErr(errorMsg);
                 refreshCaptcha();
             }
