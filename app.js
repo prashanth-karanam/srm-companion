@@ -1332,16 +1332,27 @@ function initDockNavigation() {
     });
 }
 
-// ─── Categorized Announcements & Dynamic Notice Engine ────────────────────────
-let announcementsData = [];
-
 function getUserAnnouncements() {
     try {
         const reg = localStorage.getItem('srm_reg_no') || 'global';
-        const saved = localStorage.getItem('srm_user_announcements_' + reg);
+        const saved = localStorage.getItem('srm_user_announcements_' + reg) || 
+                      localStorage.getItem('srm_user_announcements_global') || 
+                      localStorage.getItem('srm_cached_announcements');
         if (saved) {
             const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed)) return parsed;
+            if (Array.isArray(parsed)) {
+                // Filter out any lingering mock announcements from early development
+                const clean = parsed.filter(a => {
+                    const id = (a.id || '').toString();
+                    if (['ann-1', 'ann-2', 'ann-3', 'ann-4', 'ann-5'].includes(id)) return false;
+                    const text = (a.title + ' ' + (a.detail || '')).toLowerCase();
+                    if (text.includes('sheet metal') || text.includes('matrix diagonalization') || text.includes('pink building') || text.includes('optional class cancelled')) {
+                        return false;
+                    }
+                    return true;
+                });
+                return clean;
+            }
         }
     } catch (_) {}
     return [];

@@ -1,6 +1,6 @@
 ﻿{
-    "releaseNotes":  "Fixed day-chip horizontal scrolling \u0026 text squishing, added live bridge WhatsApp group sync, and purged lingering mock notices",
-    "updatedAt":  "2026-08-27T00:38:00+05:30",
-    "build":  2026082702,
-    "version":  "2.4.3"
+    "releaseNotes":  "Purged legacy mock notices, renamed notices header to Class Notices \u0026 Assignment Deadlines, and activated live empty states",
+    "updatedAt":  "2026-08-27T00:40:00+05:30",
+    "build":  2026082703,
+    "version":  "2.4.4"
 }
