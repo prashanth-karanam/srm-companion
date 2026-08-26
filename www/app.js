@@ -300,14 +300,13 @@ function doLogout() {
 }
 
 // ─── App Initialization (0ms Instant Load from Cache) ─────────────────────────
-const APP_BUILD_VERSION = '2.2.0';
-
 function bootApp() {
+    const curBuildVer = typeof APP_BUILD_VERSION !== 'undefined' ? APP_BUILD_VERSION : '2.4.1';
     try {
         const storedVer = localStorage.getItem('srm_client_version');
-        if (storedVer !== APP_BUILD_VERSION) {
+        if (storedVer !== curBuildVer) {
             if ('caches' in window) caches.keys().then(names => names.forEach(name => caches.delete(name)));
-            localStorage.setItem('srm_client_version', APP_BUILD_VERSION);
+            localStorage.setItem('srm_client_version', curBuildVer);
         }
     } catch (_) {}
 
