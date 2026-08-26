@@ -393,6 +393,7 @@ function _initApp() {
         window._appIntervalsSet = true;
         setInterval(updateLiveHUD, 15000);
         setInterval(updateClock, 1000);
+        setInterval(scheduleClassBoundaryCheck, 30000);
     }
 }
 
@@ -428,9 +429,14 @@ async function syncWithBackend() {
                 if (regEl) regEl.textContent = res.reg_no;
             }
             if (res.attendance && res.attendance.length > 0) {
+                const oldAtt = portalAttendance || [];
+                const diffs = detectAttendanceDelta(oldAtt, res.attendance);
                 portalAttendance = res.attendance;
                 localStorage.setItem('srm_cached_attendance', JSON.stringify(res.attendance));
                 renderAttendance(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+                if (diffs.length > 0) {
+                    showAttendanceToast(diffs);
+                }
             }
             if (res.timetable && typeof res.timetable === 'object' && Object.keys(res.timetable).length > 0) {
                 SRM_DATA.dayOrderSchedule = res.timetable;
@@ -473,6 +479,74 @@ async function triggerManualScrape() {
         btn.disabled = false;
         renderAttendance(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
     }, 1200);
+}
+
+// ─── Mathematical Delta Change Detection & Toast Alerts ───────────────────────
+function detectAttendanceDelta(oldList, newList) {
+    if (!oldList || !oldList.length) return [];
+    const oldMap = {};
+    oldList.forEach(a => { if (a.code) oldMap[a.code] = a; });
+    const diffs = [];
+
+    newList.forEach(newA => {
+        const oldA = oldMap[newA.code];
+        if (oldA) {
+            const oldCon = parseInt(oldA.conducted || 0, 10);
+            const newCon = parseInt(newA.conducted || 0, 10);
+            const oldAtt = parseInt(oldA.attended || 0, 10);
+            const newAtt = parseInt(newA.attended || 0, 10);
+
+            if (newCon > oldCon) {
+                const wasPresent = newAtt > oldAtt;
+                diffs.push({
+                    code: newA.code,
+                    title: newA.title || newA.subject || newA.code,
+                    status: wasPresent ? 'PRESENT' : 'ABSENT',
+                    hoursAdded: newCon - oldCon,
+                    newPct: newA.percentage,
+                    newAtt: newAtt,
+                    newCon: newCon
+                });
+            }
+        }
+    });
+    return diffs;
+}
+
+function showAttendanceToast(diffs) {
+    if (!diffs || !diffs.length) return;
+    diffs.forEach(d => {
+        const isPresent = d.status === 'PRESENT';
+        const msg = `${isPresent ? '✅ Present' : '❌ Absent'}: ${d.title} (${d.code}) &rarr; ${d.newAtt}/${d.newCon} hrs (${d.newPct}%)`;
+        
+        const toast = document.createElement('div');
+        toast.className = 'srm-toast';
+        toast.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#18181b;border:1px solid ${isPresent ? '#22c55e' : '#ef4444'};color:#f4f4f5;padding:12px 18px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.6);z-index:9999;font-size:0.85rem;line-height:1.4;animation:fadeIn 0.3s ease;max-width:90%;`;
+        toast.innerHTML = `<b style="color:${isPresent ? '#4ade80' : '#f87171'}">🔔 Attendance Updated!</b><br>${msg}`;
+        document.body.appendChild(toast);
+        setTimeout(() => { if (toast.parentNode) toast.remove(); }, 7000);
+    });
+}
+
+function scheduleClassBoundaryCheck() {
+    if (isTodayHoliday) return;
+    const now = new Date();
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+    
+    // Class end minutes: 08:50 (530), 09:40 (580), 10:35 (635), 11:30 (690), 13:15 (795), 14:05 (845), 14:55 (895), 15:45 (945), 16:30 (990), 17:00 (1020)
+    const endMinutes = [530, 580, 635, 690, 795, 845, 895, 945, 990, 1020];
+    
+    for (const em of endMinutes) {
+        if (currentMins >= em + 4 && currentMins <= em + 12) {
+            const key = 'srm_checked_slot_' + em + '_' + getFormattedDateStr(now);
+            if (!sessionStorage.getItem(key)) {
+                sessionStorage.setItem(key, '1');
+                console.log('[SmartSync] Class boundary reached (slot ' + em + '). Triggering 0-CAPTCHA delta sync...');
+                syncWithBackend();
+            }
+            break;
+        }
+    }
 }
 
 // ─── Attendance Renderer (Clean Mapping & Margin Calculations) ────────────────
