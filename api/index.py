@@ -322,17 +322,29 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
         for item in cookies_str.split(';'):
             if '=' in item:
                 k, v = item.strip().split('=', 1)
-                sess.cookies.set(k.strip(), v.strip(), domain='sp.srmist.edu.in', path='/')
+                k_clean = k.strip()
+                v_clean = v.strip()
+                c_path = '/srmiststudentportal' if k_clean == 'JSESSIONID' else '/'
+                sess.cookies.set(k_clean, v_clean, domain='sp.srmist.edu.in', path=c_path)
         
-        # Fast-path probe: Check if existing session cookie is still valid (avoids CAPTCHA rejection on background sync)
-        try:
-            probe_headers = dict(sess.headers)
-            probe_headers.update(report_headers)
-            r_probe = sess.post(base_report + 'studentProfile.jsp', data={'iden': '1', 'filter': '', 'hdnFormDetails': '1', 'csrfPreventionSalt': ''}, headers=probe_headers, timeout=6)
-            if r_probe.status_code == 200 and ('Student Name' in r_probe.text or 'Register No' in r_probe.text):
-                is_session_authenticated = True
-        except Exception:
-            pass
+        # Only probe if username and captcha were NOT provided for fresh login (i.e. background session validation only)
+        if (not password or captcha == 'SYNC') and not is_session_authenticated:
+            try:
+                probe_headers = dict(sess.headers)
+                probe_headers.update(report_headers)
+                r_probe = sess.post(base_report + 'studentProfile.jsp', data={'iden': '1', 'filter': '', 'hdnFormDetails': '1', 'csrfPreventionSalt': ''}, headers=probe_headers, timeout=6)
+                if r_probe.status_code == 200 and ('Student Name' in r_probe.text or 'Register No' in r_probe.text):
+                    is_session_authenticated = True
+                else:
+                    return {
+                        "success": False,
+                        "error": "Session expired. Please sign in again."
+                    }
+            except Exception:
+                return {
+                    "success": False,
+                    "error": "Session validation timed out."
+                }
 
     if not is_session_authenticated:
         # Perform fresh authentication through LoginServlet
@@ -358,8 +370,10 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
 
             cf_name = sec_config.get('captchaFieldName')
             rd = sec_config.get('randomDelimiter', '')
+            time_elapsed = sec_config.get('timeElapsed') or 4
+            interact_count = sec_config.get('interactCount') or 12
             if cf_name:
-                trap_payload = f"4{rd}12"
+                trap_payload = f"{time_elapsed}{rd}{interact_count}"
                 login_payload[cf_name] = base64.b64encode(trap_payload.encode('utf-8')).decode('utf-8')
 
         # 2. Attach Telemetry Payload

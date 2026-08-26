@@ -20,6 +20,15 @@ function authHeader()        { return { 'Authorization': 'Bearer ' + (getToken()
 let _liveCookies = '';
 let _hiddenFields = {};
 let _secConfig = {};
+let _captchaLoadTime = Date.now();
+let _captchaInteractions = 0;
+
+function _recordInteraction() {
+    _captchaInteractions++;
+}
+document.addEventListener('mousemove', _recordInteraction, { passive: true });
+document.addEventListener('keydown', _recordInteraction, { passive: true });
+document.addEventListener('touchstart', _recordInteraction, { passive: true });
 
 // ─── Native Capacitor HTTP Engine (Android APK CORS Bypass) ───────────────────
 async function nativeHttp(url, opts = {}) {
@@ -109,6 +118,8 @@ function showDashboard() {
 
 // ─── Live CAPTCHA Engine (sp.srmist.edu.in) ───────────────────────────────────
 async function fetchLiveCaptcha() {
+    _captchaLoadTime = Date.now();
+    _captchaInteractions = 0;
     const box = document.getElementById('captcha-box');
     if (box) {
         box.innerHTML = '<span style="color:#71717a;font-size:0.75rem;display:inline-block;padding:6px 10px;">Loading…</span>';
@@ -120,6 +131,7 @@ async function fetchLiveCaptcha() {
             _liveCookies = res.cookies || '';
             _hiddenFields = res.hidden_fields || {};
             _secConfig = res.sec_config || {};
+            _captchaLoadTime = Date.now();
             if (box) {
                 box.innerHTML = `<img src="${res.captchaImg}" style="height:34px;border-radius:6px;display:block;" alt="SRM CAPTCHA">`;
             }
@@ -164,6 +176,13 @@ async function doAutoLogin(isBackgroundRefresh = false) {
         if (errEl) errEl.style.display = 'none';
     }
 
+    const timeElapsed = Math.max(2, Math.floor((Date.now() - _captchaLoadTime) / 1000));
+    const secConfigWithTime = {
+        ..._secConfig,
+        timeElapsed: timeElapsed,
+        interactCount: Math.max(8, _captchaInteractions)
+    };
+
     try {
         // Authenticate directly against SRM portal through the stateless proxy
         const res = await apiFetch('/api/login', {
@@ -174,7 +193,7 @@ async function doAutoLogin(isBackgroundRefresh = false) {
                 captcha: captchaVal,
                 cookies: _liveCookies,
                 hidden_fields: _hiddenFields,
-                sec_config: _secConfig
+                sec_config: secConfigWithTime
             })
         });
 
