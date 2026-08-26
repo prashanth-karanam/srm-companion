@@ -32,6 +32,12 @@ try:
 except Exception:
     CURL_CFFI_AVAILABLE = False
 
+try:
+    import ddddocr
+    _ocr_engine = ddddocr.DdddOcr(show_ad=False)
+except Exception:
+    _ocr_engine = None
+
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
@@ -304,7 +310,39 @@ def fetch_srm_captcha():
     }
 
 
-def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_fields=None, sec_config=None):
+def login_and_scrape_portal(username, password, captcha="", cookies_str="", hidden_fields=None, sec_config=None):
+    # ─── Neural 0-CAPTCHA Automation Engine ────────────────────────────────────
+    # If captcha not provided or set to AUTO/SYNC, solve automatically via AI OCR
+    if (not captcha or captcha.strip().upper() in ['AUTO', 'SYNC', 'ZERO', '0']) and _ocr_engine and username and password:
+        for attempt in range(1, 3):
+            try:
+                cap_res = fetch_srm_captcha()
+                if cap_res and cap_res.get('captchaImg'):
+                    img_b64 = cap_res['captchaImg'].split(',')[-1]
+                    img_bytes = base64.b64decode(img_b64)
+                    solved_text = _ocr_engine.classification(img_bytes)
+                    
+                    sec_cfg = cap_res.get('sec_config', {})
+                    sec_cfg['timeElapsed'] = 4
+                    sec_cfg['interactCount'] = 12
+                    
+                    res = _execute_login_and_scrape(
+                        username=username,
+                        password=password,
+                        captcha=solved_text,
+                        cookies_str=cap_res.get('cookies', ''),
+                        hidden_fields=cap_res.get('hidden_fields'),
+                        sec_config=sec_cfg
+                    )
+                    if res.get('success'):
+                        return res
+            except Exception:
+                pass
+
+    return _execute_login_and_scrape(username, password, captcha, cookies_str, hidden_fields, sec_config)
+
+
+def _execute_login_and_scrape(username, password, captcha, cookies_str="", hidden_fields=None, sec_config=None):
     sess = requests.Session()
     sess.headers.update(HEADERS)
     sess.headers['Referer'] = 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp'
@@ -327,8 +365,8 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
                 c_path = '/srmiststudentportal' if k_clean == 'JSESSIONID' else '/'
                 sess.cookies.set(k_clean, v_clean, domain='sp.srmist.edu.in', path=c_path)
         
-        # Only probe if username and captcha were NOT provided for fresh login (i.e. background session validation only)
-        if (not password or captcha == 'SYNC') and not is_session_authenticated:
+        # Only probe if password was NOT provided (i.e. background session validation only)
+        if not password and not is_session_authenticated:
             try:
                 probe_headers = dict(sess.headers)
                 probe_headers.update(report_headers)
