@@ -806,6 +806,10 @@ function updateLiveHUD() {
         if (hudVenue) hudVenue.innerHTML = `<span style="color:#38bdf8;font-weight:700;">${nextInfo.relativeLabel} (${nextInfo.dayOrder})</span>`;
         if (hudFaculty) hudFaculty.innerHTML = `<span style="color:#34d399;font-weight:700;">${nextInfo.firstClass.title}</span>`;
         if (hudUpNext) hudUpNext.innerHTML = `First Class: ${nextInfo.firstClass.venue || 'UB 601'} &bull; ${nextInfo.totalClasses} classes scheduled`;
+        if (heroCard) {
+            heroCard.style.cursor = 'pointer';
+            heroCard.onclick = () => showClassSummaryModal(nextInfo.firstClass, nextInfo.dayOrder);
+        }
         return;
     }
 
@@ -841,12 +845,20 @@ function updateLiveHUD() {
         if (hudVenue) hudVenue.textContent = currentPeriod.venue || 'TBA';
         if (hudFaculty) hudFaculty.textContent = currentPeriod.faculty || '-';
         if (hudUpNext) hudUpNext.textContent = nextPeriod ? `${nextPeriod.title} @ ${nextPeriod.venue}` : 'End of day';
+        if (heroCard) {
+            heroCard.style.cursor = 'pointer';
+            heroCard.onclick = () => showClassSummaryModal(currentPeriod, currentDayOrder);
+        }
     } else {
         if (hudStatus) { hudStatus.textContent = 'Free Period / Recess'; hudStatus.style.color = '#38bdf8'; }
         hudTitle.textContent = nextPeriod ? `Up Next: ${nextPeriod.title}` : 'No Active Classes';
         if (hudVenue) hudVenue.textContent = nextPeriod ? nextPeriod.venue : 'Campus';
         if (hudFaculty) hudFaculty.textContent = nextPeriod ? nextPeriod.faculty : '-';
         if (hudUpNext) hudUpNext.textContent = nextPeriod ? `Starts at ${nextPeriod.slot || 'upcoming slot'}` : 'All caught up';
+        if (heroCard && nextPeriod) {
+            heroCard.style.cursor = 'pointer';
+            heroCard.onclick = () => showClassSummaryModal(nextPeriod, currentDayOrder);
+        }
     }
 }
 
@@ -903,6 +915,7 @@ function renderDaySchedule(day) {
             const slotInfo = SRM_DATA.timeSlots[idx] || { start: '--:--', label: `Hour ${idx + 1}` };
             const card = document.createElement('div');
             card.className = 't-card' + (p.type === 'Free' ? ' free-card' : '');
+            card.onclick = () => showClassSummaryModal(p, nextInfo.dayOrder);
 
             let tagClass = 'tag-free';
             let tagText = p.type || 'Class';
@@ -931,6 +944,7 @@ function renderDaySchedule(day) {
         const slotInfo = SRM_DATA.timeSlots[idx] || { start: '--:--', label: `Hour ${idx + 1}` };
         const card = document.createElement('div');
         card.className = 't-card' + (p.type === 'Free' ? ' free-card' : '');
+        card.onclick = () => showClassSummaryModal(p, day);
 
         let tagClass = 'tag-free';
         let tagText = p.type || 'Class';
@@ -951,6 +965,195 @@ function renderDaySchedule(day) {
         `;
         list.appendChild(card);
     });
+}
+
+// ─── Interactive Class Summary Modal ──────────────────────────────────────────
+function showClassSummaryModal(p, dayOrder) {
+    if (!p) return;
+
+    const existing = document.getElementById('class-summary-modal');
+    if (existing) existing.remove();
+
+    const isFree = (p.type === 'Free' || !p.title || p.title === 'Free Period');
+
+    // 1. Match Course in Database
+    const courseMeta = (SRM_DATA.courses || []).find(c => 
+        (c.code && p.code && c.code.toLowerCase() === p.code.toLowerCase()) ||
+        (c.title && p.title && c.title.toLowerCase() === p.title.toLowerCase())
+    ) || {};
+
+    // 2. Match Live Attendance
+    const attRecord = (portalAttendance || []).find(a => 
+        (a.code && p.code && a.code.toLowerCase() === p.code.toLowerCase()) ||
+        (a.title && p.title && a.title.toLowerCase() === p.title.toLowerCase())
+    ) || {};
+
+    const con = parseInt(attRecord.conducted || 0, 10);
+    const att = parseInt(attRecord.attended || 0, 10);
+    const abs = parseInt(attRecord.absent || 0, 10);
+    const isUnconducted = con === 0;
+    const pct = isUnconducted ? 100.0 : (attRecord.percentage ? parseFloat(attRecord.percentage) : parseFloat(((att / con) * 100).toFixed(2)));
+    const danger = !isUnconducted && pct < 75;
+    const needed = isUnconducted ? 0 : Math.max(0, 3 * con - 4 * att);
+    const bunkable = isUnconducted ? 0 : Math.max(0, Math.floor((4 * att - 3 * con) / 3));
+
+    // 3. Find all weekly slots for this course
+    const weeklySlots = [];
+    ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'].forEach(d => {
+        const daySched = SRM_DATA.dayOrderSchedule[d] || [];
+        daySched.forEach((slotP, idx) => {
+            const match = (slotP.code && p.code && slotP.code === p.code) ||
+                          (slotP.title && p.title && slotP.title.toLowerCase() === p.title.toLowerCase());
+            if (match) {
+                const timeSlot = SRM_DATA.timeSlots[idx] || { start: '--:--', end: '--:--' };
+                weeklySlots.push({
+                    day: d,
+                    hour: slotP.hour || (idx + 1),
+                    time: `${timeSlot.start} - ${timeSlot.end}`,
+                    venue: slotP.venue || 'UB 601',
+                    type: slotP.type || 'Theory'
+                });
+            }
+        });
+    });
+
+    const modal = document.createElement('div');
+    modal.id = 'class-summary-modal';
+    modal.className = 'class-modal-backdrop';
+
+    if (isFree) {
+        modal.innerHTML = `
+            <div class="class-modal-sheet">
+                <div class="class-modal-header">
+                    <div>
+                        <span style="font-size:0.7rem;background:#27272a;color:#38bdf8;padding:3px 8px;border-radius:6px;font-weight:700;">FREE PERIOD</span>
+                        <h3 style="font-size:1.1rem;font-weight:800;color:#f4f4f5;margin-top:6px;">Self-Study / Campus Recess</h3>
+                    </div>
+                    <button class="class-modal-close" onclick="closeClassSummaryModal()">✕</button>
+                </div>
+                <div class="class-modal-body">
+                    <div class="class-info-card">
+                        <div style="font-size:0.85rem;color:#cbd5e1;line-height:1.5;">
+                            ⚡ This is a scheduled free period on <b>${dayOrder || 'Selected Day'}</b> (Hour ${p.hour}). No attendance is taken during this hour.
+                        </div>
+                    </div>
+                    <div class="holiday-actions-deck" style="margin:0;">
+                        <button class="holiday-action-btn" onclick="closeClassSummaryModal(); openAITabWithPrompt('Give me a quick 15-minute quiz on Calculus and PPS to practice during my free period')">
+                            <span>🤖</span>
+                            <span>AI 15-min Practice Quiz</span>
+                        </button>
+                        <button class="holiday-action-btn" onclick="closeClassSummaryModal(); openAITabWithPrompt('What are the best quiet study spots and library facilities near Tech Park in SRMIST?')">
+                            <span>📍</span>
+                            <span>Find Study Spots</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        const title = courseMeta.title || p.title || 'Course Details';
+        const code = courseMeta.code || p.code || 'COURSE';
+        const credits = courseMeta.credits ? `${courseMeta.credits} Credits` : (p.type === 'Lab' ? '2 Credits' : '4 Credits');
+        const category = courseMeta.category || 'Discipline Course (B/E/C)';
+        const faculty = courseMeta.theoryFaculty || courseMeta.labFaculty || p.faculty || 'Faculty Assigned';
+        const venue = courseMeta.theoryLocation || courseMeta.labLocation || p.venue || 'Classroom / Lab Venue';
+        const slot = courseMeta.theorySlot || courseMeta.labSlot || p.slot || 'Regular';
+
+        const weeklyHtml = weeklySlots.length > 0 ? weeklySlots.map(w => `
+            <div class="class-slot-row">
+                <div>
+                    <span style="font-weight:700;color:#f4f4f5;">${w.day}</span>
+                    <span style="color:var(--text-muted);font-size:0.72rem;margin-left:6px;">Hour ${w.hour} (${w.time})</span>
+                </div>
+                <span style="font-size:0.72rem;background:#1e293b;color:#38bdf8;padding:2px 8px;border-radius:4px;font-weight:600;">📍 ${w.venue.split('(')[0].trim()}</span>
+            </div>
+        `).join('') : `<p style="font-size:0.75rem;color:var(--text-muted);">Standard schedule applies.</p>`;
+
+        modal.innerHTML = `
+            <div class="class-modal-sheet">
+                <div class="class-modal-header">
+                    <div>
+                        <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+                            <span style="font-size:0.7rem;background:#1e293b;color:#38bdf8;padding:2px 7px;border-radius:4px;font-family:var(--font-mono);font-weight:700;">${code}</span>
+                            <span style="font-size:0.7rem;background:#14241b;color:#34d399;padding:2px 7px;border-radius:4px;font-weight:700;">${p.type || 'Theory'} &bull; ${credits}</span>
+                        </div>
+                        <h3 style="font-size:1.05rem;font-weight:800;color:#ffffff;line-height:1.3;">${title}</h3>
+                        <p style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">${category} &bull; Slot: ${slot}</p>
+                    </div>
+                    <button class="class-modal-close" onclick="closeClassSummaryModal()">✕</button>
+                </div>
+                
+                <div class="class-modal-body">
+                    <!-- Live Attendance & Safe Margin Card -->
+                    <div class="class-info-card" style="border-color:${danger ? '#7f1d1d' : '#1e3a29'};background:${danger ? '#1f1313' : '#121e17'};">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:0.72rem;font-weight:700;color:${danger ? '#f87171' : '#34d399'};text-transform:uppercase;letter-spacing:0.5px;">Live Attendance Status</span>
+                            <span style="font-size:1.2rem;font-weight:800;color:${danger ? '#f87171' : '#34d399'};font-family:var(--font-mono);">${pct}%</span>
+                        </div>
+                        <div class="att-bar-track" style="background:#27272a;height:6px;border-radius:9999px;overflow:hidden;margin:8px 0;">
+                            <div class="att-bar-fill" style="width:${Math.min(pct,100)}%;background:${danger ? '#ef4444' : '#22c55e'};height:100%;"></div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#cbd5e1;">
+                            <span>${con > 0 ? `${att} attended / ${con} conducted (${abs} absent)` : '0 classes conducted yet'}</span>
+                            <span style="font-weight:700;color:${danger ? '#f87171' : '#38bdf8'};">${danger ? `⚠️ Need ${needed} classes` : `✅ ${bunkable} safe bunks`}</span>
+                        </div>
+                    </div>
+
+                    <!-- Faculty & Venue Card -->
+                    <div class="class-info-card">
+                        <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;margin-bottom:8px;">Faculty & Venue Details</div>
+                        <div style="display:flex;flex-direction:column;gap:8px;font-size:0.8rem;">
+                            <div style="display:flex;align-items:flex-start;gap:8px;">
+                                <span>👨‍🏫</span>
+                                <div>
+                                    <div style="color:var(--text-muted);font-size:0.7rem;">Course Instructor</div>
+                                    <div style="color:#f4f4f5;font-weight:600;">${faculty}</div>
+                                </div>
+                            </div>
+                            <div style="display:flex;align-items:flex-start;gap:8px;">
+                                <span>📍</span>
+                                <div>
+                                    <div style="color:var(--text-muted);font-size:0.7rem;">Classroom / Laboratory</div>
+                                    <div style="color:#f4f4f5;font-weight:600;">${venue}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Weekly Timetable Hours -->
+                    <div class="class-info-card">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                            <span style="font-size:0.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;">Weekly Schedule (${weeklySlots.length} hrs/wk)</span>
+                        </div>
+                        ${weeklyHtml}
+                    </div>
+
+                    <!-- AI Academic Copilot 1-Tap Actions -->
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <button class="holiday-action-btn" style="background:#1e1b4b;border-color:#4338ca;color:#c7d2fe;" onclick="closeClassSummaryModal(); openAITabWithPrompt('Summarize all key formulas, important concepts, and core theorems for ${title} (${code}) with clear examples')">
+                            <span>📚</span>
+                            <span>Explain Key Concepts & Formulas (AI)</span>
+                        </button>
+                        <button class="holiday-action-btn" style="background:#064e3b;border-color:#059669;color:#a7f3d0;" onclick="closeClassSummaryModal(); openAITabWithPrompt('Generate 5 high-yield exam practice questions and step-by-step solutions for ${title} (${code})')">
+                            <span>🎯</span>
+                            <span>Generate 5 Practice Exam Questions (AI)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    modal.onclick = (e) => {
+        if (e.target === modal) closeClassSummaryModal();
+    };
+
+    document.body.appendChild(modal);
+}
+
+function closeClassSummaryModal() {
+    const modal = document.getElementById('class-summary-modal');
+    if (modal) modal.remove();
 }
 
 function openAITabWithPrompt(promptText) {
