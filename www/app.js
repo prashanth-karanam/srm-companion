@@ -1016,10 +1016,11 @@ async function handleAISend() {
     }
 }
 
+let _chatMsgSeq = 0;
 function appendChatMessage(sender, text) {
     const history = document.getElementById('chat-history');
     const msg = document.createElement('div');
-    const msgId = 'msg-' + Date.now();
+    const msgId = 'msg-' + sender + '-' + Date.now() + '-' + (++_chatMsgSeq);
     msg.id = msgId;
     msg.className = `bubble bubble-${sender}`;
     msg.innerHTML = formatMarkdown(text);
