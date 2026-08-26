@@ -597,26 +597,10 @@ class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self._set_headers(200)
 
-    def _get_target_path(self):
-        # Extract path from request line, query params, or Vercel proxy headers
-        raw_path = self.path.split('?')[0].rstrip('/').lower()
-        matched = (self.headers.get('x-matched-path') or self.headers.get('x-vercel-matched-path') or '').lower()
-        full = f"{raw_path} {matched} {self.path.lower()}"
-        return full
-
     def do_GET(self):
-        full_path = self._get_target_path()
+        path = self.path.split('?')[0].rstrip('/').lower()
         
-        if 'captcha' in full_path or 'sp/captcha' in full_path:
-            try:
-                res = fetch_srm_captcha()
-                self._set_headers(200)
-                self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
-            except Exception as e:
-                self._set_headers(500)
-                self.wfile.write(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False).encode('utf-8'))
-
-        elif 'health' in full_path:
+        if 'health' in path or path == '/health':
             self._set_headers(200)
             self.wfile.write(json.dumps({
                 "status": "online",
@@ -624,19 +608,15 @@ class handler(BaseHTTPRequestHandler):
                 "curl_cffi": CURL_CFFI_AVAILABLE,
                 "cost": "$0 forever"
             }, ensure_ascii=False).encode('utf-8'))
-
         else:
-            # Default to captcha if requested, or health overview
+            # All other GET requests serve live CAPTCHA
             try:
                 res = fetch_srm_captcha()
                 self._set_headers(200)
                 self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
-            except Exception:
-                self._set_headers(200)
-                self.wfile.write(json.dumps({
-                    "status": "online",
-                    "endpoints": ["/api/captcha", "/api/login", "/api/chat", "/api/health"]
-                }, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False).encode('utf-8'))
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
@@ -647,10 +627,27 @@ class handler(BaseHTTPRequestHandler):
         except Exception:
             body = {}
 
-        full_path = self._get_target_path()
+        path = self.path.split('?')[0].rstrip('/').lower()
 
-        # If body has username/password or path matches login, route to login
-        if 'login' in full_path or 'username' in body or 'srm_id' in body:
+        if 'chat' in path:
+            message = body.get('message') or body.get('prompt') or ''
+            context = body.get('context') or ''
+
+            if not message:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": "Message is required."}, ensure_ascii=False).encode('utf-8'))
+                return
+
+            try:
+                res = ai_engine.query(message, context)
+                self._set_headers(200)
+                self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode('utf-8'))
+
+        else:
+            # Login and Scraper Handler
             username = body.get('username') or body.get('srm_id') or ''
             password = body.get('password') or ''
             captcha = body.get('captcha') or body.get('captcha_text') or ''
@@ -673,25 +670,3 @@ class handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False).encode('utf-8'))
-
-        elif 'chat' in path:
-            message = body.get('message') or body.get('prompt') or ''
-            context = body.get('context') or ''
-
-            if not message:
-                self._set_headers(400)
-                self.wfile.write(json.dumps({"error": "Message is required."}, ensure_ascii=False).encode('utf-8'))
-                return
-
-            try:
-                res = ai_engine.query(message, context)
-                self._set_headers(200)
-                self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
-            except Exception as e:
-                self._set_headers(500)
-                self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode('utf-8'))
-
-        else:
-            self._set_headers(404)
-            self.wfile.write(json.dumps({"error": "Route not found"}, ensure_ascii=False).encode('utf-8'))
-
