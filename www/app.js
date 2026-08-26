@@ -4,6 +4,9 @@
 function getApiBase() {
     const saved = localStorage.getItem('srm_api_base');
     if (saved) return saved.replace(/\/$/, '');
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'http://localhost:8000';
+    }
     if (window.location.hostname.includes('vercel.app')) {
         return window.location.origin;
     }
