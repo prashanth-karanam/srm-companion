@@ -1,6 +1,9 @@
 // SRM Student Companion - Offline-First Persistent Data Store
 // Automatically verified against SRMIST Student Portal
 
+const APP_BUILD_VERSION = "2.4.1";
+const APP_BUILD_TIMESTAMP = "2026-08-26T22:36:00";
+
 const SRM_DATA = {
     profile: {
     "name": "KARANAM SAI PRASANTH",

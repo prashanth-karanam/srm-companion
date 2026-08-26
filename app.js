@@ -348,7 +348,45 @@ let isTodayHoliday = false;
 let activeSubjectFilter = 'ALL';
 let portalAttendance = [];
 
+// ─── Auto-Cache Invalidation & GitHub Live OTA Updates ────────────────────────
+function applyAppVersionAndCleanStaleCaches() {
+    const currentVer = (typeof APP_BUILD_VERSION !== 'undefined') ? APP_BUILD_VERSION : '2.4.1';
+    const storedVer = localStorage.getItem('srm_installed_build_version');
+
+    if (storedVer !== currentVer) {
+        console.log(`[OTA Engine] Version upgraded: ${storedVer || 'Legacy'} -> ${currentVer}. Purging stale static cache to load latest GitHub timetable/calendar...`);
+        // Remove stale calendar & timetable caches so latest data.js is applied
+        localStorage.removeItem('srm_cached_calendar');
+        localStorage.removeItem('srm_cached_schedule');
+        localStorage.setItem('srm_installed_build_version', currentVer);
+    }
+}
+
+async function checkGitHubOTAUpdate() {
+    try {
+        const url = 'https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/version.json?t=' + Date.now();
+        const r = await fetch(url, { cache: 'no-store' });
+        if (!r.ok) return;
+        const meta = await r.json();
+        const localVer = (typeof APP_BUILD_VERSION !== 'undefined') ? APP_BUILD_VERSION : '2.4.1';
+        
+        if (meta && meta.version && meta.version !== localVer) {
+            console.log(`[OTA Update] 🚀 Newer commit detected on GitHub: ${meta.version} (Local: ${localVer})`);
+            showAttendanceToast(`🚀 Live GitHub Update v${meta.version} detected! Syncing...`, 'success');
+            localStorage.removeItem('srm_cached_calendar');
+            localStorage.removeItem('srm_cached_schedule');
+            localStorage.setItem('srm_installed_build_version', meta.version);
+            setTimeout(() => {
+                window.location.reload(true);
+            }, 1500);
+        }
+    } catch (_) {}
+}
+
 function _initApp() {
+    // 1. Purge stale caches if new code was pushed to GitHub
+    applyAppVersionAndCleanStaleCaches();
+
     try {
         const cachedAtt = localStorage.getItem('srm_cached_attendance');
         if (cachedAtt) {
@@ -390,6 +428,10 @@ function _initApp() {
 
     // On-demand background sync on launch
     syncWithBackend();
+
+    // Check for live remote GitHub updates
+    checkGitHubOTAUpdate();
+    window.addEventListener('focus', checkGitHubOTAUpdate);
 
     if (!window._appIntervalsSet) {
         window._appIntervalsSet = true;

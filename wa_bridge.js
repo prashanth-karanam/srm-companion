@@ -1,6 +1,7 @@
 ﻿/**
  * SRM Companion - Baileys Multi-Device WhatsApp Virtual Bridge
  * Lightweight Node.js microservice running on port 8001
+ * Fixed: Zero reconnect loops, debounced sockets, graceful standby
  */
 
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
@@ -20,6 +21,8 @@ let connectionStatus = 'DISCONNECTED'; // 'DISCONNECTED' | 'CONNECTING' | 'SCAN_
 let connectedUser = null;
 let monitoredGroupIds = new Set();
 let scrapedMessages = [];
+let reconnectAttempts = 0;
+const MAX_QR_RETRIES = 3;
 const MAX_MESSAGES = 100;
 
 // Load monitored groups from disk if saved
@@ -41,7 +44,26 @@ function saveSettings() {
     } catch (_) {}
 }
 
-async function startWhatsAppBridge() {
+function cleanupSocket() {
+    if (sock) {
+        try {
+            sock.ev.removeAllListeners();
+            sock.end(new Error('Re-initializing socket'));
+        } catch (_) {}
+        sock = null;
+    }
+}
+
+async function startWhatsAppBridge(manualTrigger = false) {
+    if (manualTrigger) {
+        reconnectAttempts = 0;
+    }
+
+    if (connectionStatus === 'CONNECTED' && sock) {
+        return;
+    }
+
+    cleanupSocket();
     connectionStatus = 'CONNECTING';
     currentQR = null;
     currentQRDataURL = null;
@@ -60,7 +82,9 @@ async function startWhatsAppBridge() {
             auth: state,
             printQRInTerminal: false,
             logger: pino({ level: 'silent' }),
-            browser: ['SRM Companion', 'Chrome', '1.0.0']
+            browser: ['SRM Companion', 'Chrome', '1.0.0'],
+            connectTimeoutMs: 30000,
+            qrTimeout: 45000
         });
 
         sock.ev.on('creds.update', saveCreds);
@@ -73,7 +97,7 @@ async function startWhatsAppBridge() {
                 connectionStatus = 'SCAN_QR';
                 try {
                     currentQRDataURL = await QRCode.toDataURL(qr);
-                    console.log('[WA Bridge] 📷 New QR Code generated for pairing.');
+                    console.log('[WA Bridge] 📷 New QR Code ready for scan.');
                 } catch (err) {
                     console.error('[WA Bridge] Failed to render QR:', err);
                 }
@@ -81,27 +105,45 @@ async function startWhatsAppBridge() {
 
             if (connection === 'open') {
                 connectionStatus = 'CONNECTED';
+                reconnectAttempts = 0;
                 currentQR = null;
                 currentQRDataURL = null;
                 connectedUser = sock.user;
-                console.log('[WA Bridge] 🟢 WhatsApp Virtual Companion Connected! Logged in as:', connectedUser?.name || connectedUser?.id);
+                console.log('[WA Bridge] 🟢 WhatsApp Companion Connected as:', connectedUser?.name || connectedUser?.id);
             }
 
             if (connection === 'close') {
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
-                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-                console.log(`[WA Bridge] Connection closed (code ${statusCode}). Reconnecting: ${shouldReconnect}`);
+                const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+                console.log(`[WA Bridge] Connection closed (code ${statusCode}). Logged out: ${isLoggedOut}`);
+                
                 connectionStatus = 'DISCONNECTED';
                 connectedUser = null;
+                cleanupSocket();
 
-                if (shouldReconnect) {
-                    setTimeout(startWhatsAppBridge, 3000);
-                } else {
-                    console.log('[WA Bridge] Logged out. Cleaning auth directory...');
-                    try {
-                        fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-                    } catch (_) {}
+                if (isLoggedOut) {
+                    console.log('[WA Bridge] Session logged out. Cleaning credentials...');
+                    try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {}
+                    reconnectAttempts = 0;
+                    return;
                 }
+
+                // If waiting for QR and timed out (code 408 / 428)
+                if (statusCode === DisconnectReason.timedOut || statusCode === 408 || statusCode === 428) {
+                    reconnectAttempts++;
+                    if (reconnectAttempts <= MAX_QR_RETRIES) {
+                        console.log(`[WA Bridge] QR Timeout. Re-generating QR (Attempt ${reconnectAttempts}/${MAX_QR_RETRIES})...`);
+                        setTimeout(() => startWhatsAppBridge(false), 3000);
+                    } else {
+                        console.log('[WA Bridge] ⏸️ Reached max QR retries. Entering Standby mode (Waiting for user tap).');
+                        connectionStatus = 'DISCONNECTED';
+                        currentQRDataURL = null;
+                    }
+                    return;
+                }
+
+                // For genuine disconnections when already logged in
+                setTimeout(() => startWhatsAppBridge(false), 5000);
             }
         });
 
@@ -142,8 +184,9 @@ async function startWhatsAppBridge() {
             console.log(`[WA Bridge] 📩 Message in ${remoteJid} from ${sender}: ${text.substring(0, 60)}...`);
         });
     } catch (err) {
-        console.error('[WA Bridge] Error during startWhatsAppBridge:', err);
+        console.error('[WA Bridge] Startup error:', err);
         connectionStatus = 'DISCONNECTED';
+        cleanupSocket();
     }
 }
 
@@ -178,9 +221,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/wa/connect') {
-        if (connectionStatus !== 'CONNECTED' && connectionStatus !== 'CONNECTING' && connectionStatus !== 'SCAN_QR') {
-            startWhatsAppBridge();
-        }
+        startWhatsAppBridge(true);
         return sendJson({ success: true, status: connectionStatus });
     }
 
@@ -239,6 +280,7 @@ const server = http.createServer(async (req, res) => {
             connectedUser = null;
             currentQR = null;
             currentQRDataURL = null;
+            cleanupSocket();
             return sendJson({ success: true, message: 'Disconnected' });
         } catch (err) {
             return sendJson({ error: err.message }, 500);
@@ -257,5 +299,5 @@ server.listen(PORT, '0.0.0.0', () => {
 // Auto-start on load if auth exists
 if (fs.existsSync(AUTH_DIR) && fs.readdirSync(AUTH_DIR).length > 0) {
     console.log('[WA Bridge] Found existing auth credentials. Auto-connecting...');
-    startWhatsAppBridge();
+    startWhatsAppBridge(false);
 }
