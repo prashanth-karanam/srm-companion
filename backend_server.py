@@ -275,9 +275,11 @@ class APIHandler(BaseHTTPRequestHandler):
         path = self.path.split('?')[0].rstrip('/').lower()
         if not path: path = '/'
 
+        # 1. API Endpoints
         if path in ['/api/overrides', '/overrides']:
             self._set_headers(200)
             self.wfile.write(json.dumps({"success": True, "overrides": SCHEDULE_OVERRIDES}).encode('utf-8'))
+            return
         elif path in ['/api/tasks', '/api/announcements', '/announcements', '/tasks']:
             self._set_headers(200)
             self.wfile.write(json.dumps({
@@ -285,7 +287,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "announcements": STRUCTURED_ANNOUNCEMENTS,
                 "overrides": SCHEDULE_OVERRIDES
             }).encode('utf-8'))
-
+            return
         elif path in ['/api/captcha', '/api/sp/captcha', '/captcha']:
             try:
                 from api.index import fetch_srm_captcha
@@ -295,15 +297,13 @@ class APIHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
-
+            return
         elif path in ['/api/portal-data', '/portal-data']:
-            # Serve latest scraped portal data (attendance, calendar, circulars)
             self._set_headers(200)
             portal_data = load_scraped_data()
             self.wfile.write(json.dumps({"success": True, "data": portal_data}).encode('utf-8'))
-
+            return
         elif path in ['/api/portal-scrape', '/portal-scrape']:
-            # Trigger a fresh scrape right now (runs in background thread)
             self._set_headers(200)
             if SCRAPER_AVAILABLE:
                 def _do_scrape():
@@ -317,10 +317,41 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"success": True, "message": "Scrape started in background"}).encode('utf-8'))
             else:
                 self.wfile.write(json.dumps({"success": False, "message": "Scraper not available"}).encode('utf-8'))
+            return
 
-        else:
-            self._set_headers(200)
-            self.wfile.write(json.dumps({"status": "SRM Schedule Engine & Inception AI Live"}).encode('utf-8'))
+        # 2. Serve Web Application UI & Static Assets (index.html, app.js, style.css, etc.)
+        req_file = path.lstrip('/')
+        if not req_file or req_file == 'index.html':
+            req_file = 'index.html'
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        target_file = os.path.join(base_dir, req_file)
+
+        if os.path.exists(target_file) and os.path.isfile(target_file):
+            content_type = 'text/html; charset=utf-8'
+            if req_file.endswith('.js'):
+                content_type = 'application/javascript; charset=utf-8'
+            elif req_file.endswith('.css'):
+                content_type = 'text/css; charset=utf-8'
+            elif req_file.endswith('.json'):
+                content_type = 'application/json; charset=utf-8'
+            elif req_file.endswith('.png'):
+                content_type = 'image/png'
+            elif req_file.endswith('.jpg') or req_file.endswith('.jpeg'):
+                content_type = 'image/jpeg'
+            elif req_file.endswith('.svg'):
+                content_type = 'image/svg+xml'
+
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            with open(target_file, 'rb') as f:
+                self.wfile.write(f.read())
+            return
+
+        self._set_headers(200)
+        self.wfile.write(json.dumps({"status": "SRM Schedule Engine & Inception AI Live"}).encode('utf-8'))
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
