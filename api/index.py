@@ -602,7 +602,7 @@ class handler(BaseHTTPRequestHandler):
         if not path:
             path = '/'
         
-        if path in ['/api/captcha', '/api/sp/captcha', '/captcha', '/sp/captcha']:
+        if 'captcha' in path:
             try:
                 res = fetch_srm_captcha()
                 self._set_headers(200)
@@ -611,7 +611,7 @@ class handler(BaseHTTPRequestHandler):
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False).encode('utf-8'))
 
-        elif path in ['/api/health', '/health', '/', '/api']:
+        elif 'health' in path or path in ['/', '/api', '/api/index']:
             self._set_headers(200)
             self.wfile.write(json.dumps({
                 "status": "online",
@@ -640,7 +640,7 @@ class handler(BaseHTTPRequestHandler):
         if not path:
             path = '/'
 
-        if path in ['/api/login', '/api/sp/login', '/login', '/sp/login']:
+        if 'login' in path:
             username = body.get('username') or body.get('srm_id') or ''
             password = body.get('password') or ''
             captcha = body.get('captcha') or body.get('captcha_text') or ''
@@ -664,7 +664,7 @@ class handler(BaseHTTPRequestHandler):
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False).encode('utf-8'))
 
-        elif path in ['/api/chat', '/chat']:
+        elif 'chat' in path:
             message = body.get('message') or body.get('prompt') or ''
             context = body.get('context') or ''
 
