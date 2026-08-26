@@ -1328,4 +1328,128 @@ body {
     display: block;
 }
 
+/* Tab View Animation Container */
+.tab-view {
+    animation: fadeIn 0.2s ease-out;
+    width: 100%;
+}
+
+/* Section Title */
+.section-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-sub);
+    margin: 14px 0 8px;
+}
+
+/* Timetable List & Timeline */
+.timetable-list, .timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Time-Left Period Progress Card */
+.period-progress-card {
+    background: #111114;
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    padding: 12px 14px;
+    margin-bottom: 14px;
+}
+
+.period-prog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+    color: var(--text-sub);
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.prog-time-pill {
+    font-size: 0.72rem;
+    background: #18181b;
+    border: 1px solid #27272a;
+    color: #38bdf8;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+}
+
+.period-prog-track {
+    background: #1e1e24;
+    height: 6px;
+    border-radius: 9999px;
+    overflow: hidden;
+    position: relative;
+}
+
+.period-prog-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #38bdf8, #22c55e);
+    border-radius: 9999px;
+    transition: width 0.3s ease;
+}
+
+/* Attendance Summary HUD Card */
+.att-summary-card {
+    background: #111114;
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+
+/* Floating High-Contrast SRM Toast */
+.srm-toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: rgba(18, 18, 22, 0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid #38bdf8;
+    color: #f4f4f5;
+    padding: 10px 18px;
+    border-radius: 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    z-index: 999999;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    opacity: 0;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    max-width: 90vw;
+    text-align: left;
+}
+
+.srm-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.srm-toast.warning {
+    border-color: #f59e0b;
+    color: #fef3c7;
+}
+
+.srm-toast.error {
+    border-color: #ef4444;
+    color: #fca5a5;
+}
+
+.srm-toast.success {
+    border-color: #22c55e;
+    color: #bbf7d0;
+}
+
+
 

@@ -557,19 +557,38 @@ function detectAttendanceDelta(oldList, newList) {
     return diffs;
 }
 
-function showAttendanceToast(diffs) {
-    if (!diffs || !diffs.length) return;
-    diffs.forEach(d => {
-        const isPresent = d.status === 'PRESENT';
-        const msg = `${isPresent ? '✅ Present' : '❌ Absent'}: ${d.title} (${d.code}) &rarr; ${d.newAtt}/${d.newCon} hrs (${d.newPct}%)`;
-        
+function showAttendanceToast(input, type = 'info') {
+    if (!input) return;
+
+    if (typeof input === 'string') {
         const toast = document.createElement('div');
-        toast.className = 'srm-toast';
-        toast.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#18181b;border:1px solid ${isPresent ? '#22c55e' : '#ef4444'};color:#f4f4f5;padding:12px 18px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.6);z-index:9999;font-size:0.85rem;line-height:1.4;animation:fadeIn 0.3s ease;max-width:90%;`;
-        toast.innerHTML = `<b style="color:${isPresent ? '#4ade80' : '#f87171'}">🔔 Attendance Updated!</b><br>${msg}`;
+        const isSuccess = type === 'success';
+        const isWarning = type === 'warning';
+        const isError = type === 'error';
+        const borderColor = isSuccess ? '#22c55e' : (isWarning ? '#f59e0b' : (isError ? '#ef4444' : '#38bdf8'));
+        const textColor = isSuccess ? '#4ade80' : (isWarning ? '#fcd34d' : (isError ? '#f87171' : '#38bdf8'));
+
+        toast.className = 'srm-toast show ' + type;
+        toast.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#18181b;border:1px solid ${borderColor};color:#f4f4f5;padding:10px 18px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.6);z-index:999999;font-size:0.85rem;line-height:1.4;animation:fadeIn 0.25s ease;max-width:90%;`;
+        toast.innerHTML = `<b style="color:${textColor};">SRM Companion</b><div>${input}</div>`;
         document.body.appendChild(toast);
-        setTimeout(() => { if (toast.parentNode) toast.remove(); }, 7000);
-    });
+        setTimeout(() => { if (toast.parentNode) toast.remove(); }, 4000);
+        return;
+    }
+
+    if (Array.isArray(input)) {
+        input.forEach(d => {
+            const isPresent = d.status === 'PRESENT';
+            const msg = `${isPresent ? '✅ Present' : '❌ Absent'}: ${d.title} (${d.code}) &rarr; ${d.newAtt}/${d.newCon} hrs (${d.newPct}%)`;
+            
+            const toast = document.createElement('div');
+            toast.className = 'srm-toast show ' + (isPresent ? 'success' : 'error');
+            toast.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#18181b;border:1px solid ${isPresent ? '#22c55e' : '#ef4444'};color:#f4f4f5;padding:12px 18px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.6);z-index:999999;font-size:0.85rem;line-height:1.4;animation:fadeIn 0.3s ease;max-width:90%;`;
+            toast.innerHTML = `<b style="color:${isPresent ? '#4ade80' : '#f87171'}">🔔 Attendance Updated!</b><div>${msg}</div>`;
+            document.body.appendChild(toast);
+            setTimeout(() => { if (toast.parentNode) toast.remove(); }, 6000);
+        });
+    }
 }
 
 function scheduleClassBoundaryCheck() {
@@ -902,6 +921,47 @@ function updateLiveHUD() {
         if (heroCard && nextPeriod) {
             heroCard.style.cursor = 'pointer';
             heroCard.onclick = () => showClassSummaryModal(nextPeriod, currentDayOrder);
+        }
+    }
+
+    // Dynamic Island Period Progress Bar
+    const progPeriodLabel = document.getElementById('prog-period-label');
+    const progTimeLeft = document.getElementById('prog-time-left');
+    const progFill = document.getElementById('prog-fill');
+    const progCard = document.querySelector('.period-progress-card');
+
+    if (progCard && progFill && progTimeLeft) {
+        if (isTodayHoliday) {
+            if (progPeriodLabel) progPeriodLabel.textContent = '🏖️ Campus Holiday';
+            progTimeLeft.textContent = 'Enjoy your day!';
+            progFill.style.width = '100%';
+            progFill.style.background = '#34d399';
+        } else if (currentPeriod && currentPeriod.type !== 'Free') {
+            const currentSlot = SRM_DATA.timeSlots.find(s => s.label === `Hour ${currentPeriod.hour}`) || SRM_DATA.timeSlots[currentPeriod.hour - 1];
+            if (currentSlot) {
+                const [sH, sM] = currentSlot.start.split(':').map(Number);
+                const [eH, eM] = currentSlot.end.split(':').map(Number);
+                const sMin = sH * 60 + sM;
+                const eMin = eH * 60 + eM;
+                const totalSlotMins = Math.max(1, eMin - sMin);
+                const elapsedMins = Math.max(0, currentMinutes - sMin);
+                const pct = Math.min(100, Math.round((elapsedMins / totalSlotMins) * 100));
+                const minsLeft = Math.max(0, eMin - currentMinutes);
+
+                if (progPeriodLabel) progPeriodLabel.textContent = `Hour ${currentPeriod.hour}: ${currentPeriod.title}`;
+                progTimeLeft.textContent = `${minsLeft} min remaining`;
+                progFill.style.width = `${pct}%`;
+                progFill.style.background = 'linear-gradient(90deg, #38bdf8, #22c55e)';
+            }
+        } else if (nextPeriod) {
+            if (progPeriodLabel) progPeriodLabel.textContent = `Up Next: ${nextPeriod.title}`;
+            progTimeLeft.textContent = `Starts soon`;
+            progFill.style.width = '0%';
+        } else {
+            if (progPeriodLabel) progPeriodLabel.textContent = '🌙 Day Order Complete';
+            progTimeLeft.textContent = 'Classes resume tomorrow';
+            progFill.style.width = '100%';
+            progFill.style.background = '#3f3f46';
         }
     }
 }
