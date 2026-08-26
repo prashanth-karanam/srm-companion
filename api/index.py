@@ -597,12 +597,17 @@ class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self._set_headers(200)
 
+    def _get_target_path(self):
+        # Extract path from request line, query params, or Vercel proxy headers
+        raw_path = self.path.split('?')[0].rstrip('/').lower()
+        matched = (self.headers.get('x-matched-path') or self.headers.get('x-vercel-matched-path') or '').lower()
+        full = f"{raw_path} {matched} {self.path.lower()}"
+        return full
+
     def do_GET(self):
-        path = self.path.split('?')[0].rstrip('/').lower()
-        if not path:
-            path = '/'
+        full_path = self._get_target_path()
         
-        if 'captcha' in path:
+        if 'captcha' in full_path or 'sp/captcha' in full_path:
             try:
                 res = fetch_srm_captcha()
                 self._set_headers(200)
@@ -611,7 +616,7 @@ class handler(BaseHTTPRequestHandler):
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False).encode('utf-8'))
 
-        elif 'health' in path or path in ['/', '/api', '/api/index']:
+        elif 'health' in full_path:
             self._set_headers(200)
             self.wfile.write(json.dumps({
                 "status": "online",
@@ -621,11 +626,17 @@ class handler(BaseHTTPRequestHandler):
             }, ensure_ascii=False).encode('utf-8'))
 
         else:
-            self._set_headers(200)
-            self.wfile.write(json.dumps({
-                "status": "online",
-                "endpoints": ["/api/captcha", "/api/login", "/api/chat", "/api/health"]
-            }, ensure_ascii=False).encode('utf-8'))
+            # Default to captcha if requested, or health overview
+            try:
+                res = fetch_srm_captcha()
+                self._set_headers(200)
+                self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
+            except Exception:
+                self._set_headers(200)
+                self.wfile.write(json.dumps({
+                    "status": "online",
+                    "endpoints": ["/api/captcha", "/api/login", "/api/chat", "/api/health"]
+                }, ensure_ascii=False).encode('utf-8'))
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
@@ -636,11 +647,10 @@ class handler(BaseHTTPRequestHandler):
         except Exception:
             body = {}
 
-        path = self.path.split('?')[0].rstrip('/').lower()
-        if not path:
-            path = '/'
+        full_path = self._get_target_path()
 
-        if 'login' in path:
+        # If body has username/password or path matches login, route to login
+        if 'login' in full_path or 'username' in body or 'srm_id' in body:
             username = body.get('username') or body.get('srm_id') or ''
             password = body.get('password') or ''
             captcha = body.get('captcha') or body.get('captcha_text') or ''
