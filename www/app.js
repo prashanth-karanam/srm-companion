@@ -647,6 +647,7 @@ function initClockAndDate() {
     if (manualOverride) {
         if (manualOverride === 'Holiday') {
             isTodayHoliday = true;
+            selectedDay = 'Holiday';
             if (dayBadge) { dayBadge.textContent = 'Holiday'; dayBadge.style.color = '#ef4444'; }
         } else {
             isTodayHoliday = false;
@@ -657,6 +658,7 @@ function initClockAndDate() {
     } else if (calEntry) {
         if (calEntry.status === 'Holiday') {
             isTodayHoliday = true;
+            selectedDay = 'Holiday';
             if (dayBadge) { dayBadge.textContent = 'Holiday'; dayBadge.style.color = '#ef4444'; }
         } else {
             isTodayHoliday = false;
@@ -670,6 +672,7 @@ function initClockAndDate() {
         if (dayBadge) dayBadge.textContent = 'Day 2';
     }
 
+    initDaySelector();
     renderDaySchedule(selectedDay);
     highlightActiveDayBtn(selectedDay);
 }
@@ -716,10 +719,67 @@ function getFormattedDateStr(d) {
     return dd + '-' + mm + '-' + yyyy;
 }
 
+// ─── Smart Calendar & Next Working Day Helpers ────────────────────────────────
+function getNextWorkingDayInfo() {
+    const today = new Date();
+    const todayStr = getFormattedDateStr(today);
+    
+    for (let i = 1; i <= 14; i++) {
+        const nextD = new Date(today.getTime() + i * 86400000);
+        const nextStr = getFormattedDateStr(nextD);
+        const entry = SRM_DATA.calendar.find(c => c.date === nextStr);
+        if (entry && entry.status === 'Working day' && entry.day_order && entry.day_order.startsWith('Day')) {
+            const sched = SRM_DATA.dayOrderSchedule[entry.day_order] || [];
+            const nonFree = sched.filter(s => s && s.type !== 'Free');
+            const firstC = nonFree[0] || { title: 'First Class', slot: '08:00', venue: 'UB 601', faculty: '-' };
+            return {
+                daysAhead: i,
+                relativeLabel: i === 1 ? 'Tomorrow' : (i === 2 ? 'Day After' : `In ${i} days`),
+                dateStr: entry.date,
+                dayName: entry.day,
+                dayOrder: entry.day_order,
+                firstClass: firstC,
+                totalClasses: nonFree.length,
+                schedule: sched
+            };
+        }
+    }
+    return {
+        daysAhead: 1,
+        relativeLabel: 'Tomorrow',
+        dateStr: 'Tomorrow',
+        dayName: 'Thursday',
+        dayOrder: 'Day 1',
+        firstClass: { title: 'Calculus', slot: '08:00', venue: 'UB 601', faculty: 'Dr. N. Parvathi' },
+        totalClasses: 4,
+        schedule: SRM_DATA.dayOrderSchedule['Day 1'] || []
+    };
+}
+
+function getUpcomingHolidays(count = 3) {
+    const today = new Date();
+    const todayStr = getFormattedDateStr(today);
+    const holidays = [];
+    
+    let started = false;
+    for (const c of SRM_DATA.calendar) {
+        if (c.date === todayStr) {
+            started = true;
+            continue;
+        }
+        if (started && c.status === 'Holiday' && c.remarks && !['Saturday', 'Sunday', '-'].includes(c.remarks.trim())) {
+            holidays.push(c);
+            if (holidays.length >= count) break;
+        }
+    }
+    return holidays;
+}
+
 function updateLiveHUD() {
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
+    const heroCard = document.querySelector('.live-hero');
     const hudTitle = document.getElementById('hud-class-title');
     const hudVenue = document.getElementById('hud-venue');
     const hudFaculty = document.getElementById('hud-faculty');
@@ -730,14 +790,27 @@ function updateLiveHUD() {
     if (!hudTitle) return;
 
     if (isTodayHoliday) {
-        if (hudStatus) { hudStatus.textContent = 'Holiday'; hudStatus.style.color = '#ef4444'; }
-        hudTitle.textContent = 'No Classes Scheduled';
-        if (hudVenue) hudVenue.textContent = 'Campus Off';
-        if (hudFaculty) hudFaculty.textContent = '-';
-        if (hudTime) hudTime.textContent = 'All Day';
-        if (hudUpNext) hudUpNext.textContent = 'Check calendar for next working day';
+        if (heroCard) heroCard.classList.add('holiday-hero');
+        const todayStr = getFormattedDateStr(now);
+        const calEntry = SRM_DATA.calendar.find(c => c.date === todayStr);
+        const remark = (calEntry && calEntry.remarks && calEntry.remarks !== '-') ? calEntry.remarks : 'Milad-un-nabi';
+        const nextInfo = getNextWorkingDayInfo();
+
+        if (hudStatus) {
+            hudStatus.className = 'holiday-status-badge';
+            hudStatus.textContent = '🏖️ Campus Off';
+            hudStatus.style.color = '#6ee7b7';
+        }
+        if (hudTime) hudTime.textContent = 'Holiday';
+        hudTitle.textContent = `Enjoy Your Holiday! (${remark})`;
+        if (hudVenue) hudVenue.innerHTML = `<span style="color:#38bdf8;font-weight:700;">${nextInfo.relativeLabel} (${nextInfo.dayOrder})</span>`;
+        if (hudFaculty) hudFaculty.innerHTML = `<span style="color:#34d399;font-weight:700;">${nextInfo.firstClass.title}</span>`;
+        if (hudUpNext) hudUpNext.innerHTML = `First Class: ${nextInfo.firstClass.venue || 'UB 601'} &bull; ${nextInfo.totalClasses} classes scheduled`;
         return;
     }
+
+    if (heroCard) heroCard.classList.remove('holiday-hero');
+    if (hudStatus) hudStatus.className = 'hero-status-label';
 
     const schedule = SRM_DATA.dayOrderSchedule[currentDayOrder] || SRM_DATA.dayOrderSchedule['Day 1'] || [];
     let currentPeriod = null;
@@ -777,13 +850,83 @@ function updateLiveHUD() {
     }
 }
 
-// ─── Schedule Renderer ────────────────────────────────────────────────────────
+// ─── Schedule & Holiday Hub Renderer ──────────────────────────────────────────
 function renderDaySchedule(day) {
     const list = document.getElementById('period-list');
     if (!list) return;
     list.innerHTML = '';
-    const schedule = SRM_DATA.dayOrderSchedule[day] || [];
 
+    const nextInfo = getNextWorkingDayInfo();
+
+    // If Holiday view selected
+    if (day === 'Holiday' || (isTodayHoliday && day === 'Holiday')) {
+        const upHolidays = getUpcomingHolidays(3);
+        const holHtml = upHolidays.map(h => `
+            <div class="upcoming-holiday-pill">
+                <div>
+                    <span style="font-weight:700;color:#f4f4f5;">🎉 ${h.remarks}</span>
+                    <div style="font-size:0.7rem;color:var(--text-muted);">${h.date} &bull; ${h.day}</div>
+                </div>
+                <span style="font-size:0.72rem;background:#27272a;color:#38bdf8;padding:2px 8px;border-radius:9999px;font-weight:700;">Campus Off</span>
+            </div>
+        `).join('');
+
+        list.innerHTML = `
+            <div class="holiday-actions-deck">
+                <button class="holiday-action-btn" onclick="openAITabWithPrompt('Give me a quick 1-hour study review plan for tomorrow classes (${nextInfo.dayOrder})')">
+                    <span>📚</span>
+                    <span>AI Study Plan (${nextInfo.dayOrder})</span>
+                </button>
+                <button class="holiday-action-btn" onclick="openAITabWithPrompt('What is my attendance safe bunks summary and can I take an extra leave?')">
+                    <span>🛡️</span>
+                    <span>Safe Bunk Check</span>
+                </button>
+            </div>
+
+            <div class="upcoming-holidays-wrap">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <span style="font-size:0.78rem;font-weight:700;color:#e4e4e7;text-transform:uppercase;letter-spacing:0.5px;">Upcoming Campus Holidays</span>
+                    <span style="font-size:0.7rem;color:#38bdf8;cursor:pointer;" onclick="document.querySelector('[data-tab=view-calendar]').click()">View All ↗</span>
+                </div>
+                ${holHtml || '<p style="font-size:0.75rem;color:var(--text-muted);">No upcoming campus holidays in next 2 weeks.</p>'}
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 8px;">
+                <span style="font-size:0.8rem;font-weight:700;color:#94a3b8;">${nextInfo.relativeLabel}'s Schedule (${nextInfo.dayOrder})</span>
+                <span style="font-size:0.72rem;color:#34d399;font-weight:600;">${nextInfo.totalClasses} classes</span>
+            </div>
+        `;
+
+        // Render next working day's preview below holiday widget
+        const sched = SRM_DATA.dayOrderSchedule[nextInfo.dayOrder] || [];
+        sched.forEach((p, idx) => {
+            const slotInfo = SRM_DATA.timeSlots[idx] || { start: '--:--', label: `Hour ${idx + 1}` };
+            const card = document.createElement('div');
+            card.className = 't-card' + (p.type === 'Free' ? ' free-card' : '');
+
+            let tagClass = 'tag-free';
+            let tagText = p.type || 'Class';
+            if (p.type === 'Theory') tagClass = 'tag-theory';
+            if (p.type === 'Lab') tagClass = 'tag-lab';
+
+            card.innerHTML = `
+                <div class="t-left">
+                    <div class="t-hour">H${p.hour} &bull; ${slotInfo.start}</div>
+                    <div class="t-info">
+                        <div class="t-name">${p.title}</div>
+                        <div class="t-meta">📍 ${p.venue} ${p.slot ? `&bull; Slot ${p.slot}` : ''} ${p.faculty && p.faculty !== '-' ? `&bull; ${p.faculty}` : ''}</div>
+                    </div>
+                </div>
+                <div>
+                    <span class="t-tag ${tagClass}">${tagText}</span>
+                </div>
+            `;
+            list.appendChild(card);
+        });
+        return;
+    }
+
+    const schedule = SRM_DATA.dayOrderSchedule[day] || [];
     schedule.forEach((p, idx) => {
         const slotInfo = SRM_DATA.timeSlots[idx] || { start: '--:--', label: `Hour ${idx + 1}` };
         const card = document.createElement('div');
@@ -810,14 +953,44 @@ function renderDaySchedule(day) {
     });
 }
 
+function openAITabWithPrompt(promptText) {
+    const aiTabBtn = document.querySelector('[data-tab="view-ai"]');
+    if (aiTabBtn) aiTabBtn.click();
+    const chatInput = document.getElementById('ai-chat-input');
+    if (chatInput) {
+        chatInput.value = promptText;
+        setTimeout(() => {
+            const sendBtn = document.getElementById('ai-send-btn');
+            if (sendBtn) sendBtn.click();
+        }, 150);
+    }
+}
+
 function initDaySelector() {
     const container = document.getElementById('day-selector');
     if (!container) return;
     container.innerHTML = '';
+
+    const nextInfo = getNextWorkingDayInfo();
+
+    if (isTodayHoliday) {
+        const holBtn = document.createElement('div');
+        holBtn.className = 'day-chip holiday-chip' + (selectedDay === 'Holiday' ? ' active' : '');
+        holBtn.innerHTML = `🏖️ Off<span class="day-chip-badge">Today</span>`;
+        holBtn.id = 'btn-Holiday';
+        holBtn.onclick = () => {
+            selectedDay = 'Holiday';
+            highlightActiveDayBtn('Holiday');
+            renderDaySchedule('Holiday');
+        };
+        container.appendChild(holBtn);
+    }
+
     ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'].forEach(d => {
         const btn = document.createElement('div');
+        const isNext = (d === nextInfo.dayOrder);
         btn.className = 'day-chip' + (d === selectedDay ? ' active' : '');
-        btn.textContent = d;
+        btn.innerHTML = `${d}${isNext ? `<span class="day-chip-badge" style="color:#38bdf8;">${nextInfo.relativeLabel}</span>` : ''}`;
         btn.id = 'btn-' + d.replace(' ', '');
         btn.onclick = () => {
             selectedDay = d;

@@ -935,3 +935,100 @@ body {
     border: none;
 }
 
+/* Holiday & Next Working Day UI Enchantments */
+.holiday-hero {
+    background: linear-gradient(135deg, #064e3b 0%, #0f172a 50%, #1e1b4b 100%) !important;
+    border: 1px solid #059669 !important;
+    box-shadow: 0 10px 30px rgba(5, 150, 105, 0.15);
+    position: relative;
+    overflow: hidden;
+}
+
+.holiday-hero::before {
+    content: '🏖️';
+    position: absolute;
+    right: -10px;
+    bottom: -15px;
+    font-size: 5rem;
+    opacity: 0.12;
+    pointer-events: none;
+}
+
+.holiday-status-badge {
+    background: rgba(16, 185, 129, 0.2);
+    border: 1px solid #10b981;
+    color: #6ee7b7;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.holiday-actions-deck {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 12px 0 16px;
+}
+
+.holiday-action-btn {
+    background: #18181c;
+    border: 1px solid #27272a;
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    color: #e4e4e7;
+    font-size: 0.78rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+
+.holiday-action-btn:hover {
+    background: #27272a;
+    border-color: #38bdf8;
+}
+
+.upcoming-holidays-wrap {
+    background: #111114;
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    margin-bottom: 16px;
+}
+
+.upcoming-holiday-pill {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    background: #18181b;
+    border-radius: var(--radius-sm);
+    margin-top: 6px;
+    font-size: 0.78rem;
+}
+
+.day-chip.holiday-chip {
+    background: #271414;
+    border-color: #ef4444;
+    color: #fca5a5;
+}
+
+.day-chip.holiday-chip.active {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+.day-chip-badge {
+    display: block;
+    font-size: 0.62rem;
+    opacity: 0.8;
+    margin-top: 2px;
+    font-weight: 500;
+}
+
