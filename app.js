@@ -875,7 +875,7 @@ Answer clearly and concisely with markdown formatting.`;
 async function askAcademicAI(userPrompt) {
     const systemPrompt = getAcademicContextForAI();
 
-    // 1. Primary: Direct 100% Free Zero-Login Gateway (/api/chat)
+    // 1. Primary: Direct Zero-Login Serverless AI Gateway (/api/chat)
     try {
         const res = await apiFetch('/api/chat', {
             method: 'POST',
@@ -886,24 +886,7 @@ async function askAcademicAI(userPrompt) {
         }
     } catch (_) {}
 
-    // 2. Secondary: If user is ALREADY authenticated in Puter, use Puter AI without triggering popups
-    if (window.puter && window.puter.auth && typeof window.puter.auth.isSignedIn === 'function' && window.puter.auth.isSignedIn()) {
-        try {
-            const res = await window.puter.ai.chat([
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt }
-            ], { model: 'deepseek-chat' });
-            if (res) {
-                if (typeof res === 'string' && res.trim()) return res;
-                if (res.message && res.message.content) return res.message.content;
-                if (res.text) return res.text;
-            }
-        } catch (e) {
-            console.warn('Puter AI fallback:', e);
-        }
-    }
-
-    // 3. Tertiary: Instant Client-Side Academic Calculation & Knowledge Engine
+    // 2. Secondary: Instant Client-Side Academic Calculation & Knowledge Engine
     return getOfflineAIResponse(userPrompt);
 }
 
