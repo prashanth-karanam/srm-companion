@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>SRM Companion</title>
-    <link rel="stylesheet" href="style.css?v=2.3.7">
+    <link rel="stylesheet" href="style.css?v=2.3.8">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -187,8 +187,35 @@
             </div>
         </div>
 
-        <!-- Section 4: Categorized Announcements Hub -->
+        <!-- Section 4: Categorized Announcements & WhatsApp Hub -->
         <div id="view-announcements" class="tab-view" style="display: none;">
+            <!-- Direct Mobile-to-Mobile WhatsApp Hub -->
+            <div class="wa-hub-card">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:1.1rem;">🟢</span>
+                        <span style="font-size:0.85rem;font-weight:800;color:#ffffff;">Class WhatsApp Hub</span>
+                    </div>
+                    <span class="wa-privacy-badge">🔒 Direct Mobile-to-Mobile</span>
+                </div>
+                <p style="font-size:0.72rem;color:#a7f3d0;line-height:1.4;">
+                    Link your section and course WhatsApp groups directly on your phone. Zero messages are sent to our servers — 100% private to your device.
+                </p>
+                <div class="holiday-actions-deck" style="margin:10px 0 6px;">
+                    <button class="holiday-action-btn" style="background:#14241b;border-color:#166534;color:#4ade80;" onclick="openAddWAGroupModal()">
+                        <span>➕</span>
+                        <span>Link WhatsApp Group</span>
+                    </button>
+                    <button class="holiday-action-btn" style="background:#1e1b4b;border-color:#3730a3;color:#818cf8;" onclick="openPasteNoticeModal()">
+                        <span>📥</span>
+                        <span>Paste Notice from WA</span>
+                    </button>
+                </div>
+                <div id="wa-groups-list" class="wa-groups-grid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
                 <h3 style="font-size:0.92rem;font-weight:700;letter-spacing:0.02em;">📢 Faculty Notices & Xerox Log</h3>
                 <span id="ann-counter" style="font-size:0.72rem;background:#18181b;padding:3px 8px;border-radius:9999px;border:1px solid #27272a;color:var(--accent);">5 notices</span>
@@ -302,7 +329,7 @@
         </button>
     </div>
 
-    <script src="data.js?v=2.3.7"></script>
-    <script src="app.js?v=2.3.7"></script>
+    <script src="data.js?v=2.3.8"></script>
+    <script src="app.js?v=2.3.8"></script>
 </body>
 </html>

@@ -374,6 +374,7 @@ function _initApp() {
     initQuickTools();
     renderCalendarList();
     renderAnnouncements();
+    renderWhatsAppGroups();
     initAnnouncementsSearch();
     updateLiveHUD();
     initP2PMesh();
@@ -1288,6 +1289,122 @@ let announcementsData = [
     }
 ];
 
+// ─── Direct Mobile-to-Mobile WhatsApp Hub ─────────────────────────────────────
+const DEFAULT_WA_GROUPS = [
+    { id: 'wa-1', name: 'P1 26-30 CSE AI ML BIO', code: '26BTB1001T', link: 'https://chat.whatsapp.com/', enabled: true, icon: '📢', members: '68 Classmates • Section P1' },
+    { id: 'wa-2', name: 'AI ML P1 Chemistry Lab', code: '26CYB1002J', link: 'https://chat.whatsapp.com/', enabled: true, icon: '🧪', members: 'Pink Bldg Lab 4' },
+    { id: 'wa-3', name: 'PPS Programming Discussion', code: '26CSE1002J', link: 'https://chat.whatsapp.com/', enabled: true, icon: '💻', members: 'Tech Park Integrative Lab' },
+    { id: 'wa-4', name: 'Calculus & Linear Algebra', code: '26MAB1001T', link: 'https://chat.whatsapp.com/', enabled: true, icon: '📐', members: 'UB 601 Section P1' },
+    { id: 'wa-5', name: 'BEL Workshop Practice', code: '26MEE1001L', link: 'https://chat.whatsapp.com/', enabled: true, icon: '🔧', members: 'Basic Engg Sheet Metal' }
+];
+
+function getLinkedWAGroups() {
+    try {
+        const saved = localStorage.getItem('srm_linked_wa_groups');
+        if (saved) return JSON.parse(saved);
+    } catch (_) {}
+    return DEFAULT_WA_GROUPS;
+}
+
+function saveLinkedWAGroups(groups) {
+    localStorage.setItem('srm_linked_wa_groups', JSON.stringify(groups));
+}
+
+function renderWhatsAppGroups() {
+    const container = document.getElementById('wa-groups-list');
+    if (!container) return;
+    const groups = getLinkedWAGroups();
+
+    container.innerHTML = groups.map(g => `
+        <div class="wa-group-item" style="opacity:${g.enabled ? '1' : '0.5'};">
+            <div class="wa-group-left">
+                <div class="wa-group-icon">${g.icon || '💬'}</div>
+                <div style="min-width:0;">
+                    <div class="wa-group-name">${g.name}</div>
+                    <div class="wa-group-sub">${g.members || 'Class Group'}</div>
+                </div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;">
+                <button class="wa-toggle-btn ${g.enabled ? 'active' : ''}" onclick="toggleWAGroup('${g.id}')">
+                    ${g.enabled ? 'Active' : 'Muted'}
+                </button>
+                <a href="${g.link || 'https://chat.whatsapp.com/'}" target="_blank" rel="noopener noreferrer" class="wa-action-open">
+                    <span>Open ↗</span>
+                </a>
+            </div>
+        </div>
+    `).join('');
+}
+
+function toggleWAGroup(groupId) {
+    const groups = getLinkedWAGroups();
+    const target = groups.find(g => g.id === groupId);
+    if (target) {
+        target.enabled = !target.enabled;
+        saveLinkedWAGroups(groups);
+        renderWhatsAppGroups();
+        renderAnnouncements();
+    }
+}
+
+function openAddWAGroupModal() {
+    const name = prompt("Enter WhatsApp Group Name (e.g. 'Section P1 CR Announcements' or 'Math Study Group'):");
+    if (!name) return;
+    const link = prompt("Paste WhatsApp Group Invite Link (e.g. https://chat.whatsapp.com/...) or leave blank:", "https://chat.whatsapp.com/");
+    const subject = prompt("Assign Subject Code (e.g. 26CSE1002J, 26MAB1001T, 26CYB1002J, 26BTB1001T, 26MEE1001L, or ALL):", "ALL") || "ALL";
+
+    const groups = getLinkedWAGroups();
+    groups.push({
+        id: 'wa-custom-' + Date.now(),
+        name: name.trim(),
+        code: subject.trim().toUpperCase(),
+        link: link ? link.trim() : 'https://chat.whatsapp.com/',
+        enabled: true,
+        icon: '📱',
+        members: 'Custom Mobile Linked Group'
+    });
+    saveLinkedWAGroups(groups);
+    renderWhatsAppGroups();
+    alert("✅ WhatsApp Group linked directly to your phone!");
+}
+
+function openPasteNoticeModal() {
+    const text = prompt("📥 Paste Notice / Message from WhatsApp:\n\n(e.g. 'Prof John Bosco: Tomorrow Chemistry lab cancelled. Submit observation on Monday.')");
+    if (!text || !text.trim()) return;
+
+    const raw = text.trim();
+    let category = "Announcement";
+    if (raw.toLowerCase().includes("cancel")) category = "Cancelled";
+    else if (raw.toLowerCase().includes("submit") || raw.toLowerCase().includes("assignment") || raw.toLowerCase().includes("record") || raw.toLowerCase().includes("observation")) category = "Assignment";
+    else if (raw.toLowerCase().includes("exam") || raw.toLowerCase().includes("test") || raw.toLowerCase().includes("quiz") || raw.toLowerCase().includes("marks")) category = "Exam";
+    else if (raw.toLowerCase().includes("venue") || raw.toLowerCase().includes("room") || raw.toLowerCase().includes("building") || raw.toLowerCase().includes("xerox")) category = "Venue / Xerox";
+
+    let code = "ALL";
+    let subject = "General Announcement";
+    if (raw.toLowerCase().includes("chem") || raw.toLowerCase().includes("bosco")) { code = "26CYB1002J"; subject = "Chemistry for CS"; }
+    else if (raw.toLowerCase().includes("pps") || raw.toLowerCase().includes("c prog") || raw.toLowerCase().includes("sheeba")) { code = "26CSE1002J"; subject = "Programming (PPS)"; }
+    else if (raw.toLowerCase().includes("calc") || raw.toLowerCase().includes("math") || raw.toLowerCase().includes("parvathi")) { code = "26MAB1001T"; subject = "Calculus"; }
+    else if (raw.toLowerCase().includes("bio") || raw.toLowerCase().includes("sivasankareswari")) { code = "26BTB1001T"; subject = "Comp Biology"; }
+    else if (raw.toLowerCase().includes("work") || raw.toLowerCase().includes("bel") || raw.toLowerCase().includes("samson")) { code = "26MEE1001L"; subject = "Workshop"; }
+
+    const newNotice = {
+        id: "wa-notice-" + Date.now(),
+        subject: subject,
+        code: code,
+        category: category,
+        title: raw.length > 50 ? raw.substring(0, 50) + "..." : raw,
+        detail: raw,
+        faculty: "Class WhatsApp Sync",
+        venue: "WhatsApp Feed",
+        sourceGroup: "Direct Mobile Link",
+        timestamp: "Just Now"
+    };
+
+    announcementsData.unshift(newNotice);
+    renderAnnouncements();
+    alert("✅ Notice imported into your dashboard 100% on-device (Zero Server Transfer)!");
+}
+
 function renderAnnouncements(filterSubject, searchQuery) {
     const container = document.getElementById('announcements-container');
     const counter = document.getElementById('ann-counter');
@@ -1297,6 +1414,9 @@ function renderAnnouncements(filterSubject, searchQuery) {
     searchQuery = (searchQuery || '').toLowerCase();
     container.innerHTML = '';
     
+    // Check enabled WhatsApp groups
+    const enabledGroups = getLinkedWAGroups().filter(g => g.enabled).map(g => g.name.toLowerCase());
+
     const filtered = announcementsData.filter(ann => {
         const matchSubject = (filterSubject === 'ALL' || ann.code === filterSubject);
         const matchSearch = (ann.title + ann.detail + ann.subject + ann.venue + ann.faculty + ann.category).toLowerCase().includes(searchQuery);
@@ -1327,7 +1447,7 @@ function renderAnnouncements(filterSubject, searchQuery) {
             <div style="font-size:0.82rem;color:var(--text-sub);line-height:1.45;">${ann.detail}</div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:0.72rem;color:var(--text-muted);border-top:1px solid #1f1f26;padding-top:6px;">
                 <span>📍 ${ann.venue} ${ann.faculty && ann.faculty !== '-' ? `&bull; 👤 ${ann.faculty}` : ''}</span>
-                <span style="color:#71717a;">${ann.sourceGroup}</span>
+                <span style="color:#22c55e;font-weight:600;">🟢 ${ann.sourceGroup}</span>
             </div>
         `;
         container.appendChild(card);
