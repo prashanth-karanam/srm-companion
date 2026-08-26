@@ -394,25 +394,37 @@ def login_and_scrape_portal(username, password, captcha, cookies_str="", hidden_
         
         # 4. Strict validation: Check for specific rejection messages
         res_text = login_res.text
-        if "Invalid Captcha" in res_text:
+        
+        soup_login = BeautifulSoup(res_text, 'html.parser')
+        alert_el = soup_login.find(class_=re.compile(r'alert', re.I))
+        extracted_alert = ""
+        if alert_el:
+            extracted_alert = alert_el.get_text(strip=True).replace('Alert', '').strip()
+
+        if "Invalid Captcha" in res_text or "invalid captcha" in extracted_alert.lower():
             return {
                 "success": False,
-                "error": "❌ Invalid CAPTCHA code. Please check the image and type the exact letters."
+                "error": "❌ Invalid CAPTCHA code. Please check the letters in the image carefully."
             }
-        if "Captcha expired" in res_text:
+        if "Captcha expired" in res_text or "captcha expired" in extracted_alert.lower():
             return {
                 "success": False,
-                "error": "⚠️ CAPTCHA code expired. A fresh CAPTCHA has been loaded. Please try again."
+                "error": "⚠️ CAPTCHA code expired. Please click the refresh icon to load a fresh image."
             }
-        if "Invalid User" in res_text or "Invalid Password" in res_text or "loginFailed" in login_res.url:
+        if "Invalid User" in res_text or "Invalid Password" in res_text or "invalid user" in extracted_alert.lower() or "loginFailed" in login_res.url:
             return {
                 "success": False,
                 "error": "❌ Invalid SRM NetID or password. Please verify your credentials."
             }
+        if extracted_alert:
+            return {
+                "success": False,
+                "error": f"❌ SRM Portal: {extracted_alert}"
+            }
         if "HRDSystem" not in login_res.url and "HRDSystem" not in res_text and "studentProfile" not in res_text:
             return {
                 "success": False,
-                "error": "❌ SRM Portal rejected login. Please verify NetID, password, and CAPTCHA."
+                "error": "❌ Login rejected by SRM Portal. Please check your NetID, password, and CAPTCHA."
             }
 
     # 5. Extract Real Student Name & Registration Number from studentProfile.jsp (Form 1)

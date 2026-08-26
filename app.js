@@ -108,19 +108,11 @@ function showDashboard() {
 }
 
 // ─── Live CAPTCHA Engine (sp.srmist.edu.in) ───────────────────────────────────
-let _currentCaptcha = 'R7B9K';
-
-function generateRandomCaptcha() {
-    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-    let str = '';
-    for (let i = 0; i < 5; i++) str += chars.charAt(Math.floor(Math.random() * chars.length));
-    return str;
-}
-
 async function fetchLiveCaptcha() {
     const box = document.getElementById('captcha-box');
-    const textEl = document.getElementById('captcha-text');
-    if (textEl) textEl.textContent = '...';
+    if (box) {
+        box.innerHTML = '<span style="color:#71717a;font-size:0.75rem;display:inline-block;padding:6px 10px;">Loading…</span>';
+    }
 
     try {
         const res = await apiFetch('/api/captcha');
@@ -129,16 +121,14 @@ async function fetchLiveCaptcha() {
             _hiddenFields = res.hidden_fields || {};
             _secConfig = res.sec_config || {};
             if (box) {
-                box.innerHTML = `<img src="${res.captchaImg}" style="height:34px;border-radius:6px;" alt="CAPTCHA">`;
+                box.innerHTML = `<img src="${res.captchaImg}" style="height:34px;border-radius:6px;display:block;" alt="SRM CAPTCHA">`;
             }
             return;
         }
     } catch (_) {}
 
-    // Fallback to local code
-    _currentCaptcha = generateRandomCaptcha();
     if (box) {
-        box.innerHTML = `<span id="captcha-text">${_currentCaptcha}</span>`;
+        box.innerHTML = '<span onclick="fetchLiveCaptcha()" style="color:#ef4444;font-size:0.75rem;cursor:pointer;display:inline-block;padding:6px 10px;" title="Tap to retry">⚠️ Tap to load</span>';
     }
 }
 
