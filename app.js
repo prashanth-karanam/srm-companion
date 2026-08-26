@@ -349,14 +349,17 @@ let portalAttendance = [];
 
 // ─── Auto-Cache Invalidation & GitHub Live OTA Updates ────────────────────────
 function applyAppVersionAndCleanStaleCaches() {
-    const currentVer = (typeof APP_BUILD_VERSION !== 'undefined') ? APP_BUILD_VERSION : '2.4.1';
+    const currentVer = (typeof APP_BUILD_VERSION !== 'undefined') ? APP_BUILD_VERSION : '2.4.2';
     const storedVer = localStorage.getItem('srm_installed_build_version');
 
     if (storedVer !== currentVer) {
         console.log(`[OTA Engine] Version upgraded: ${storedVer || 'Legacy'} -> ${currentVer}. Purging stale static cache to load latest GitHub timetable/calendar...`);
-        // Remove stale calendar & timetable caches so latest data.js is applied
+        // Remove stale calendar & timetable & legacy mock notice caches so fresh dynamic data is applied
         localStorage.removeItem('srm_cached_calendar');
         localStorage.removeItem('srm_cached_schedule');
+        localStorage.removeItem('srm_user_announcements_global');
+        localStorage.removeItem('srm_linked_wa_groups');
+        localStorage.removeItem('srm_cached_announcements');
         localStorage.setItem('srm_installed_build_version', currentVer);
     }
 }
@@ -1389,10 +1392,21 @@ function renderSubjectFilterChips() {
             }
         }
 
-        // Clean short name
-        let shortName = title.split(' ')[0];
-        if (shortName.length <= 2 && title.split(' ').length > 1) {
-            shortName = title.split(' ').slice(0, 2).join(' ');
+        // Clean friendly short name
+        let shortName = '';
+        const upper = (code + ' ' + title).toUpperCase();
+        if (upper.includes('CHEM')) shortName = 'Chemistry';
+        else if (upper.includes('BIOLOGY') || upper.includes('BIO')) shortName = 'Comp Bio';
+        else if (upper.includes('PROBLEM') || upper.includes('PPS') || upper.includes('PROG')) shortName = 'PPS (C Prog)';
+        else if (upper.includes('CALCULUS') || upper.includes('MATH')) shortName = 'Calculus';
+        else if (upper.includes('WORKSHOP') || upper.includes('MEE')) shortName = 'Workshop';
+        else if (upper.includes('PHYSIC') || upper.includes('PHY')) shortName = 'Physics';
+        else if (upper.includes('ENGLISH') || upper.includes('COMM')) shortName = 'English';
+        else {
+            shortName = title.split(' ')[0];
+            if (shortName.length <= 3 && title.split(' ').length > 1) {
+                shortName = title.split(' ').slice(0, 2).join(' ');
+            }
         }
         if (shortName.length > 14) shortName = shortName.substring(0, 12) + '…';
 
@@ -1645,13 +1659,14 @@ function summarizeWAGroupWithAI(groupId) {
     const groups = getLinkedWAGroups();
     const g = groups.find(x => x.id === groupId) || { name: 'Class Group' };
     
-    // Check if we have group messages or prompt user to paste
+    // Check if we have real group notices
     const groupNotices = announcementsData.filter(a => a.sourceGroup === g.name || a.code === g.code);
     let sampleChat = groupNotices.map(n => `[Notice]: ${n.title} - ${n.detail}`).join('\n');
     
     if (!sampleChat) {
-        const pasted = prompt(`🤖 Paste recent messages or chat export for "${g.name}":\n\n(Leave blank to summarize standard notices)`);
-        sampleChat = pasted ? pasted : `Prof Sivasankareswari: Today optional class at 4:00 PM cancelled. Day 3 regular class at 9:45 AM.\nDr. John Bosco: Submit Chemistry observation book in Pink Building 1st Floor Lab 4 tomorrow.\nSheeba Rachel: PPS Assignment 3 on pointers due before Friday on HackerRank.`;
+        const pasted = prompt(`🤖 Paste recent messages or chat export for "${g.name}":\n\n(Paste from your WhatsApp group to generate instant AI digest)`);
+        if (!pasted || !pasted.trim()) return;
+        sampleChat = pasted.trim();
     }
 
     processWAChatTextForAI(sampleChat, g.name);
@@ -2332,6 +2347,8 @@ function initWADeviceMonitor() {
     waDevicePollTimer = setInterval(pollWADeviceStatus, 4000);
 }
 
+let _hasSyncedBridgeGroups = false;
+
 async function pollWADeviceStatus() {
     try {
         const res = await apiFetch('/api/wa/status');
@@ -2350,7 +2367,8 @@ async function pollWADeviceStatus() {
                 btn.style.color = '#38bdf8';
                 btn.onclick = openWAGroupSelectorModal;
             }
-            // Fetch latest messages from monitored groups
+            // Fetch live groups and messages from bridge
+            syncLiveBridgeGroups();
             fetchWAMonitoredMessages();
         } else if (res.status === 'SCAN_QR') {
             if (dot) dot.style.background = '#f59e0b';
@@ -2361,6 +2379,7 @@ async function pollWADeviceStatus() {
                 btn.style.color = '#000';
                 btn.onclick = openWALinkedDeviceModal;
             }
+            renderWhatsAppGroups();
         } else {
             if (dot) dot.style.background = '#71717a';
             if (text) text.textContent = '⚪ Virtual Companion: Standby';
@@ -2370,8 +2389,82 @@ async function pollWADeviceStatus() {
                 btn.style.color = '#000';
                 btn.onclick = openWALinkedDeviceModal;
             }
+            renderWhatsAppGroups();
         }
     } catch (_) {}
+}
+
+async function syncLiveBridgeGroups() {
+    try {
+        const res = await apiFetch('/api/wa/groups');
+        if (res && Array.isArray(res.groups)) {
+            const container = document.getElementById('wa-groups-list');
+            if (!container) return;
+
+            if (res.groups.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align:center;padding:16px 12px;background:#141418;border:1px dashed #27272a;border-radius:12px;color:var(--text-muted);font-size:0.75rem;line-height:1.45;">
+                        💬 <b style="color:#f4f4f5;">No Active Groups Found on WhatsApp</b><br>
+                        Tap <b>"Manage Groups"</b> above to choose class groups for AI monitoring.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = res.groups.slice(0, 8).map(g => `
+                <div class="wa-group-item" style="opacity:${g.isMonitored ? '1' : '0.6'};">
+                    <div class="wa-group-left">
+                        <div class="wa-group-icon">👥</div>
+                        <div style="min-width:0;">
+                            <div class="wa-group-name">${escapeHtml(g.name)}</div>
+                            <div class="wa-group-sub">${g.participantsCount} participants ${g.isMonitored ? '&bull; <span style="color:#4ade80;font-weight:700;">🟢 AI Monitored</span>' : ''}</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+                        <button class="wa-action-open" style="background:rgba(56,189,248,0.12);color:#38bdf8;border-color:rgba(56,189,248,0.3);" onclick="summarizeBridgeGroup('${g.name}')">
+                            <span>🤖 AI Digest</span>
+                        </button>
+                        <button class="wa-toggle-btn ${g.isMonitored ? 'active' : ''}" onclick="toggleBridgeGroupMonitored('${g.id}', ${!g.isMonitored})">
+                            ${g.isMonitored ? 'Active' : 'Muted'}
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch (_) {}
+}
+
+async function toggleBridgeGroupMonitored(groupId, enable) {
+    try {
+        const res = await apiFetch('/api/wa/groups');
+        if (res && Array.isArray(res.groups)) {
+            const currentlyMonitored = res.groups.filter(g => g.isMonitored).map(g => g.id);
+            let updated;
+            if (enable) {
+                updated = [...new Set([...currentlyMonitored, groupId])];
+            } else {
+                updated = currentlyMonitored.filter(id => id !== groupId);
+            }
+            await apiFetch('/api/wa/select-groups', {
+                method: 'POST',
+                body: JSON.stringify({ groupIds: updated })
+            });
+            syncLiveBridgeGroups();
+            pollWADeviceStatus();
+            showAttendanceToast(enable ? "🟢 Group activated for AI monitoring!" : "⏸️ Group muted.", "info");
+        }
+    } catch (_) {}
+}
+
+function summarizeBridgeGroup(groupName) {
+    const groupNotices = announcementsData.filter(a => a.sourceGroup === groupName);
+    let chat = groupNotices.map(n => `[Notice]: ${n.title} - ${n.detail}`).join('\n');
+    if (!chat) {
+        const pasted = prompt(`🤖 Paste recent chat export for "${groupName}":\n\n(Paste from your WhatsApp group to generate instant AI digest)`);
+        if (!pasted || !pasted.trim()) return;
+        chat = pasted.trim();
+    }
+    processWAChatTextForAI(chat, groupName);
 }
 
 async function fetchWAMonitoredMessages() {

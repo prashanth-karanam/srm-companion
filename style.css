@@ -190,13 +190,15 @@ body {
     font-weight: 600;
 }
 
-/* Day Order Selector */
+/* Day Order Selector & Horizontal Filters */
 .day-scroll {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     margin-bottom: 16px;
     overflow-x: auto;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
 }
 
 .day-scroll::-webkit-scrollbar {
@@ -204,18 +206,21 @@ body {
 }
 
 .day-chip {
-    flex: 1;
-    min-width: 65px;
+    flex-shrink: 0;
+    white-space: nowrap;
     background: #111114;
     border: 1px solid var(--card-border);
     color: var(--text-muted);
-    padding: 8px 0;
-    border-radius: var(--radius-md);
-    font-size: 0.8rem;
+    padding: 8px 14px;
+    border-radius: 9999px;
+    font-size: 0.78rem;
     font-weight: 600;
     cursor: pointer;
     text-align: center;
     transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
 }
 
 .day-chip.active {

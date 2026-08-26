@@ -1,6 +1,6 @@
 ﻿{
-    "releaseNotes":  "Dynamic Enrolled Subject Chips, Zero-Hardcoded Notices, Multi-Profile WhatsApp Storage",
-    "updatedAt":  "2026-08-27T00:26:00+05:30",
-    "build":  2026082701,
-    "version":  "2.4.2"
+    "releaseNotes":  "Fixed day-chip horizontal scrolling \u0026 text squishing, added live bridge WhatsApp group sync, and purged lingering mock notices",
+    "updatedAt":  "2026-08-27T00:38:00+05:30",
+    "build":  2026082702,
+    "version":  "2.4.3"
 }
