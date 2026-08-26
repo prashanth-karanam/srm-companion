@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>SRM Companion</title>
-    <link rel="stylesheet" href="style.css?v=2.3.9">
+    <link rel="stylesheet" href="style.css?v=2.4.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -110,6 +110,9 @@
 
         <!-- Section 1: Today / Timetable View -->
         <div id="view-schedule" class="tab-view" style="display: block;">
+            <!-- AI WhatsApp Schedule Verification Alert -->
+            <div id="wa-schedule-alert-wrap" class="wa-schedule-alert-banner" style="display:none;"></div>
+
             <!-- Live Hero Card -->
             <div class="live-hero">
                 <div class="hero-status-row">
@@ -133,15 +136,21 @@
                 </div>
             </div>
 
-            <!-- Day Selector -->
-            <div class="day-scroll" id="day-selector">
-                <!-- Day Chips -->
+            <!-- Time-Left Dynamic Island Progress Bar -->
+            <div class="period-progress-card">
+                <div class="period-prog-header">
+                    <span id="prog-period-label">Current Period Progress</span>
+                    <span id="prog-time-left" class="prog-time-pill">-- min remaining</span>
+                </div>
+                <div class="period-prog-track">
+                    <div id="prog-fill" class="period-prog-fill" style="width: 0%;"></div>
+                </div>
             </div>
 
-            <!-- Period Timeline -->
-            <div class="timeline" id="period-list">
-                <!-- Cards -->
-            </div>
+            <div class="section-title">Today's Class Matrix</div>
+            <div class="day-scroll" id="day-selector"></div>
+
+            <div id="period-list" class="timetable-list"></div>
         </div>
 
         <!-- Section 2: Attendance Hub -->
@@ -196,15 +205,22 @@
                         <span style="font-size:1.1rem;">🟢</span>
                         <span style="font-size:0.85rem;font-weight:800;color:#ffffff;">Class WhatsApp Hub</span>
                     </div>
-                    <span class="wa-privacy-badge">🔒 Direct Mobile-to-Mobile</span>
+                    <span class="wa-privacy-badge">🔒 Direct Multi-Device</span>
                 </div>
-                <p style="font-size:0.72rem;color:#a7f3d0;line-height:1.4;">
-                    Link your section and course WhatsApp groups directly on your phone. Zero messages are sent to our servers — 100% private to your device.
-                </p>
-                <div class="holiday-actions-deck" style="margin:10px 0 6px;grid-template-columns: 1fr 1fr 1fr;">
-                    <button class="holiday-action-btn" style="background:#14241b;border-color:#166534;color:#4ade80;" onclick="openAddWAGroupModal()">
-                        <span>➕</span>
-                        <span>Link Group</span>
+                
+                <!-- Baileys Virtual Companion Pairing Bar -->
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:8px 10px;background:rgba(0,0,0,0.28);border-radius:10px;">
+                    <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                        <span id="wa-device-status-dot" class="status-dot" style="background:#f59e0b;"></span>
+                        <span id="wa-device-status-text" style="font-size:0.75rem;font-weight:700;color:#f4f4f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Companion: Standby</span>
+                    </div>
+                    <button id="wa-device-action-btn" class="pill-btn" style="background:#22c55e;color:#000;border:none;padding:4px 10px;border-radius:6px;font-size:0.72rem;font-weight:700;cursor:pointer;flex-shrink:0;" onclick="openWALinkedDeviceModal()">📱 Pair Device (QR)</button>
+                </div>
+
+                <div class="holiday-actions-deck" style="margin:8px 0 6px;grid-template-columns: 1fr 1fr 1fr;">
+                    <button class="holiday-action-btn" style="background:#14241b;border-color:#166534;color:#4ade80;" onclick="openWAGroupSelectorModal()">
+                        <span>☑️</span>
+                        <span>Pick Groups</span>
                     </button>
                     <button class="holiday-action-btn" style="background:#1e1b4b;border-color:#3730a3;color:#818cf8;" onclick="openPasteChatForAISummaryModal()">
                         <span>🤖</span>
@@ -334,7 +350,7 @@
         </button>
     </div>
 
-    <script src="data.js?v=2.3.9"></script>
-    <script src="app.js?v=2.3.9"></script>
+    <script src="data.js?v=2.4.0"></script>
+    <script src="app.js?v=2.4.0"></script>
 </body>
 </html>

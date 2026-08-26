@@ -324,6 +324,20 @@ class APIHandler(BaseHTTPRequestHandler):
             return
 
         # 2. Serve Web Application UI & Static Assets (index.html, app.js, style.css, etc.)
+        if path.startswith('/api/wa'):
+            # Proxy to Baileys microservice on port 8001
+            try:
+                import urllib.request
+                req = urllib.request.Request(f"http://127.0.0.1:8001{self.path}")
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    resp_data = resp.read()
+                    self._set_headers(resp.status, 'application/json')
+                    self.wfile.write(resp_data)
+                    return
+            except Exception as e:
+                self._send_json({"error": f"WA Bridge not running on port 8001: {e}"}, 503)
+                return
+
         req_file = path.lstrip('/')
         if not req_file or req_file == 'index.html':
             req_file = 'index.html'
@@ -368,6 +382,25 @@ class APIHandler(BaseHTTPRequestHandler):
         path = self.path.split('?')[0].rstrip('/').lower()
         if not path: path = '/'
 
+        if path.startswith('/api/wa'):
+            # Proxy to Baileys microservice on port 8001
+            try:
+                import urllib.request
+                req = urllib.request.Request(
+                    f"http://127.0.0.1:8001{self.path}",
+                    data=post_data,
+                    headers={'Content-Type': 'application/json'},
+                    method='POST'
+                )
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    resp_data = resp.read()
+                    self._set_headers(resp.status, 'application/json')
+                    self.wfile.write(resp_data)
+                    return
+            except Exception as e:
+                self._send_json({"error": f"WA Bridge error on port 8001: {e}"}, 503)
+                return
+
         if path in ['/api/chat', '/chat']:
             try:
                 user_msg = body.get('message') or body.get('prompt') or ''
@@ -395,7 +428,16 @@ class APIHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, 500)
 
+def start_wa_bridge_subprocess():
+    import subprocess
+    try:
+        print("[Backend] Auto-starting Baileys WhatsApp Bridge on port 8001...")
+        subprocess.Popen(['node', 'wa_bridge.js'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        print(f"[Backend] Failed to auto-start wa_bridge.js: {e}")
+
 def run(port=8000):
+    start_wa_bridge_subprocess()
     server_address = ('0.0.0.0', port)
     ThreadingHTTPServer.allow_reuse_address = True
     httpd = ThreadingHTTPServer(server_address, APIHandler)
@@ -408,9 +450,13 @@ def run(port=8000):
         print("[Backend] Starting SRM portal auto-scraper (every 15 min)...")
         start_background_scraper(interval=900)
     else:
-        print("[Backend] ⚠️  Scraper unavailable — run: python srm_scraper.py first")
+        print("[Backend] SRM Auto-Scraper standby.")
 
-    httpd.serve_forever()
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopping server...")
+        httpd.server_close()
 
 if __name__ == '__main__':
-    run()
+    run(port=8000)

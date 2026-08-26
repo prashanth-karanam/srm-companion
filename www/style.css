@@ -1248,3 +1248,84 @@ body {
     gap: 4px;
 }
 
+/* Schedule Alert Banner */
+.wa-schedule-alert-banner {
+    background: linear-gradient(135deg, #451a03 0%, #1c1917 100%);
+    border: 1px solid #d97706;
+    border-radius: 16px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 20px rgba(217, 119, 6, 0.2);
+    animation: fadeIn 0.3s ease-out;
+}
+
+.wa-alert-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.wa-alert-badge {
+    background: #d97706;
+    color: #ffffff;
+    font-size: 0.68rem;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.wa-alert-text {
+    font-size: 0.85rem;
+    color: #fef3c7;
+    line-height: 1.45;
+    margin-bottom: 10px;
+}
+
+.wa-alert-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.wa-alert-btn {
+    background: #22c55e;
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+}
+
+.wa-alert-btn:active {
+    transform: scale(0.96);
+}
+
+.wa-alert-btn.wa-alert-btn-secondary {
+    background: #27272a;
+    color: #f4f4f5;
+    border: 1px solid #3f3f46;
+}
+
+.wa-qr-box {
+    background: #ffffff;
+    padding: 14px;
+    border-radius: 16px;
+    display: inline-block;
+    margin: 14px 0;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+
+.wa-qr-box img {
+    width: 200px;
+    height: 200px;
+    display: block;
+}
+
+

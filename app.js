@@ -378,6 +378,7 @@ function _initApp() {
     initAnnouncementsSearch();
     updateLiveHUD();
     initP2PMesh();
+    initWADeviceMonitor();
 
     // Attach interactive Day Order switcher to Island Pill
     const pill = document.getElementById('island-pill');
@@ -2188,4 +2189,324 @@ function renderCalendarList() {
 
     populate();
     if (searchInput) searchInput.oninput = (e) => populate(e.target.value);
+}
+
+// ─── Baileys Multi-Device WhatsApp Companion & Smart Verification Engine ──────
+let waDevicePollTimer = null;
+let activeScheduleAlert = null;
+let processedWAMsgIds = new Set();
+
+function initWADeviceMonitor() {
+    pollWADeviceStatus();
+    if (waDevicePollTimer) clearInterval(waDevicePollTimer);
+    waDevicePollTimer = setInterval(pollWADeviceStatus, 4000);
+}
+
+async function pollWADeviceStatus() {
+    try {
+        const res = await apiFetch('/api/wa/status');
+        if (!res) return;
+
+        const dot = document.getElementById('wa-device-status-dot');
+        const text = document.getElementById('wa-device-status-text');
+        const btn = document.getElementById('wa-device-action-btn');
+
+        if (res.status === 'CONNECTED') {
+            if (dot) dot.style.background = '#22c55e';
+            if (text) text.innerHTML = `🟢 Linked: <b style="color:#ffffff;">${res.user?.name || 'My WhatsApp'}</b> (${res.monitoredCount || 0} groups monitored)`;
+            if (btn) {
+                btn.textContent = 'Manage Groups';
+                btn.style.background = '#1e293b';
+                btn.style.color = '#38bdf8';
+                btn.onclick = openWAGroupSelectorModal;
+            }
+            // Fetch latest messages from monitored groups
+            fetchWAMonitoredMessages();
+        } else if (res.status === 'SCAN_QR') {
+            if (dot) dot.style.background = '#f59e0b';
+            if (text) text.textContent = '🟡 Ready to Pair (Scan QR)';
+            if (btn) {
+                btn.textContent = '📱 View QR';
+                btn.style.background = '#22c55e';
+                btn.style.color = '#000';
+                btn.onclick = openWALinkedDeviceModal;
+            }
+        } else {
+            if (dot) dot.style.background = '#71717a';
+            if (text) text.textContent = '⚪ Virtual Companion: Standby';
+            if (btn) {
+                btn.textContent = '📱 Pair Device (QR)';
+                btn.style.background = '#22c55e';
+                btn.style.color = '#000';
+                btn.onclick = openWALinkedDeviceModal;
+            }
+        }
+    } catch (_) {}
+}
+
+async function fetchWAMonitoredMessages() {
+    try {
+        const res = await apiFetch('/api/wa/messages');
+        if (res && Array.isArray(res.messages)) {
+            checkForSmartScheduleAlerts(res.messages);
+        }
+    } catch (_) {}
+}
+
+function checkForSmartScheduleAlerts(messages) {
+    if (!messages || messages.length === 0) return;
+
+    for (const msg of messages) {
+        if (processedWAMsgIds.has(msg.id)) continue;
+        processedWAMsgIds.add(msg.id);
+
+        const raw = msg.text.toLowerCase();
+        
+        // Check for Class Cancellations / Free Hours
+        if (/cancel|no class|postponed|leave today|optional hour|free hour/i.test(raw)) {
+            // Identify matched subject
+            let matchedSubject = 'Class';
+            let matchedCode = 'ALL';
+            if (/chem|bosco/i.test(raw)) { matchedSubject = 'Chemistry for CS'; matchedCode = '26CYB1002J'; }
+            else if (/pps|c prog|sheeba/i.test(raw)) { matchedSubject = 'Programming (PPS)'; matchedCode = '26CSE1002J'; }
+            else if (/calc|math|parvathi/i.test(raw)) { matchedSubject = 'Calculus'; matchedCode = '26MAB1001T'; }
+            else if (/bio|sivasankareswari/i.test(raw)) { matchedSubject = 'Comp Biology'; matchedCode = '26BTB1001T'; }
+            else if (/work|bel|samson/i.test(raw)) { matchedSubject = 'Workshop'; matchedCode = '26MEE1001L'; }
+
+            showScheduleVerificationAlert({
+                id: msg.id,
+                subject: matchedSubject,
+                code: matchedCode,
+                text: msg.text,
+                sender: msg.sender,
+                timestamp: msg.timestamp
+            });
+            break;
+        }
+
+        // Check for Assignments / Observation Books
+        if (/submit|assignment|observation|record|deadline|due date/i.test(raw)) {
+            announcementsData.unshift({
+                id: 'wa-live-' + msg.id,
+                subject: 'WhatsApp Alert',
+                code: 'ALL',
+                category: 'Assignment',
+                title: msg.text.length > 55 ? msg.text.substring(0, 55) + '...' : msg.text,
+                detail: `${msg.text}\n\n(Received live from WhatsApp group)`,
+                faculty: msg.sender,
+                venue: 'Live Sync',
+                sourceGroup: 'Scraped from WhatsApp',
+                timestamp: msg.timestamp || 'Just Now'
+            });
+            renderAnnouncements();
+        }
+    }
+}
+
+function showScheduleVerificationAlert(alert) {
+    activeScheduleAlert = alert;
+    const wrap = document.getElementById('wa-schedule-alert-wrap');
+    if (!wrap) return;
+
+    wrap.style.display = 'block';
+    wrap.innerHTML = `
+        <div class="wa-alert-header">
+            <span class="wa-alert-badge">⚠️ Potential Schedule Change Detected</span>
+            <span style="font-size:0.7rem;color:#fcd34d;font-weight:600;">Sender: ${alert.sender} (${alert.timestamp})</span>
+        </div>
+        <div class="wa-alert-text">
+            <b>"${alert.text}"</b>
+        </div>
+        <div class="wa-alert-actions">
+            <button class="wa-alert-btn" onclick="confirmScheduleAlert('${alert.id}', '${alert.subject}')">
+                ✅ Confirm & Mark "${alert.subject}" Free
+            </button>
+            <button class="wa-alert-btn wa-alert-btn-secondary" onclick="dismissScheduleAlert()">
+                ✕ Dismiss (Keep Schedule)
+            </button>
+        </div>
+    `;
+}
+
+function confirmScheduleAlert(alertId, subjectName) {
+    // Soft update today's schedule for this subject
+    const schedule = SRM_DATA.dayOrderSchedule[currentDayOrder] || [];
+    let updated = false;
+    schedule.forEach(p => {
+        if (p.title && (p.title.toLowerCase().includes(subjectName.toLowerCase()) || subjectName.toLowerCase().includes(p.title.toLowerCase()))) {
+            p.type = 'Free';
+            p.title = `[Cancelled] ${p.title}`;
+            updated = true;
+        }
+    });
+
+    if (updated) {
+        renderDaySchedule(currentDayOrder);
+        updateLiveHUD();
+        showAttendanceToast(`✅ ${subjectName} marked as Free for today!`, 'warning');
+    }
+
+    dismissScheduleAlert();
+}
+
+function dismissScheduleAlert() {
+    const wrap = document.getElementById('wa-schedule-alert-wrap');
+    if (wrap) wrap.style.display = 'none';
+    activeScheduleAlert = null;
+}
+
+async function openWALinkedDeviceModal() {
+    const existing = document.getElementById('wa-pair-modal');
+    if (existing) existing.remove();
+
+    // Trigger connect if not started
+    await apiFetch('/api/wa/connect', { method: 'POST' });
+    const statusRes = await apiFetch('/api/wa/status');
+
+    const modal = document.createElement('div');
+    modal.id = 'wa-pair-modal';
+    modal.className = 'class-modal-backdrop';
+
+    const qrImg = statusRes?.qrCodeDataURL ? `<div class="wa-qr-box"><img src="${statusRes.qrCodeDataURL}" alt="WhatsApp QR Code"></div>` : `<div style="padding:40px 0;font-size:0.9rem;color:#38bdf8;">⏳ Generating live pairing QR code...</div>`;
+
+    modal.innerHTML = `
+        <div class="class-modal-sheet" style="text-align:center;">
+            <div class="class-modal-header">
+                <div>
+                    <span class="wa-privacy-badge">🔒 WhatsApp Multi-Device Companion</span>
+                    <h3 style="font-size:1.15rem;font-weight:800;color:#ffffff;margin-top:6px;">Link WhatsApp to SRM Companion</h3>
+                </div>
+                <button class="class-modal-close" onclick="document.getElementById('wa-pair-modal').remove()">✕</button>
+            </div>
+            <div class="class-modal-body" style="align-items:center;">
+                <div id="wa-qr-container">
+                    ${qrImg}
+                </div>
+                <div style="background:#18181d;border:1px solid #27272a;border-radius:12px;padding:12px 14px;text-align:left;font-size:0.8rem;color:#cbd5e1;line-height:1.5;max-width:320px;">
+                    <div style="font-weight:700;color:#f4f4f5;margin-bottom:4px;">📲 How to scan:</div>
+                    1. Open WhatsApp on your phone.<br>
+                    2. Go to <b>Settings</b> &rarr; <b>Linked Devices</b>.<br>
+                    3. Tap <b>Link a Device</b> & point camera at this QR code.<br>
+                    4. SRM Companion will connect as a virtual companion!
+                </div>
+                <div style="margin-top:12px;display:flex;gap:8px;">
+                    <button class="pill-btn" style="background:#27272a;color:#f4f4f5;border:1px solid #3f3f46;padding:6px 14px;border-radius:8px;font-size:0.75rem;cursor:pointer;" onclick="refreshWAQRCode()">🔄 Refresh QR</button>
+                    <button class="pill-btn" style="background:#ef4444;color:#ffffff;border:none;padding:6px 14px;border-radius:8px;font-size:0.75rem;cursor:pointer;" onclick="disconnectWADevice()">🔌 Disconnect</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Live update QR inside modal
+    const qrInterval = setInterval(async () => {
+        if (!document.getElementById('wa-pair-modal')) {
+            clearInterval(qrInterval);
+            return;
+        }
+        const s = await apiFetch('/api/wa/status');
+        if (s?.status === 'CONNECTED') {
+            clearInterval(qrInterval);
+            const curModal = document.getElementById('wa-pair-modal');
+            if (curModal) curModal.remove();
+            showAttendanceToast(`🟢 Connected to WhatsApp as ${s.user?.name || 'Companion'}!`, 'success');
+            openWAGroupSelectorModal();
+        } else if (s?.qrCodeDataURL) {
+            const box = document.getElementById('wa-qr-container');
+            if (box) box.innerHTML = `<div class="wa-qr-box"><img src="${s.qrCodeDataURL}" alt="WhatsApp QR Code"></div>`;
+        }
+    }, 2000);
+}
+
+async function refreshWAQRCode() {
+    await apiFetch('/api/wa/connect', { method: 'POST' });
+    const s = await apiFetch('/api/wa/status');
+    const box = document.getElementById('wa-qr-container');
+    if (box && s?.qrCodeDataURL) {
+        box.innerHTML = `<div class="wa-qr-box"><img src="${s.qrCodeDataURL}" alt="WhatsApp QR Code"></div>`;
+    }
+}
+
+async function disconnectWADevice() {
+    if (confirm("Disconnect WhatsApp from SRM Companion?")) {
+        await apiFetch('/api/wa/disconnect', { method: 'POST' });
+        const modal = document.getElementById('wa-pair-modal');
+        if (modal) modal.remove();
+        pollWADeviceStatus();
+        showAttendanceToast("Disconnected WhatsApp companion.", "warning");
+    }
+}
+
+async function openWAGroupSelectorModal() {
+    const existing = document.getElementById('wa-group-picker-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'wa-group-picker-modal';
+    modal.className = 'class-modal-backdrop';
+
+    modal.innerHTML = `
+        <div class="class-modal-sheet">
+            <div class="class-modal-header">
+                <div>
+                    <span class="wa-privacy-badge">🤖 AI Group Permissions</span>
+                    <h3 style="font-size:1.1rem;font-weight:800;color:#ffffff;margin-top:6px;">Select Groups for AI Monitoring</h3>
+                </div>
+                <button class="class-modal-close" onclick="document.getElementById('wa-group-picker-modal').remove()">✕</button>
+            </div>
+            <div class="class-modal-body">
+                <p style="font-size:0.75rem;color:#cbd5e1;margin-bottom:10px;">
+                    Select the class and lab groups you want AI to monitor for schedule cancellations and assignment deadlines. Personal chats are never read.
+                </p>
+                <div id="wa-picker-list" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;">
+                    <div style="text-align:center;padding:20px;color:#38bdf8;font-size:0.8rem;">⏳ Loading your WhatsApp groups...</div>
+                </div>
+                <button class="pill-btn" style="background:#22c55e;color:#000;border:none;padding:10px;border-radius:10px;font-weight:800;font-size:0.85rem;cursor:pointer;margin-top:10px;" onclick="saveSelectedWAGroups()">
+                    💾 Save & Activate AI Monitor
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    try {
+        const res = await apiFetch('/api/wa/groups');
+        const listEl = document.getElementById('wa-picker-list');
+        if (!listEl) return;
+
+        if (res && Array.isArray(res.groups) && res.groups.length > 0) {
+            listEl.innerHTML = res.groups.map(g => `
+                <label style="background:#18181d;border:1px solid #27272a;border-radius:10px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+                    <div style="min-width:0;padding-right:10px;">
+                        <div style="font-size:0.82rem;font-weight:700;color:#f4f4f5;">${escapeHtml(g.name)}</div>
+                        <div style="font-size:0.68rem;color:var(--text-muted);">${g.participantsCount} participants</div>
+                    </div>
+                    <input type="checkbox" class="wa-group-checkbox" value="${g.id}" ${g.isMonitored ? 'checked' : ''} style="width:18px;height:18px;accent-color:#22c55e;cursor:pointer;">
+                </label>
+            `).join('');
+        } else {
+            listEl.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:0.8rem;padding:20px 0;">No active WhatsApp groups found on this account.</div>`;
+        }
+    } catch (e) {
+        const listEl = document.getElementById('wa-picker-list');
+        if (listEl) listEl.innerHTML = `<div style="color:#f87171;font-size:0.8rem;text-align:center;">Failed to load groups: ${e.message}</div>`;
+    }
+}
+
+async function saveSelectedWAGroups() {
+    const checkboxes = document.querySelectorAll('.wa-group-checkbox:checked');
+    const groupIds = Array.from(checkboxes).map(cb => cb.value);
+
+    await apiFetch('/api/wa/select-groups', {
+        method: 'POST',
+        body: JSON.stringify({ groupIds })
+    });
+
+    const modal = document.getElementById('wa-group-picker-modal');
+    if (modal) modal.remove();
+
+    pollWADeviceStatus();
+    showAttendanceToast(`✅ AI now monitoring ${groupIds.length} WhatsApp groups!`, 'success');
 }
