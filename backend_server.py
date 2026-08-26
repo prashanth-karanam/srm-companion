@@ -371,7 +371,8 @@ class APIHandler(BaseHTTPRequestHandler):
         if path in ['/api/chat', '/chat']:
             try:
                 user_msg = body.get('message') or body.get('prompt') or ''
-                sys_context = "You are a concise, brilliant academic tutor for Karanam Sai Prasanth, 1st year B.Tech student at SRMIST Kattankulathur studying PPS, Calculus, Chemistry, Comp Bio, and Workshop. Keep answers brief, clean, and direct with code or math formulas."
+                client_context = body.get('context') or ''
+                sys_context = client_context if client_context else "You are a concise, brilliant academic tutor for an SRMIST B.Tech student studying PPS, Calculus, Chemistry, Comp Bio, and Workshop. Answer questions about their schedule, attendance, and coursework directly with precision."
                 
                 reply = ai_engine.get_reply(user_msg, sys_context)
                 self._send_json({"reply": reply, "status": "success"})

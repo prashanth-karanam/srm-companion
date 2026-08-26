@@ -856,41 +856,60 @@ function initAI() {
 
 function getAcademicContextForAI() {
     const studentName = localStorage.getItem('srm_display_name') || 'Student';
+    const regNo = localStorage.getItem('srm_reg_no') || 'N/A';
+    const program = localStorage.getItem('srm_program') || 'B.Tech';
+    const section = localStorage.getItem('srm_section') || 'P1';
     const day = currentDayOrder || 'Day 1';
-    const schedule = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[day]) || [];
     
-    const schedLines = schedule.map(s => {
-        if (s.type === 'Free') return `Hour ${s.hour}: Free Period`;
-        return `Hour ${s.hour}: ${s.title} (${s.code || ''}) at ${s.venue} [Faculty: ${s.faculty || 'N/A'}]`;
-    }).join('\n');
+    // Build full Day 1 to Day 5 timetable matrix
+    let allScheduleText = '';
+    const allDays = ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'];
+    allDays.forEach(d => {
+        const list = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[d]) || [];
+        if (list.length > 0) {
+            allScheduleText += `\n[${d}]:\n`;
+            list.forEach(c => {
+                if (c.type !== 'Free') {
+                    allScheduleText += `  - Hour ${c.hour} (${c.time || 'Period ' + c.hour}): ${c.title} (${c.code || ''}) at ${c.venue || 'Classroom'} | Faculty: ${c.faculty || 'Dept Faculty'}\n`;
+                }
+            });
+        }
+    });
 
-    let attLines = 'Attendance: 100% compliant with SRM Academia database.';
+    let attText = '';
     if (portalAttendance && portalAttendance.length > 0) {
-        attLines = portalAttendance.map(a => {
-            return `- ${a.title || a.subject || a.code}: ${a.percentage}% (${a.attended}/${a.conducted} attended, ${a.absent} absent)`;
+        attText = portalAttendance.map(a => {
+            const con = parseInt(a.conducted || 0, 10);
+            const att = parseInt(a.attended || 0, 10);
+            const pct = con > 0 ? parseFloat(a.percentage || ((att / con) * 100).toFixed(1)) : 100;
+            const bunks = con > 0 ? Math.max(0, Math.floor((4 * att - 3 * con) / 3)) : 0;
+            const needed = con > 0 ? Math.max(0, 3 * con - 4 * att) : 0;
+            return `- ${a.title || a.subject || a.code} [${a.code}]: ${pct}% (${att}/${con} hrs). Safe Bunks: ${bunks} hrs. Required to reach 75%: ${needed} hrs.`;
         }).join('\n');
     }
 
-    return `You are the AI Academic Copilot for SRM University student ${studentName}.
-Active Campus Status:
-- Current Day Order: ${day}
-- Today's Class Schedule:
-${schedLines || 'No active classes.'}
+    return `You are the personal AI Academic Copilot for SRMIST student ${studentName} (Reg No: ${regNo}, Program: ${program}, Section: ${section}).
+Current Campus Context:
+- Active Day Order Today: ${day}
+- Today's Date: ${new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 
-Student Attendance:
-${attLines}
+Complete Student Timetable (Day 1 - Day 5):
+${allScheduleText || 'No custom timetable loaded yet.'}
 
-SRM Attendance Regulations:
-- Minimum 75% required per course.
-- Safe bunks formula: Math.floor((attended - 0.75 * conducted) / 0.75).
-- Classes needed to recover: Math.ceil((0.75 * conducted - attended) / 0.25).
-Answer clearly and concisely with markdown formatting.`;
+Live Student Attendance Records:
+${attText || '100% attendance.'}
+
+Instructions:
+1. Always give precise, direct answers using the student's real courses, venues, faculty, safe bunk limits, and day-by-day timetable above.
+2. When asked about classes or timetable for today, tomorrow, or any Day Order (Day 1 - Day 5), provide the exact list of hours, subjects, venues, and faculty.
+3. When asked about attendance or bunks, use the exact percentages and safe bunk calculations from their attendance records above.
+4. When asked about subjects (PPS, Calculus, Chemistry, Workshop, Comp Bio), provide high-yield explanations, C code snippets, or math derivations with formulas.`;
 }
 
 async function askAcademicAI(userPrompt) {
     const systemPrompt = getAcademicContextForAI();
 
-    // 1. Primary: Direct Zero-Login Serverless AI Gateway (/api/chat)
+    // 1. Primary: Direct Serverless / Backend AI Gateway (/api/chat)
     try {
         const res = await apiFetch('/api/chat', {
             method: 'POST',
@@ -901,58 +920,77 @@ async function askAcademicAI(userPrompt) {
         }
     } catch (_) {}
 
-    // 2. Secondary: Instant Client-Side Academic Calculation & Knowledge Engine
+    // 2. Secondary: Instant Client-Side Academic Knowledge & Timetable Engine
     return getOfflineAIResponse(userPrompt);
 }
 
 function getOfflineAIResponse(prompt) {
-    const q = prompt.toLowerCase();
+    const q = prompt.toLowerCase().trim();
+    const studentName = localStorage.getItem('srm_display_name') || 'Student';
     const day = currentDayOrder || 'Day 1';
     const schedule = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[day]) || [];
 
-    if (q.includes('eigen') || q.includes('matrix') || q.includes('calculus') || q.includes('26mab1001t')) {
-        return `### 📐 Calculus & Linear Algebra (26MAB1001T) — Eigenvalues & Diagonalization\n\n` +
-               `**1. Characteristic Equation:**\n` +
-               `Solve $|A - \\lambda I| = 0$ to obtain the characteristic polynomial and eigenvalues $\\lambda_1, \\lambda_2, \\dots, \\lambda_n$.\n\n` +
-               `**2. Eigenvector Calculation:**\n` +
-               `For each eigenvalue $\\lambda_i$, solve the homogeneous system $(A - \\lambda_i I)X = 0$.\n\n` +
-               `**3. Cayley-Hamilton Theorem:**\n` +
-               `Every square matrix satisfies its own characteristic equation: $P(A) = 0$.\n` +
-               `- **Matrix Inverse:** $A^{-1} = -\\frac{1}{a_0}(A^{n-1} + a_1 A^{n-2} + \\dots + a_{n-1} I)$\n` +
-               `- **Higher Powers:** $A^k = Q(A)P(A) + R(A) = R(A)$\n\n` +
-               `**4. Quadratic Forms & Orthogonal Reduction:**\n` +
-               `A real symmetric matrix $A$ can be diagonalized as $P^T A P = D$ where $P$ is the orthogonal matrix of normalized eigenvectors.`;
+    // Greeting
+    if (q === 'hi' || q === 'hello' || q === 'hey' || q.startsWith('hi ') || q.startsWith('hello ')) {
+        const todayClasses = schedule.filter(s => s.type !== 'Free');
+        let nextSummary = 'You have a free day today!';
+        if (todayClasses.length > 0) {
+            const first = todayClasses[0];
+            nextSummary = `Today is **${day}** with **${todayClasses.length} class(es)**. Next up: **${first.title}** at \`${first.venue}\` (Hour ${first.hour}).`;
+        }
+        return `👋 Hi **${studentName}**!\n\n${nextSummary}\n\nAsk me anything about your **timetable**, **attendance safe bunks**, **faculty**, or coursework topics (**PPS, Calculus, Chemistry, Comp Bio, Workshop**)!`;
     }
 
-    if (q.includes('c code') || q.includes('prime') || q.includes('pps') || q.includes('26cse1002j') || q.includes('c program')) {
-        return `### 💻 PPS (26CSE1002J) — Prime Numbers Range in C\n\n` +
-               `\`\`\`c\n` +
-               `#include <stdio.h>\n` +
-               `#include <stdbool.h>\n\n` +
-               `// Returns true if n is prime (O(sqrt(n)) complexity)\n` +
-               `bool isPrime(int n) {\n` +
-               `    if (n <= 1) return false;\n` +
-               `    for (int i = 2; i * i <= n; i++) {\n` +
-               `        if (n % i == 0) return false;\n` +
-               `    }\n` +
-               `    return true;\n` +
-               `}\n\n` +
-               `int main() {\n` +
-               `    int start = 10, end = 50;\n` +
-               `    printf("Prime numbers between %d and %d:\\n", start, end);\n` +
-               `    for (int i = start; i <= end; i++) {\n` +
-               `        if (isPrime(i)) {\n` +
-               `            printf("%d ", i);\n` +
-               `        }\n` +
-               `    }\n` +
-               `    printf("\\n");\n` +
-               `    return 0;\n` +
-               `}\n` +
-               `\`\`\`\n` +
-               `**Complexity:** Checking factors up to $\\sqrt{n}$ reduces runtime from $O(n)$ to $O(\\sqrt{n})$ per number.`;
+    // Specific Day Order schedule query (Day 1 - Day 5)
+    for (let d = 1; d <= 5; d++) {
+        const dayKey = `day ${d}`;
+        if (q.includes(dayKey) || q.includes(`day${d}`) || q.includes(`order ${d}`) || q.includes(`order${d}`)) {
+            const targetDay = `Day ${d}`;
+            const targetSched = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[targetDay]) || [];
+            const active = targetSched.filter(s => s.type !== 'Free');
+            if (active.length === 0) return `### 🕒 Schedule for **${targetDay}**\n\nNo classes scheduled for **${targetDay}** (Free Day).`;
+            
+            let out = `### 🕒 Schedule for **${targetDay}**\n\n`;
+            active.forEach(c => {
+                out += `- **Hour ${c.hour}** (${c.time || ''}): **${c.title}** (${c.code || ''}) at \`${c.venue}\` [Faculty: ${c.faculty || 'Dept'}]\n`;
+            });
+            return out;
+        }
     }
 
-    if (q.includes('bunk') || q.includes('attendance') || q.includes('75') || q.includes('margin') || q.includes('analyze')) {
+    // Full week timetable query
+    if (q.includes('full timetable') || q.includes('all days') || q.includes('full schedule') || q.includes('entire timetable') || q.includes('week schedule')) {
+        let out = `### 📅 Full 5-Day Order Timetable Matrix\n\n`;
+        const allDays = ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'];
+        allDays.forEach(d => {
+            const list = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[d]) || [];
+            const active = list.filter(s => s.type !== 'Free');
+            out += `#### 🗓️ **${d}** (${active.length} classes)\n`;
+            if (active.length === 0) {
+                out += `_Free Day_\n\n`;
+            } else {
+                active.forEach(c => {
+                    out += `- Hour ${c.hour}: **${c.title}** at \`${c.venue}\` (${c.faculty || 'Faculty'})\n`;
+                });
+                out += `\n`;
+            }
+        });
+        return out;
+    }
+
+    // Today / Next Class Schedule query
+    if (q.includes('today') || q.includes('schedule') || q.includes('timetable') || q.includes('class') || q.includes('next') || q.includes('what do i have')) {
+        const classes = schedule.filter(s => s.type !== 'Free');
+        if (classes.length === 0) return `No classes scheduled for **${day}**! You have a free day.`;
+        let out = `### 🕒 Today's Schedule (${day})\n\n`;
+        classes.forEach(c => {
+            out += `- **Hour ${c.hour}** (${c.time || ''}): **${c.title}** (${c.type}) at \`${c.venue}\` [Faculty: ${c.faculty || '-'}]\n`;
+        });
+        return out;
+    }
+
+    // Attendance & Safe Bunk Calculations
+    if (q.includes('bunk') || q.includes('attendance') || q.includes('75') || q.includes('margin') || q.includes('analyze') || q.includes('absent') || q.includes('percentage')) {
         if (portalAttendance && portalAttendance.length > 0) {
             let out = `### 📊 Live Attendance Breakdown & Safe Bunks\n\n`;
             let totalCon = 0, totalAtt = 0;
@@ -986,17 +1024,73 @@ function getOfflineAIResponse(prompt) {
                `- Sync your portal in the **Attendance Tab** to see live margins for all your subjects!`;
     }
 
-    if (q.includes('next') || q.includes('class') || q.includes('timetable') || q.includes('schedule') || q.includes('today')) {
-        const classes = schedule.filter(s => s.type !== 'Free');
-        if (classes.length === 0) return `No classes scheduled for **${day}**! You have a free day.`;
-        let out = `### 🕒 Today's Schedule (${day})\n\n`;
-        classes.forEach(c => {
-            out += `- **Hour ${c.hour}**: **${c.title}** (${c.type}) at \`${c.venue}\` [Faculty: ${c.faculty || '-'}]\n`;
+    // Faculty query
+    if (q.includes('faculty') || q.includes('teacher') || q.includes('professor') || q.includes('who teaches') || q.includes('staff')) {
+        let facultyMap = {};
+        const allDays = ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'];
+        allDays.forEach(d => {
+            const list = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[d]) || [];
+            list.forEach(c => {
+                if (c.faculty && c.title && c.type !== 'Free') {
+                    facultyMap[c.title] = `${c.faculty} (Venue: ${c.venue})`;
+                }
+            });
         });
-        return out;
+
+        if (Object.keys(facultyMap).length > 0) {
+            let out = `### 👨‍🏫 Course Faculty & Venues\n\n`;
+            for (const [subj, fac] of Object.entries(facultyMap)) {
+                out += `- **${subj}**: ${fac}\n`;
+            }
+            return out;
+        }
     }
 
-    return `I am your **SRM Academic Copilot**. Ask me about **today's timetable**, **attendance safe bunks**, **C programming code**, or **Calculus formulas**!`;
+    // Calculus
+    if (q.includes('eigen') || q.includes('matrix') || q.includes('calculus') || q.includes('26mab1001t') || q.includes('math')) {
+        return `### 📐 Calculus & Linear Algebra (26MAB1001T) — Eigenvalues & Diagonalization\n\n` +
+               `**1. Characteristic Equation:**\n` +
+               `Solve $|A - \\lambda I| = 0$ to obtain the characteristic polynomial and eigenvalues $\\lambda_1, \\lambda_2, \\dots, \\lambda_n$.\n\n` +
+               `**2. Eigenvector Calculation:**\n` +
+               `For each eigenvalue $\\lambda_i$, solve the homogeneous system $(A - \\lambda_i I)X = 0$.\n\n` +
+               `**3. Cayley-Hamilton Theorem:**\n` +
+               `Every square matrix satisfies its own characteristic equation: $P(A) = 0$.\n` +
+               `- **Matrix Inverse:** $A^{-1} = -\\frac{1}{a_0}(A^{n-1} + a_1 A^{n-2} + \\dots + a_{n-1} I)$\n` +
+               `- **Higher Powers:** $A^k = Q(A)P(A) + R(A) = R(A)$\n\n` +
+               `**4. Quadratic Forms & Orthogonal Reduction:**\n` +
+               `A real symmetric matrix $A$ can be diagonalized as $P^T A P = D$ where $P$ is the orthogonal matrix of normalized eigenvectors.`;
+    }
+
+    // PPS / C Code
+    if (q.includes('c code') || q.includes('prime') || q.includes('pps') || q.includes('26cse1002j') || q.includes('c program') || q.includes('pointer') || q.includes('array')) {
+        return `### 💻 PPS (26CSE1002J) — Prime Numbers Range in C\n\n` +
+               `\`\`\`c\n` +
+               `#include <stdio.h>\n` +
+               `#include <stdbool.h>\n\n` +
+               `// Returns true if n is prime (O(sqrt(n)) complexity)\n` +
+               `bool isPrime(int n) {\n` +
+               `    if (n <= 1) return false;\n` +
+               `    for (int i = 2; i * i <= n; i++) {\n` +
+               `        if (n % i == 0) return false;\n` +
+               `    }\n` +
+               `    return true;\n` +
+               `}\n\n` +
+               `int main() {\n` +
+               `    int start = 10, end = 50;\n` +
+               `    printf("Prime numbers between %d and %d:\\n", start, end);\n` +
+               `    for (int i = start; i <= end; i++) {\n` +
+               `        if (isPrime(i)) {\n` +
+               `            printf("%d ", i);\n` +
+               `        }\n` +
+               `    }\n` +
+               `    printf("\\n");\n` +
+               `    return 0;\n` +
+               `}\n` +
+               `\`\`\`\n` +
+               `**Complexity:** Checking factors up to $\\sqrt{n}$ reduces runtime from $O(n)$ to $O(\\sqrt{n})$ per number.`;
+    }
+
+    return `I am your **SRM Academic Copilot**. Ask me about:\n- **Today's timetable** or **Day 1 - Day 5 schedules**\n- **Live attendance percentages & safe bunks**\n- **Course faculty & classroom venues**\n- **C programming code & Calculus formulas**`;
 }
 
 async function handleAISend() {
