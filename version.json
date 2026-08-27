@@ -1,6 +1,6 @@
 ﻿{
-    "releaseNotes":  "Purged legacy mock notices, renamed notices header to Class Notices \u0026 Assignment Deadlines, and activated live empty states",
-    "updatedAt":  "2026-08-27T00:40:00+05:30",
-    "build":  2026082703,
-    "version":  "2.4.4"
+    "releaseNotes":  "Major Super-App Release: Added Hostel Mess Menu with Live Meal Countdown, Campus Clubs \u0026 Hackathon Hub, Interactive Bunk Simulator with Radial SVG Gauge, and Academic Passport with FA Cabin \u0026 SGPA Simulator",
+    "updatedAt":  "2026-08-27T11:13:00+05:30",
+    "build":  2026082705,
+    "version":  "2.5.0"
 }
