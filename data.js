@@ -1911,9 +1911,9 @@ const SRM_DATA = {
     },
     hostelMess: {
         hostels: [
-            "Sannasi Mess (Paari, Kaari, Oori, Adhiyaman)",
-            "Agasthya Mess (Nelson Mandela, M-Block, Begum)",
-            "Meenakshi & Senbagam Mess (Girls Dining Hall)",
+            "M Block Mess (Girls Dining Hall)",
+            "Sannasi Mess (Boys Dining Hall)",
+            "Agasthya Mess (Nelson Mandela, Begum)",
             "Kalpana Chawla Mess"
         ],
         timings: {
@@ -1924,49 +1924,49 @@ const SRM_DATA = {
         },
         weeklyMenu: {
             "Monday": {
-                breakfast: "Hot Idli, Crispy Medu Vada, Madras Sambar, Coconut Chutney, Bread Butter Jam, Filter Coffee / Tea",
-                lunch: "Jeera Pulao, Soft Chapati, Paneer Butter Masala, Yellow Dal Tadka, Tomato Rasam, Curd, Fryums, Mixed Pickle",
-                snacks: "Crispy Samosa, Mint Chutney, Hot Masala Chai",
-                dinner: "Poori, Aloo Masala, Steamed Basmati Rice, Mixed Veg Salna, Pepper Rasam, Fresh Curd, Warm Gulab Jamun"
+                breakfast: "Ven Pongal, Tiffin Sambar, Coconut Chutney, Medu Vada, Masala Omelette / Whole Wheat Bread Omelette (1 No), Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
+                lunch: "Methi Chappathi, Black Channa Masala, Lemon Rice / Tamarind Rice, Dal Fry Tadka, Steamed Rice, Arachuvitta Sambar, Keerai Kootu, Lemon Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Appalam, Pickle, Buttermilk, Payasam",
+                snacks: "Samosa / Veg Roll (1 No), Tea, Whole Wheat Bread, Butter, Jam",
+                dinner: "Bagara Pulao / Idli, Raita / Chutney, Chappathi, Paneer Gravy / Baby Corn Gravy, Steamed Rice, Pumpkin Sambar, Rasam, Buttermilk, Pickle, Green Salad, Milk, Andhra Chicken Curry (120 gm) / Fish Fry (1 No) & Fish Gravy (Non-Veg)"
             },
             "Tuesday": {
-                breakfast: "Ghee Ven Pongal, Medu Vada, Arachuvitta Sambar, Spicy Tomato Chutney, Bread Jam, Tea / Milk",
-                lunch: "Green Peas Pulao, Phulka Roti, Aloo Gobi Matar, Punjabi Dal Fry, Ghee Rasam, Fresh Curd, Appalam",
-                snacks: "Mumbai Pav Bhaji, Chopped Onions & Lemon, Masala Tea",
-                dinner: "Crispy Dosa, Ghee Podi, Coconut Chutney, Steamed Rice, Tomato Dal, Mysore Rasam, Ice Cream"
+                breakfast: "Veg Rava Kitchadi / Vegetable Upma, Vegetable Sambar, Red Chilli Coconut Chutney, Poori, Aloo Masala, Boiled Egg (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Seasonal Fruits",
+                lunch: "Chappathi, White Peas Curry, Jeera Pulao, Dal Fry Tadka, Steamed Rice, Karakuzhambu / More Kuzhambu, Urulai Kara Curry, Tomato Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Appalam, Pickle, Buttermilk, Sweet (Gulab Jamun)",
+                snacks: "Pani Puri (5 Nos) / Pav Bhaji (1 No), Tea, Whole Wheat Bread, Butter, Jam",
+                dinner: "Onion Uthappam, Kara Chutney, Millet Chappathi, Dal Pancharathan, Idli Podi, Steamed Rice, Radish Sambar, Lemon Rasam, Buttermilk, Pickle, Green Salad, Milk, Egg Gravy (Non-Veg)"
             },
             "Wednesday": {
-                breakfast: "Guntur Podi Idli, Masala Dosa, Sambar, Green Mint Chutney, Boiled Egg / Fruit, Tea / Coffee",
-                lunch: "Special Feast: Hyderabadi Chicken Dum Biryani / Paneer Biryani, Onion Raita, Mirchi Ka Salan, Sweet Halwa",
-                snacks: "Sweet Corn Chaat / Masala Vada, Ginger Elaichi Chai",
-                dinner: "Butter Naan / Chapati, Paneer Tikka Masala / Chicken Chettinad, Jeera Rice, Dal Makhani, Fruit Salad & Ice Cream"
+                breakfast: "Idiyappam, Vada Curry / Veg Stew, Poha, Mint Chutney, Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
+                lunch: "Beetroot Chappathi, Rajma Masala, Corn / Mint / Rice / Tomato Rice, Dal Fry, Steamed Rice, Sambar, Veg Poriyal / Kootu, Garlic Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Appalam, Pickle, Buttermilk, Payasam",
+                snacks: "Cream Bun (1 No) / Osmania Biscuits (2 Nos), Rose Milk / Badam Milk, Tea, Whole Wheat Bread, Butter, Jam",
+                dinner: "Kal Dosa, Tomato Chutney, Chappathi, Paneer Butter Masala, Steamed Rice, Kathirikai Sambar, Garlic Rasam, Buttermilk, Pickle, Green Salad, Milk, Arun Choco Bar / Cone Ice Cream (1 No), Chicken Gravy / Chicken Biryani (with Boiled Egg - 1 No) (Non-Veg)"
             },
             "Thursday": {
-                breakfast: "Punjabi Aloo Paratha, Fresh Curd, Mango Pickle, Bread Butter Jam, Hot Tea / Coffee",
-                lunch: "Kashmiri Pulao, Soft Chapati, Rajma Masala Wala, Moong Dal Tadka, Garlic Rasam, Fresh Curd, Special Fryums",
-                snacks: "Onion Pakoda / Veg Cutlet, Tomato Sauce, Filter Coffee",
-                dinner: "Malabar Parotta, Veg Kurma / Chicken Curry, Steamed Rice, Pepper Rasam, Fruit Custard"
+                breakfast: "Idli, Urad Sambar, Groundnut Chutney, Medu Vada, Corn Flakes, Idli Podi, Oil, Boiled Egg (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
+                lunch: "Chappathi, Vegetable Jalfrezi, Tomato Pulao, Tomato Dal Fry, Steamed Rice, Vathakuzhambu, Vegetable Kootu, Ginger Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Appalam, Pickle, Buttermilk, Sweet (Boondi)",
+                snacks: "Masala Sundal (100 ml), Filter Coffee, Tea, Whole Wheat Bread, Butter, Jam",
+                dinner: "Uthappam, Vegetable Chutney, Chole Poori (Batta), Channa Masala, Steamed Rice, Drumstick Sambar, Tomato Rasam, Buttermilk, Pickle, Green Salad, Milk, Chettinadu Mutton Kuzhambu / Flavored Gravy (Non-Veg)"
             },
             "Friday": {
-                breakfast: "Chole Bhature, Sliced Onions & Pickle, Rava Kesari, Bread Butter Jam, Milk / Coffee",
-                lunch: "Vegetable Biryani, Bisibelebath, Potato Kara Roast, Steamed Rice, Tomato Rasam, Curd, Boondi Raita",
-                snacks: "Veg Spring Roll / Veg Puff, Hot Masala Tea",
-                dinner: "Onion Uthappam, Idli Podi, Sambar, Ginger Chutney, Steamed Rice, Dal Palak, Rasam, Sweet Payasam"
+                breakfast: "Kal Dosa, Tiffin Sambar, Onion / Tomato Chutney, Semiya Bath, Boiled Omelette / Whole Wheat Bread Omelette (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
+                lunch: "Chappathi, Aloo Palak, Methi Pulao / Tamarind Rice, Dal Tadka, Steamed Rice, Sambar, Beetroot Poriyal, Jeera Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Appalam, Pickle, Buttermilk, Sweet (Kesari)",
+                snacks: "Murukku (2 Nos), Mint Lemon Juice, Filter Coffee, Tea, Whole Wheat Bread, Butter, Jam",
+                dinner: "Pasta (Bechamel / Arrabiata) / Veg Schezwan Fried Rice, Manchurian, Soup, Chappathi, Kadai Vegetables, Steamed Rice, Pepper Rasam, Buttermilk, Pickle, Green Salad, Milk, Chicken Gravy (Non-Veg)"
             },
             "Saturday": {
-                breakfast: "Rava Upma / Semiya Upma, Medu Vada, Coconut Chutney, Madras Sambar, Bread Jam, Tea / Coffee",
-                lunch: "Variety Rice (Lemon Rice / Curd Rice), Soft Chapati, Chana Masala, Steamed Rice, Dal Tadka, Fryums, Pickle",
-                snacks: "Pani Puri / Bhel Puri Chaat, Filter Coffee / Tea",
-                dinner: "Veg Fried Rice / Hakka Noodles, Veg Manchurian / Chilli Chicken, Steamed Rice, Rasam, Vanilla Ice Cream"
+                breakfast: "Idli, Chinna Vengaya Sambar, Groundnut Chutney, Aloo Paratha, Curd (100 ml), Idli Podi, Oil, Boiled Egg (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
+                lunch: "Chappathi, Vegetable Kurma, Soya Mattar Dum Biryani, Raita, Dal Fry, Steamed Rice, Chettinad Sambar, Keerai Kootu, Tomato Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Appalam, Pickle, Buttermilk, Sweet (Gulab Jamun / Badusha)",
+                snacks: "Eggless Cake / Brownie (1 No), Filter Coffee, Tea, Whole Wheat Bread, Butter, Jam",
+                dinner: "Kal Dosa, Chutney, Parotta, Veg Kurma, Idli Podi, Steamed Rice, Karakuzhambu, Garlic Rasam, Buttermilk, Pickle, Green Salad, Milk, Chicken Gravy (Non-Veg)"
             },
             "Sunday": {
-                breakfast: "Poori, Aloo Bhaji, Bread Butter Jam, Fresh Banana / Boiled Egg, Hot Filter Coffee",
-                lunch: "SRM Special Sunday Feast: Chicken Pepper Gravy / Kadai Paneer, Chapati, Mint Pulao, Steamed Rice, Rasam, Curd, Semiya Payasam",
-                snacks: "Mirchi Bajji / Veg Samosa, Coconut Chutney, Masala Chai",
-                dinner: "Soft Phulka, Dal Makhani, Paneer Bhurji / Egg Curry, Steamed Basmati Rice, Rasam, Kulfi Ice Cream"
+                breakfast: "Chole Bhature, Channa Masala, Kal Dosa, Coconut Chutney, Sambar, Idli Podi, Oil, Egg Kal Dosa (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
+                lunch: "Chappathi, Chicken Curry (with 120 gm Chicken) (Non-Veg) / Paneer Gravy (Veg), Steamed Rice, Beetroot Poriyal, Dal Rasam, Curd (100 ml), Frymes, Pickle, Buttermilk, Arun Cup Ice Cream (1 No)",
+                snacks: "Channa Sundal (White / Black - 100 ml), Filter Coffee, Tea, Whole Wheat Bread, Butter, Jam",
+                dinner: "Dal Kitchadi, Chappathi, Veg Kurma, Poriyal, Steamed Rice, Kadamba Sambar, Rasam, Buttermilk, Pickle, Green Salad, Milk, Chicken Gravy (Non-Veg)"
             }
         },
-        specialNotes: "Wednesday Lunch & Sunday Lunch feature SRM Special Feast Biryani & Dessert specials."
+        specialNotes: "Official SRMIST Student Mess Menu (Effective 01.07.2026). Sunday Lunch features Chicken Curry / Paneer Gravy with Arun Cup Ice Cream."
     },
     campusClubs: [
         {

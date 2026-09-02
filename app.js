@@ -4214,13 +4214,25 @@ function renderMessHub() {
 
     const messData = SRM_DATA.hostelMess;
 
-    // Auto-detect assigned hostel block from student profile if available
+    // Auto-detect gender & assigned mess from scraped KYC without guessing
+    let rawGender = '';
+    try {
+        const pInfo = JSON.parse(localStorage.getItem('srm_personal_info') || '{}');
+        rawGender = pInfo.gender || '';
+    } catch (_) {}
+    if (!rawGender && typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) {
+        rawGender = SRM_DATA.profile.gender || '';
+    }
+    
+    const isFemale = /female|^f$/i.test(rawGender.trim());
+    const defaultGenderMess = isFemale ? "M Block Mess (Girls Dining Hall)" : "Sannasi Mess (Boys Dining Hall)";
+
     const profileHostel = (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile && SRM_DATA.profile.hostel) 
                           ? SRM_DATA.profile.hostel 
-                          : (localStorage.getItem('srm_user_hostel') || 'Paari');
+                          : (localStorage.getItem('srm_user_hostel') || defaultGenderMess);
 
     if (!selectedMessHostel) {
-        selectedMessHostel = profileHostel;
+        selectedMessHostel = defaultGenderMess;
     }
 
     const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
