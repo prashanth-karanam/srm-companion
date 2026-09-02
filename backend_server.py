@@ -10,6 +10,7 @@ import json
 import uuid
 import re
 import time
+import threading
 import requests
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
@@ -31,6 +32,22 @@ if hasattr(sys.stdout, 'reconfigure'):
         pass
 
 _active_sessions = {}
+_session_cache = {}  # token -> {'data': dict, 'updated_at': float, 'prev_att': list}
+_ip_rate_limits = {}  # ip -> [timestamps]
+_login_semaphore = threading.Semaphore(5)  # Cap concurrent portal logins to 5
+
+CACHE_TTL_SECONDS = 300  # 5-minute short term cache as recommended by Manus
+
+def _check_rate_limit(client_ip):
+    now = time.time()
+    times = _ip_rate_limits.setdefault(client_ip, [])
+    # Keep timestamps within the last 60 seconds
+    times = [t for t in times if now - t < 60]
+    _ip_rate_limits[client_ip] = times
+    if len(times) >= 60:
+        return False
+    times.append(now)
+    return True
 
 # ── SRM Portal Scraper Integration ──────────────────────────────────────────
 try:
@@ -257,10 +274,13 @@ class APIHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(e)}, 500)
 
         elif path_lower in ['/api/login', '/api/sp/login', '/login', '/sp/login']:
-            # Submit credentials & solved CAPTCHA to sp.srmist.edu.in
+            client_ip = self.address_string()
+            if not _check_rate_limit(client_ip):
+                self._send_json({'success': False, 'error': 'Rate limit exceeded. Please wait 1 minute.'}, 429)
+                return
+
             try:
                 from api.index import login_and_scrape_portal
-                # Accept both 'netid' (frontend) and 'username' (legacy)
                 raw_id   = body.get('netid') or body.get('username') or body.get('srm_id') or ''
                 password = body.get('password') or ''
                 captcha  = body.get('captcha') or body.get('captcha_text') or ''
@@ -268,14 +288,33 @@ class APIHandler(BaseHTTPRequestHandler):
                 hidden_fields = body.get('hidden_fields') or {}
                 sec_config    = body.get('sec_config') or {}
 
-                # Strictly normalize to NetID WITHOUT @srmist.edu.in as required by SRM LoginServlet
                 username = raw_id.strip().lower().replace('@srmist.edu.in', '').strip()
 
-                if not username:
-                    self._send_json({'success': False, 'error': 'SRM NetID and password are required.'}, 400)
+                if not username and not cookies:
+                    self._send_json({'success': False, 'error': 'SRM NetID, password, and CAPTCHA code are required.'}, 400)
                     return
 
-                res = login_and_scrape_portal(username, password, captcha, cookies, hidden_fields, sec_config)
+                # Acquire login concurrency semaphore
+                with _login_semaphore:
+                    res = login_and_scrape_portal(username, password, captcha, cookies, hidden_fields, sec_config)
+
+                if res.get('success'):
+                    sess_token = f"sess_{username}_{uuid.uuid4().hex[:12]}"
+                    prev_att = _session_cache.get(username, {}).get('prev_att', [])
+                    curr_att = res.get('attendance', [])
+                    has_changed = (curr_att != prev_att) if prev_att else False
+
+                    _session_cache[username] = {
+                        'token': sess_token,
+                        'data': res,
+                        'updated_at': time.time(),
+                        'cookies': res.get('cookies', ''),
+                        'prev_att': curr_att
+                    }
+                    _active_sessions[sess_token] = username
+                    res['session_token'] = sess_token
+                    res['has_changed'] = has_changed
+
                 self._send_json(res, 200 if res.get('success') else 401)
             except Exception as e:
                 self._send_json({'success': False, 'error': str(e)}, 500)
@@ -291,18 +330,86 @@ class APIHandler(BaseHTTPRequestHandler):
         path_lower = clean_path.lower()
         if not path_lower: path_lower = '/'
 
-        # Health check endpoint (Railway / Render)
+        # Health check endpoint (Railway / Render / Docker)
         if path_lower in ['/api/status', '/status', '/health', '/api/health']:
             self._send_json({
                 'status': 'ok',
-                'service': 'SRM Companion Backend',
+                'service': 'SRM Companion Non-Sleeping Microservice',
                 'scraper': SCRAPER_AVAILABLE,
-                'version': '2.0.0-multiuser'
+                'cached_sessions': len(_session_cache),
+                'version': '2.5.0-manus-grade'
             })
             return
 
-        # 1. API Endpoints
-        if path_lower in ['/api/overrides', '/overrides']:
+        # 1. Modular Student REST Endpoints (Manus Architectural Standard)
+        auth_hdr = self.headers.get('Authorization', '')
+        auth_token = auth_hdr.replace('Bearer ', '').strip() if auth_hdr else ''
+        sess_user = _active_sessions.get(auth_token)
+        cached_entry = _session_cache.get(sess_user) if sess_user else None
+
+        if path_lower in ['/api/attendance', '/attendance']:
+            if cached_entry:
+                self._send_json({
+                    'success': True,
+                    'cached': True,
+                    'age_seconds': int(time.time() - cached_entry['updated_at']),
+                    'attendance': cached_entry['data'].get('attendance', [])
+                })
+            else:
+                p_data = load_scraped_data()
+                self._send_json({'success': True, 'cached': True, 'attendance': p_data.get('attendance', [])})
+            return
+
+        elif path_lower in ['/api/timetable', '/timetable']:
+            if cached_entry:
+                self._send_json({
+                    'success': True,
+                    'cached': True,
+                    'age_seconds': int(time.time() - cached_entry['updated_at']),
+                    'timetable': cached_entry['data'].get('timetable', {})
+                })
+            else:
+                p_data = load_scraped_data()
+                self._send_json({'success': True, 'cached': True, 'timetable': p_data.get('timetable', {})})
+            return
+
+        elif path_lower in ['/api/profile', '/profile']:
+            if cached_entry:
+                d = cached_entry['data']
+                self._send_json({
+                    'success': True,
+                    'name': d.get('name'),
+                    'reg_no': d.get('reg_no'),
+                    'student_id': d.get('student_id'),
+                    'program': d.get('program'),
+                    'section': d.get('section'),
+                    'faculty_advisor': d.get('faculty_advisor'),
+                    'academic_advisor': d.get('academic_advisor'),
+                    'personal_info': d.get('personal_info', {}),
+                    'hostel_details': d.get('hostel_details', {})
+                })
+            else:
+                self._send_json({'success': False, 'error': 'Session expired or not authenticated.'}, 401)
+            return
+
+        elif path_lower in ['/api/hostel', '/hostel']:
+            if cached_entry:
+                self._send_json({'success': True, 'hostel_details': cached_entry['data'].get('hostel_details', {})})
+            else:
+                self._send_json({'success': False, 'error': 'Session expired or not authenticated.'}, 401)
+            return
+
+        elif path_lower in ['/api/calendar', '/calendar']:
+            p_data = load_scraped_data()
+            self._send_json({'success': True, 'calendar': p_data.get('calendar', [])})
+            return
+
+        elif path_lower in ['/api/circulars', '/circulars', '/notices']:
+            p_data = load_scraped_data()
+            self._send_json({'success': True, 'circulars': p_data.get('circulars', []), 'announcements': STRUCTURED_ANNOUNCEMENTS})
+            return
+
+        elif path_lower in ['/api/overrides', '/overrides']:
             self._send_json({'success': True, 'overrides': SCHEDULE_OVERRIDES})
             return
         elif path_lower in ['/api/tasks', '/api/announcements', '/announcements', '/tasks']:

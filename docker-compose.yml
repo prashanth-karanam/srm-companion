@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  srm-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: srm_companion_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - PYTHONUNBUFFERED=1
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - srm_data:/app/data
+    networks:
+      - srm_net
+
+  wa-bridge:
+    image: node:20-slim
+    container_name: srm_wa_bridge
+    restart: always
+    working_dir: /app
+    ports:
+      - "8001:8001"
+    volumes:
+      - .:/app
+      - wa_auth_data:/app/wa_auth
+    command: sh -c "npm install && node wa_bridge.js"
+    environment:
+      - PORT=8001
+      - NODE_ENV=production
+    networks:
+      - srm_net
+
+volumes:
+  srm_data:
+  wa_auth_data:
+
+networks:
+  srm_net:
+    driver: bridge
