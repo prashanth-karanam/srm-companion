@@ -263,7 +263,8 @@ window.closeStudentHelpModal = closeStudentHelpModal;
 //  100% PURE CLOUD SERVERLESS & NATIVE ENGINE ($0-Forever Architecture)
 // ==========================================================================
 const MULTI_CLOUD_GATEWAYS = [
-    { name: 'Vercel Serverless Scraper', url: 'https://srm-companion.vercel.app' },
+    { name: 'Vercel Serverless Gateway', url: 'https://srm-backend.vercel.app' },
+    { name: 'Vercel Production', url: 'https://srmbackend.vercel.app' },
     { name: 'Render Cloud Microservice', url: 'https://srm-companion-backend.onrender.com' },
     { name: 'Railway Gateway', url: 'https://srm-companion-backend.up.railway.app' }
 ];
