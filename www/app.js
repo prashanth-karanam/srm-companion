@@ -260,13 +260,12 @@ window.openStudentHelpModal = openStudentHelpModal;
 window.closeStudentHelpModal = closeStudentHelpModal;
 
 // ==========================================================================
-//  MULTI-CLOUD GATEWAY & PROTOCOL ENGINE ($0-Forever Architecture)
+//  100% PURE CLOUD SERVERLESS & NATIVE ENGINE ($0-Forever Architecture)
 // ==========================================================================
 const MULTI_CLOUD_GATEWAYS = [
-    { name: 'Cloudflare Live Gateway', url: 'https://malpractice-robinson-thousands-dangerous.trycloudflare.com' },
-    { name: 'Wi-Fi LAN (SRMIST)', url: 'http://10.3.30.204:8000' },
-    { name: 'Localhost (PC)', url: 'http://localhost:8000' },
-    { name: 'Android Emulator', url: 'http://10.0.2.2:8000' }
+    { name: 'Vercel Serverless Scraper', url: 'https://srm-companion.vercel.app' },
+    { name: 'Render Cloud Microservice', url: 'https://srm-companion-backend.onrender.com' },
+    { name: 'Railway Gateway', url: 'https://srm-companion-backend.up.railway.app' }
 ];
 
 var _activeGatewayUrl = '';
@@ -356,12 +355,7 @@ async function probeAndSelectFastestGateway() {
         return _activeGatewayUrl;
     }
 
-    const isMobileApp = typeof window !== 'undefined' && (window.Capacitor || window.cordova || (window.location && window.location.protocol === 'capacitor:'));
-    const candidates = MULTI_CLOUD_GATEWAYS.filter(g => {
-        if (!isMobileApp && g.url.includes('10.0.2.2')) return false;
-        if (isMobileApp && g.url.includes('localhost:8000')) return false;
-        return true;
-    });
+    const candidates = MULTI_CLOUD_GATEWAYS;
 
     const probePromises = candidates.map(async (gw) => {
         const start = Date.now();

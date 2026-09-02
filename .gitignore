@@ -11,6 +11,8 @@ wa_auth/
 backend_server_detached.log
 backend_server.log
 start_detached_server.py
+cloudflared.exe
+ping_all_servers.py
 
 # Keep essential config JSON files
 *.json
