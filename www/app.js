@@ -399,10 +399,92 @@ function updateGatewayStatusUI() {
     if (el) {
         const base = getApiBase();
         const cleanName = base.replace('https://', '').replace('http://', '').split('/')[0];
-        el.textContent = `🟢 Cloud: ${cleanName}`;
-        el.title = `Active Gateway: ${base}`;
+        el.textContent = `🟢 Cloud: ${cleanName} (Tap to change)`;
+        el.title = `Active Gateway: ${base}. Tap to configure.`;
+        el.style.cursor = 'pointer';
+        el.onclick = () => openGatewayConfigModal();
     }
 }
+
+function openGatewayConfigModal() {
+    const current = getApiBase();
+    const modal = document.createElement('div');
+    modal.id = 'gateway-config-modal';
+    modal.className = 'class-modal-backdrop';
+    modal.style.display = 'flex';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    modal.innerHTML = `
+        <div class="class-modal-sheet" style="max-width:380px;">
+            <div class="class-modal-header">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:1.1rem;">⚙️</span>
+                    <span style="font-size:0.95rem;font-weight:800;color:var(--text-main);">Backend Gateway Config</span>
+                </div>
+                <button class="class-modal-close" onclick="document.getElementById('gateway-config-modal').remove()">&times;</button>
+            </div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin:8px 0 12px;line-height:1.4;">
+                Select your active scraper gateway or enter your laptop/cloud server IP:
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+                <button class="pill-btn" style="text-align:left;padding:8px 12px;background:var(--card-elevated);border:1px solid var(--card-border);border-radius:8px;" onclick="setCustomGateway('http://192.168.1.100:8000')">
+                    <div style="font-weight:700;color:var(--text-main);font-size:0.78rem;">📡 Wi-Fi LAN / Laptop Backend</div>
+                    <div style="font-size:0.68rem;color:var(--text-muted);">http://192.168.x.x:8000</div>
+                </button>
+                <button class="pill-btn" style="text-align:left;padding:8px 12px;background:var(--card-elevated);border:1px solid var(--card-border);border-radius:8px;" onclick="setCustomGateway('https://srm-companion.vercel.app')">
+                    <div style="font-weight:700;color:var(--text-main);font-size:0.78rem;">⚡ Vercel Serverless Gateway</div>
+                    <div style="font-size:0.68rem;color:var(--text-muted);">https://srm-companion.vercel.app</div>
+                </button>
+                <button class="pill-btn" style="text-align:left;padding:8px 12px;background:var(--card-elevated);border:1px solid var(--card-border);border-radius:8px;" onclick="setCustomGateway('http://10.0.2.2:8000')">
+                    <div style="font-weight:700;color:var(--text-main);font-size:0.78rem;">🤖 Android Emulator Loopback</div>
+                    <div style="font-size:0.68rem;color:var(--text-muted);">http://10.0.2.2:8000</div>
+                </button>
+            </div>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:0.7rem;font-weight:700;color:var(--text-sub);display:block;margin-bottom:4px;">CUSTOM URL / IP</label>
+                <input id="custom-gateway-input" class="login-input" type="text" value="${escapeHtml(current)}" placeholder="http://192.168.1.x:8000" style="font-size:0.78rem;font-family:var(--font-mono);">
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button class="apex-btn" style="flex:1;font-size:0.78rem;" onclick="saveCustomGatewayFromInput()">Save & Reload</button>
+                <button class="apex-btn apex-btn-outline" style="flex:1;font-size:0.78rem;" onclick="resetGatewayDefault()">Reset</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function setCustomGateway(url) {
+    const inp = document.getElementById('custom-gateway-input');
+    if (inp) inp.value = url;
+}
+
+function saveCustomGatewayFromInput() {
+    const inp = document.getElementById('custom-gateway-input');
+    if (inp && inp.value.trim()) {
+        const clean = inp.value.trim().replace(/\/$/, '');
+        localStorage.setItem('srm_custom_gateway', clean);
+        localStorage.setItem('srm_api_base', clean);
+        _activeGatewayUrl = clean;
+        const modal = document.getElementById('gateway-config-modal');
+        if (modal) modal.remove();
+        updateGatewayStatusUI();
+        fetchLiveCaptcha(true);
+    }
+}
+
+function resetGatewayDefault() {
+    localStorage.removeItem('srm_custom_gateway');
+    localStorage.removeItem('srm_api_base');
+    _activeGatewayUrl = '';
+    const modal = document.getElementById('gateway-config-modal');
+    if (modal) modal.remove();
+    probeAndSelectFastestGateway().then(() => fetchLiveCaptcha(true));
+}
+
+window.openGatewayConfigModal = openGatewayConfigModal;
+window.setCustomGateway = setCustomGateway;
+window.saveCustomGatewayFromInput = saveCustomGatewayFromInput;
+window.resetGatewayDefault = resetGatewayDefault;
 
 async function apiFetch(path, opts = {}) {
     const base = opts.customBase || getApiBase() || await probeAndSelectFastestGateway();
@@ -533,7 +615,66 @@ function updateStudentHeader() {
 }
 window.updateStudentHeader = updateStudentHeader;
 
-// ─── Live CAPTCHA Streamer from Active Cloud Gateway ───────────────────────────
+// ─── Direct In-App Native CAPTCHA Fetcher (Zero-Backend Mobile Fallback) ────────
+async function fetchDirectSRMCaptchaNative() {
+    const capHttp = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) || window.CapacitorHttp;
+    if (!capHttp) return null;
+
+    try {
+        const loginUrl = 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp';
+        const pageResp = await capHttp.request({
+            url: loginUrl,
+            method: 'GET',
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+            connectTimeout: 8000,
+            readTimeout: 8000
+        });
+
+        if (!pageResp || pageResp.status !== 200) return null;
+
+        const html = pageResp.data || '';
+        const cookieHdr = pageResp.headers['set-cookie'] || pageResp.headers['Set-Cookie'] || '';
+
+        const nonceMatch = html.match(/name=['"]nonce['"]\s+value=['"]([^'"]+)['"]/i) || html.match(/value=['"]([a-f0-9\-]{20,})['"]\s+name=['"]nonce['"]/i);
+        const nonce = nonceMatch ? nonceMatch[1] : '';
+
+        const imgMatch = html.match(/id=['"]secure_captcha['"][^>]+data-src=['"]([^'"]+)['"]/i) || html.match(/data-src=['"]([^'"]+)['"][^>]+id=['"]secure_captcha['"]/i);
+        const dataSrc = imgMatch ? imgMatch[1] : '';
+
+        const captchaUrl = dataSrc ? (dataSrc.startsWith('http') ? dataSrc : `https://sp.srmist.edu.in${dataSrc}`) : `https://sp.srmist.edu.in/srmiststudentportal/SCaptchaServlet?ts=${Date.now()}`;
+        const domainProof = btoa(`${nonce}:sp.srmist.edu.in`);
+
+        const capImgResp = await capHttp.request({
+            url: captchaUrl,
+            method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': loginUrl,
+                'X-Domain-Proof': domainProof,
+                'Cookie': cookieHdr
+            },
+            responseType: 'base64',
+            connectTimeout: 8000,
+            readTimeout: 8000
+        });
+
+        if (capImgResp && capImgResp.status === 200 && capImgResp.data) {
+            const b64 = capImgResp.data.startsWith('data:') ? capImgResp.data : `data:image/jpeg;base64,${capImgResp.data}`;
+            return {
+                success: true,
+                captchaImg: b64,
+                cookies: cookieHdr,
+                sec_config: { nonce: nonce },
+                hidden_fields: {}
+            };
+        }
+    } catch (e) {
+        console.warn('[DirectNativeCaptcha] Native fetch error:', e);
+    }
+    return null;
+}
+
+// ─── Live CAPTCHA Streamer with Multi-Gateway & Native Fallback ───────────────
 async function fetchLiveCaptcha(force = false) {
     if (_isFetchingCaptcha && !force) return;
     _isFetchingCaptcha = true;
@@ -546,7 +687,17 @@ async function fetchLiveCaptcha(force = false) {
     box.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:42px;width:140px;background:var(--card-elevated);border-radius:6px;font-size:0.75rem;color:var(--accent);border:1px solid var(--card-border);"><span style="animation:pulse 1s infinite;">⏳ Fetching CAPTCHA...</span></div>';
 
     try {
-        const res = await apiFetch('/api/captcha', { timeout: 10000 });
+        // 1. Try active gateway API
+        let res = await apiFetch('/api/captcha', { timeout: 6000 });
+
+        // 2. If gateway failed, try direct native mobile fetch
+        if (!res || !res.success || !res.captchaImg) {
+            console.log('[Captcha] Gateway unavailable, attempting direct native mobile scrape...');
+            const nativeRes = await fetchDirectSRMCaptchaNative();
+            if (nativeRes && nativeRes.success) {
+                res = nativeRes;
+            }
+        }
 
         if (res && res.success && res.captchaImg) {
             _liveCookies = res.cookies || '';
@@ -575,15 +726,20 @@ async function fetchLiveCaptcha(force = false) {
         } else {
             const err = (res && res.error) ? res.error : 'Portal unreachable';
             console.warn('[Captcha] Gateway returned error:', err);
-            box.innerHTML = `<div onclick="fetchLiveCaptcha(true)" style="cursor:pointer;display:flex;align-items:center;justify-content:center;height:42px;width:140px;background:rgba(239,68,68,0.1);border-radius:6px;font-size:0.75rem;color:#ef4444;border:1px solid rgba(239,68,68,0.3);text-align:center;">⚠️ Refresh (Tap)</div>`;
+            box.innerHTML = `<div onclick="fetchLiveCaptcha(true)" style="cursor:pointer;display:flex;align-items:center;justify-content:center;height:42px;width:140px;background:rgba(239,68,68,0.1);border-radius:6px;font-size:0.75rem;color:#ef4444;border:1px solid rgba(239,68,68,0.3);text-align:center;">🔄 Tap to Reload</div>`;
         }
     } catch (e) {
         console.warn('[Captcha] Fetch error:', e);
-        box.innerHTML = '<div onclick="fetchLiveCaptcha(true)" style="cursor:pointer;display:flex;align-items:center;justify-content:center;height:42px;width:140px;background:rgba(239,68,68,0.1);border-radius:6px;font-size:0.75rem;color:#ef4444;border:1px solid rgba(239,68,68,0.3);text-align:center;">⚠️ Tap to Retry</div>';
+        box.innerHTML = '<div onclick="fetchLiveCaptcha(true)" style="cursor:pointer;display:flex;align-items:center;justify-content:center;height:42px;width:140px;background:rgba(239,68,68,0.1);border-radius:6px;font-size:0.75rem;color:#ef4444;border:1px solid rgba(239,68,68,0.3);text-align:center;">🔄 Tap to Reload</div>';
     }
 
     _isFetchingCaptcha = false;
 }
+
+function refreshCaptcha() {
+    fetchLiveCaptcha(true);
+}
+window.refreshCaptcha = refreshCaptcha;
 window.fetchLiveCaptcha = fetchLiveCaptcha;
 
 // ─── Real Cloud Portal Authentication & Scraping Pipeline ───────────────────────
