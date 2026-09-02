@@ -263,12 +263,10 @@ window.closeStudentHelpModal = closeStudentHelpModal;
 //  MULTI-CLOUD GATEWAY & PROTOCOL ENGINE ($0-Forever Architecture)
 // ==========================================================================
 const MULTI_CLOUD_GATEWAYS = [
-    { name: 'Vercel Serverless', url: 'https://srm-companion.vercel.app' },
-    { name: 'Render Cloud', url: 'https://srm-companion-backend.onrender.com' },
-    { name: 'Railway Gateway', url: 'https://srm-companion-backend.up.railway.app' },
-    { name: 'LAN Wi-Fi Direct', url: 'http://172.16.0.2:8000' },
-    { name: 'Android Emulator', url: 'http://10.0.2.2:8000' },
-    { name: 'Localhost (PC)', url: 'http://localhost:8000' }
+    { name: 'Cloudflare Live Gateway', url: 'https://malpractice-robinson-thousands-dangerous.trycloudflare.com' },
+    { name: 'Wi-Fi LAN (SRMIST)', url: 'http://10.3.30.204:8000' },
+    { name: 'Localhost (PC)', url: 'http://localhost:8000' },
+    { name: 'Android Emulator', url: 'http://10.0.2.2:8000' }
 ];
 
 var _activeGatewayUrl = '';
