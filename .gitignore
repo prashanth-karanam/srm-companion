@@ -2,6 +2,8 @@
 credentials.json
 srm_cookies.json
 auth_cookies.json
+scraped_data.json
+wa_auth/
 *.json
 !package.json
 !package-lock.json
@@ -39,3 +41,5 @@ node_modules/
 android/
 .idea/
 .vscode/
+
+.vercel

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <radialGradient id="quantumGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="60%" stop-color="#0369a1" />
+      <stop offset="100%" stop-color="#082f49" />
+    </radialGradient>
+  </defs>
+  <style>
+    @keyframes orbitSpin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .orbital-ring-1 { transform-origin: 50px 50px; animation: orbitSpin 8s linear infinite; }
+    .orbital-ring-2 { transform-origin: 50px 50px; animation: orbitSpin 12s linear infinite reverse; }
+  </style>
+  <circle cx="50" cy="50" r="50" fill="#030712" />
+  <!-- Center Quantum Sphere -->
+  <circle cx="50" cy="50" r="16" fill="url(#quantumGlow)" filter="drop-shadow(0 0 10px #38bdf8)" />
+  <circle cx="50" cy="50" r="6" fill="#ffffff" />
+  <!-- Orbital Rings -->
+  <g class="orbital-ring-1">
+    <ellipse cx="50" cy="50" rx="34" ry="12" fill="none" stroke="#00f3ff" stroke-width="1.5" stroke-dasharray="8 4" opacity="0.85" />
+    <circle cx="84" cy="50" r="3" fill="#00f3ff" />
+  </g>
+  <g class="orbital-ring-2">
+    <ellipse cx="50" cy="50" rx="14" ry="36" fill="none" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="6 3" opacity="0.85" />
+    <circle cx="50" cy="14" r="3" fill="#a855f7" />
+  </g>
+</svg>

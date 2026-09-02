@@ -1,23 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="luminous">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src https: wss: http://localhost:* ws://localhost:*; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; font-src 'self' https: data:;">
     <title>SRM Companion</title>
-    <link rel="stylesheet" href="style.css?v=2.5.0">
+    <link rel="stylesheet" href="style.css?v=5.7.2">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#000000">
+    <meta name="theme-color" content="#090a10">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="SRM Companion">
+    <!-- Capacitor Native Bridge Support -->
+    <script src="capacitor.js"></script>
     <!-- Zero-Cost Realtime P2P WebRTC Device-to-Device Mesh -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/mqtt@5.3.5/dist/mqtt.min.js"></script>
 </head>
 
 <body>
@@ -26,62 +30,491 @@
 <div id="login-screen" class="login-screen" style="display:flex;">
     <div class="login-card">
         <div class="login-logo">
-            <div class="user-avatar" style="width:52px;height:52px;font-size:1.1rem;margin:0 auto 12px;">SRM</div>
-            <h1 style="font-size:1.2rem;font-weight:700;margin-bottom:4px;">SRM Companion</h1>
-            <p class="section-stamp" style="margin-bottom:0;">Sign in with your SRM NetID</p>
+            <div class="user-avatar" style="width:48px;height:48px;font-size:1rem;margin:0 auto 12px;">SRM</div>
+            <h1 style="font-size:1.18rem;font-weight:800;margin-bottom:4px;color:var(--text-main);">SRM Companion</h1>
+            <p class="section-stamp" style="margin-bottom:0;">Sign in with your official NetID credentials</p>
         </div>
         <div class="login-form">
             <div class="login-field">
-                <label class="login-label">SRM NetID (without @srmist.edu.in)</label>
-                <input id="login-id" class="login-input" type="text" placeholder="e.g. sk1325" autocomplete="username" spellcheck="false">
+                <label class="login-label">SRM NetID</label>
+                <input id="login-id" class="login-input" type="text" placeholder="Enter NetID (e.g. netid / username)" autocomplete="username" autocapitalize="none" required onkeypress="if(event.key==='Enter')document.getElementById('login-pass').focus()">
             </div>
             <div class="login-field">
                 <label class="login-label">Password</label>
-                <input id="login-pass" class="login-input" type="password" placeholder="Your student portal password" autocomplete="current-password">
+                <input id="login-pass" class="login-input" type="password" placeholder="••••••••••••" autocomplete="current-password" onkeypress="if(event.key==='Enter')document.getElementById('login-captcha').focus()">
             </div>
-            <div class="login-field" id="captcha-container">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <label class="login-label">Security CAPTCHA</label>
-                    <button type="button" onclick="refreshCaptcha()" style="background:none;border:none;color:#38bdf8;font-size:0.75rem;font-weight:600;cursor:pointer;">🔄 Refresh</button>
+            <div class="login-field" id="captcha-container" style="display:block;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <label class="login-label" style="margin-bottom:0;">Security CAPTCHA</label>
+                    <button type="button" onclick="refreshCaptcha()" style="background:none;border:none;color:var(--accent);font-size:0.75rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                        <span>Refresh 🔄</span>
+                    </button>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;">
-                    <div id="captcha-box" style="background:#18181b;border:1px solid #27272a;border-radius:10px;padding:4px 8px;min-width:130px;text-align:center;user-select:none;display:flex;align-items:center;justify-content:center;min-height:44px;">
-                        <span style="color:#71717a;font-size:0.75rem;">Loading CAPTCHA…</span>
+                    <div id="captcha-box" style="background:var(--card-elevated);border:1px solid var(--card-border);border-radius:var(--radius-md);padding:4px 8px;min-width:130px;text-align:center;user-select:none;display:flex;align-items:center;justify-content:center;min-height:44px;cursor:pointer;" onclick="refreshCaptcha()" title="Tap to refresh CAPTCHA">
+                        <span style="color:var(--text-muted);font-size:0.75rem;font-family:var(--font-mono);">Loading CAPTCHA…</span>
                     </div>
-                    <input id="login-captcha" class="login-input" type="text" placeholder="6-letter code" style="flex:1;text-transform:none;letter-spacing:1px;font-family:var(--font-mono);font-weight:600;" autocomplete="off">
+                    <input id="login-captcha" class="login-input" type="text" placeholder="Enter 6-char code" style="flex:1;text-transform:none;letter-spacing:1.5px;font-family:var(--font-mono);font-weight:700;" autocomplete="off" onkeypress="if(event.key==='Enter')doAutoLogin()">
                 </div>
             </div>
             <p id="login-error" class="login-error" style="display:none;"></p>
-            <button id="login-btn" class="login-btn" onclick="doAutoLogin()">Sign In & Sync</button>
+            <button id="login-btn" class="login-btn" onclick="doAutoLogin()" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                <span>⚡ Sign In & Sync</span>
+            </button>
             
             <div style="display:flex;align-items:center;margin:10px 0 6px;gap:10px;">
-                <div style="flex:1;height:1px;background:#27272a;"></div>
-                <span style="font-size:0.72rem;color:#71717a;font-weight:600;">PORTAL WEBVIEW</span>
-                <div style="flex:1;height:1px;background:#27272a;"></div>
+                <div style="flex:1;height:1px;background:var(--card-border);"></div>
+                <span style="font-size:0.7rem;color:var(--text-muted);font-weight:700;letter-spacing:0.04em;">OR QUICK ACCESS</span>
+                <div style="flex:1;height:1px;background:var(--card-border);"></div>
             </div>
 
-            <button type="button" class="portal-open-btn" onclick="openPortalModal()">
-                🔐 Open Official SRM Student Portal
+            <button type="button" class="portal-open-btn" style="background:var(--accent-subtle);border-color:var(--accent-border);color:var(--accent-text);margin-bottom:6px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="quickLaunchVerifiedStudent()">
+                <span>⚡ Restore Saved Session</span>
             </button>
 
+            <button type="button" class="portal-open-btn" onclick="openPortalModal()" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                <span>🌐 Open Official Student Portal</span>
+            </button>
+
+            <div style="display:flex;justify-content:center;align-items:center;margin-top:10px;">
+                <span id="gateway-status-badge" style="font-size:0.68rem;padding:3px 8px;border-radius:12px;background:var(--card-elevated);border:1px solid var(--card-border);color:var(--text-muted);font-family:var(--font-mono);">🟢 Multi-Cloud Gateway Active</span>
+            </div>
+
             <p class="section-stamp" style="text-align:center;margin-top:8px;">
-                Direct authentication enabled. 100% $0 free forever.
+                On-Device Client Direct &bull; Zero Central Database
             </p>
         </div>
     </div>
 </div>
+
+<!-- Command Center & Theme Hub Modal Sheet -->
+<div id="command-center-modal" class="class-modal-backdrop" style="display:none;" onclick="if(event.target===this)closeCommandCenterModal()">
+    <div class="class-modal-sheet" style="max-height:90vh;overflow-y:auto;">
+        <div class="class-modal-header">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="status-dot" style="background:var(--accent);"></span>
+                <span style="font-size:0.98rem;font-weight:900;color:var(--text-main);letter-spacing:-0.01em;">Command Center & Hub</span>
+            </div>
+            <button class="class-modal-close" onclick="closeCommandCenterModal()">&times;</button>
+        </div>
+
+        <!-- Segmented Tab Navigation for Hub (Mess First, Campus Middle, Themes Last) -->
+        <div class="subtab-segmented-bar" style="margin:4px 0 14px;">
+            <button id="hub-tab-mess" class="subtab-btn active" onclick="switchHubSection('mess')">Hostel Mess</button>
+            <button id="hub-tab-campus" class="subtab-btn" onclick="switchHubSection('campus')">Campus Tools</button>
+            <button id="hub-tab-themes" class="subtab-btn" onclick="switchHubSection('themes')">Themes (10)</button>
+        </div>
+
+        <!-- 1. Primary Hub Tab: Live Hostel Mess Menu According to Student's Hostel -->
+        <div id="hub-section-mess">
+            <!-- Live Meal Timing Banner -->
+            <div class="mess-hero-banner" style="margin-bottom:12px;">
+                <div style="min-width:0;">
+                    <div style="font-size:0.92rem;font-weight:800;color:var(--text-main);display:flex;align-items:center;gap:6px;">
+                        <span id="hub-mess-active-meal-name">Dinner (07:30 PM - 09:30 PM)</span>
+                    </div>
+                    <div id="hub-mess-countdown-text" style="font-size:0.74rem;color:var(--text-muted);margin-top:3px;font-family:var(--font-mono);">Serving Now • 45m left</div>
+                </div>
+                <span class="mess-meal-badge" id="hub-mess-badge-status">Serving Now</span>
+            </div>
+
+            <!-- Hostel Block Selector -->
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Hostel Block</span>
+                <span id="hub-hostel-assigned-badge" style="font-size:0.68rem;color:var(--accent);font-weight:700;">Paari (Assigned)</span>
+            </div>
+            <div class="filter-chips-scroll" id="hub-mess-hostel-scroll" style="margin-bottom:12px;"></div>
+
+            <!-- 7-Day Day Selector -->
+            <div style="font-size:0.72rem;font-weight:800;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">Select Day</div>
+            <div class="filter-chips-scroll" id="hub-mess-day-scroll" style="margin-bottom:14px;"></div>
+
+            <!-- 4 Meal Cards Grid -->
+            <div class="meal-cards-grid" id="hub-mess-meal-cards-container">
+                <!-- Populated dynamically by JS -->
+            </div>
+
+            <button class="apex-btn apex-btn-outline" style="width:100%;margin-top:14px;font-size:0.76rem;" onclick="closeCommandCenterModal(); switchSuperTab('view-mess-clubs')">
+                Open Full Mess & Clubs View →
+            </button>
+        </div>
+
+        <!-- 2. Middle Tab: Academic, Campus Apps & System Sync Utilities -->
+        <div id="hub-section-campus" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;font-family:var(--font-mono);">Campus & Utilities</span>
+            </div>
+            <div class="hub-actions-grid">
+                <button class="hub-action-card" onclick="closeCommandCenterModal(); switchSuperTab('view-passport')">
+                    <div class="hub-action-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                    </div>
+                    <div class="hub-action-text">
+                        <div class="hub-action-title">Student Passport</div>
+                        <div class="hub-action-desc">KYC, hostel, fees and FA</div>
+                    </div>
+                </button>
+                <button class="hub-action-card" onclick="closeCommandCenterModal(); switchSuperTab('view-calendar')">
+                    <div class="hub-action-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                    </div>
+                    <div class="hub-action-text">
+                        <div class="hub-action-title">Campus Calendar</div>
+                        <div class="hub-action-desc">140-day holiday roster</div>
+                    </div>
+                </button>
+                <button class="hub-action-card" onclick="closeCommandCenterModal(); switchSuperTab('view-p2p')">
+                    <div class="hub-action-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                    </div>
+                    <div class="hub-action-text">
+                        <div class="hub-action-title">Classroom Mesh</div>
+                        <div class="hub-action-desc">Zero-server device mesh</div>
+                    </div>
+                </button>
+                <button class="hub-action-card" onclick="closeCommandCenterModal(); triggerManualScrape()">
+                    <div class="hub-action-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    </div>
+                    <div class="hub-action-text">
+                        <div class="hub-action-title">Sync SRM Portal</div>
+                        <div class="hub-action-desc">Live HTTP attendance fetch</div>
+                    </div>
+                </button>
+                <button class="hub-action-card" onclick="closeCommandCenterModal(); openWALinkedDeviceModal()">
+                    <div class="hub-action-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                    </div>
+                    <div class="hub-action-text">
+                        <div class="hub-action-title">Link WhatsApp</div>
+                        <div class="hub-action-desc">Live QR code pairing</div>
+                    </div>
+                </button>
+                <button class="hub-action-card" onclick="closeCommandCenterModal(); openWAGroupSelectorModal()">
+                    <div class="hub-action-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    </div>
+                    <div class="hub-action-text">
+                        <div class="hub-action-title">Monitored Chats</div>
+                        <div class="hub-action-desc">Select class notice groups</div>
+                    </div>
+                </button>
+                <button class="hub-action-card" onclick="closeCommandCenterModal(); openDayOrderSwitcher()">
+                    <div class="hub-action-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    </div>
+                    <div class="hub-action-text">
+                        <div class="hub-action-title">Day Order Mode</div>
+                        <div class="hub-action-desc">Set Day 1-5 or Holiday</div>
+                    </div>
+                </button>
+                <button class="hub-action-card" onclick="closeCommandCenterModal(); switchSuperTab('view-mess-clubs'); switchMessClubsSubTab('clubs');">
+                    <div class="hub-action-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                    </div>
+                    <div class="hub-action-text">
+                        <div class="hub-action-title">Clubs & Fests</div>
+                        <div class="hub-action-desc">Recruitments & hackathons</div>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Account Actions Row -->
+            <div style="margin-top:14px;border-top:var(--border-width) solid var(--card-border);padding-top:12px;display:flex;gap:10px;">
+                <button class="apex-btn apex-btn-outline" style="flex:1;font-size:0.76rem;" onclick="closeCommandCenterModal(); openPortalModal()">Open Portal Tab</button>
+                <button class="apex-btn" style="flex:1;background:var(--red);color:#ffffff;border-color:var(--red);font-size:0.76rem;" onclick="doLogout()">Sign Out</button>
+            </div>
+        </div>
+
+        <!-- 3. Last Column: Visual Theme Chameleon Engine -->
+        <div id="hub-section-themes" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;font-family:var(--font-mono);">Visual Theme Engine</span>
+                <span style="font-size:0.7rem;color:var(--accent);font-weight:700;">16 Themes</span>
+            </div>
+            <div class="theme-grid">
+                <div class="theme-card-option active" data-theme-id="alabaster-silk" onclick="setTheme('alabaster-silk')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#f3efe6;border-color:#2d6a4f;"></span>
+                        <span class="theme-swatch" style="background:#fbf9f5;border-color:#2d6a4f;"></span>
+                        <span class="theme-swatch" style="background:#2d6a4f;"></span>
+                    </div>
+                    <div class="theme-card-title">Alabaster Silk (Kyoto Zen)</div>
+                    <div class="theme-card-desc">Warm cashmere & forest sage luxury</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="kyoto-matcha" onclick="setTheme('kyoto-matcha')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#0b0f0d;border-color:#52b788;"></span>
+                        <span class="theme-swatch" style="background:#141c18;border-color:#52b788;"></span>
+                        <span class="theme-swatch" style="background:#52b788;"></span>
+                    </div>
+                    <div class="theme-card-title">Kyoto Matcha Dark</div>
+                    <div class="theme-card-desc">Velvet forest & soothing sage</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="mocha-cashmere" onclick="setTheme('mocha-cashmere')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#0f0d0c;border-color:#e0a96d;"></span>
+                        <span class="theme-swatch" style="background:#1c1816;border-color:#e0a96d;"></span>
+                        <span class="theme-swatch" style="background:#e0a96d;"></span>
+                    </div>
+                    <div class="theme-card-title">Mocha Cashmere</div>
+                    <div class="theme-card-desc">Deep cocoa & warm honey amber</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="nordic-midnight" onclick="setTheme('nordic-midnight')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#07090e;border-color:#38bdf8;"></span>
+                        <span class="theme-swatch" style="background:#11141e;border-color:#38bdf8;"></span>
+                        <span class="theme-swatch" style="background:#38bdf8;"></span>
+                    </div>
+                    <div class="theme-card-title">Nordic Midnight</div>
+                    <div class="theme-card-desc">Apple Pro dark & titanium glass</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="fcuk-clay" onclick="setTheme('fcuk-clay')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#f8efe9;border-color:#b47262;"></span>
+                        <span class="theme-swatch" style="background:#fff7f0;border-color:#b47262;"></span>
+                        <span class="theme-swatch" style="background:#b47262;"></span>
+                    </div>
+                    <div class="theme-card-title">Claymorph Soft</div>
+                    <div class="theme-card-desc">Zero-eyestrain cream & terracotta</div>
+                </div>
+                <div class="theme-card-option active" data-theme-id="linear-pro" onclick="setTheme('linear-pro')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#08090d;border-color:#38bdf8;"></span>
+                        <span class="theme-swatch" style="background:#11131a;border-color:#5865f2;"></span>
+                        <span class="theme-swatch" style="background:#38bdf8;"></span>
+                    </div>
+                    <div class="theme-card-title">Linear Pro (Clean Studio)</div>
+                    <div class="theme-card-desc">Flagship OLED & obsidian glass</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="luminous" onclick="setTheme('luminous')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#090a10;border-color:#38bdf8;"></span>
+                        <span class="theme-swatch" style="background:#131622;border-color:#38bdf8;"></span>
+                        <span class="theme-swatch" style="background:#38bdf8;"></span>
+                    </div>
+                    <div class="theme-card-title">Smooth Luminous</div>
+                    <div class="theme-card-desc">Ambient aura lighting & glass</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="obsidian" onclick="setTheme('obsidian')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#000000;border-color:#333;"></span>
+                        <span class="theme-swatch" style="background:#0d0d12;border-color:#333;"></span>
+                        <span class="theme-swatch" style="background:#34d399;"></span>
+                    </div>
+                    <div class="theme-card-title">Monolith Apex</div>
+                    <div class="theme-card-desc">Pure OLED & emerald orbit</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="velvet-aurora" onclick="setTheme('velvet-aurora')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#070913;border-color:#2dd4bf;"></span>
+                        <span class="theme-swatch" style="background:#12162d;border-color:#2dd4bf;"></span>
+                        <span class="theme-swatch" style="background:#2dd4bf;"></span>
+                    </div>
+                    <div class="theme-card-title">Velvet Aurora</div>
+                    <div class="theme-card-desc">Nordic cosmic teal & violet</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="tokyo-sakura" onclick="setTheme('tokyo-sakura')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#110d1e;border-color:#f43f5e;"></span>
+                        <span class="theme-swatch" style="background:#201938;border-color:#f43f5e;"></span>
+                        <span class="theme-swatch" style="background:#f43f5e;"></span>
+                    </div>
+                    <div class="theme-card-title">Tokyo Sakura</div>
+                    <div class="theme-card-desc">Dusk twilight & rose amber</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="clay-minimal" onclick="setTheme('clay-minimal')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#f8fafc;border-color:#0f172a;"></span>
+                        <span class="theme-swatch" style="background:#ffffff;border-color:#cbd5e1;"></span>
+                        <span class="theme-swatch" style="background:#0f172a;"></span>
+                    </div>
+                    <div class="theme-card-title">Cupertino Clay</div>
+                    <div class="theme-card-desc">High-contrast porcelain panda</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="white-manga" onclick="setTheme('white-manga')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#fafafa;border-color:#000;"></span>
+                        <span class="theme-swatch" style="background:#ffffff;border-color:#000;"></span>
+                        <span class="theme-swatch" style="background:#000000;"></span>
+                    </div>
+                    <div class="theme-card-title">White Manga Ink</div>
+                    <div class="theme-card-desc">Crisp white paper & ink lines</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="dark-manga" onclick="setTheme('dark-manga')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#0a0a0f;border-color:#fff;"></span>
+                        <span class="theme-swatch" style="background:#14141c;border-color:#fff;"></span>
+                        <span class="theme-swatch" style="background:#ffdd00;"></span>
+                    </div>
+                    <div class="theme-card-title">Dark Cyber-Manga</div>
+                    <div class="theme-card-desc">Night ink & neon yellow</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="offwhite" onclick="setTheme('offwhite')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#0d0d0f;border-color:#444;"></span>
+                        <span class="theme-swatch" style="background:#16161c;border-color:#444;"></span>
+                        <span class="theme-swatch" style="background:#ffcc00;"></span>
+                    </div>
+                    <div class="theme-card-title">Off-White Industrial</div>
+                    <div class="theme-card-desc">Virgil Abloh & hazard stencil</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="dominator" onclick="setTheme('dominator')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#03080e;border-color:#00f0ff;"></span>
+                        <span class="theme-swatch" style="background:#04101e;border-color:#00f0ff;"></span>
+                        <span class="theme-swatch" style="background:#00f0ff;"></span>
+                    </div>
+                    <div class="theme-card-title">Dominator HUD</div>
+                    <div class="theme-card-desc">Psycho-Pass cyan holograms</div>
+                </div>
+                <div class="theme-card-option" data-theme-id="arcade" onclick="setTheme('arcade')">
+                    <div class="theme-preview-swatches">
+                        <span class="theme-swatch" style="background:#08060f;border-color:#ff007f;"></span>
+                        <span class="theme-swatch" style="background:#130d24;border-color:#ff007f;"></span>
+                        <span class="theme-swatch" style="background:#ff007f;"></span>
+                    </div>
+                    <div class="theme-card-title">Arcade 1984</div>
+                    <div class="theme-card-desc">Hot Magenta & cyan shadows</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Separate Vertical Rectangular Menu / Side Drawer -->
+<div id="vertical-quick-menu-modal" class="vertical-menu-backdrop" style="display:none;" onclick="if(event.target===this)closeVerticalSideMenu()">
+    <div class="vertical-menu-sheet">
+        <div class="vertical-menu-header">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div class="user-avatar" id="side-menu-avatar" style="width:34px;height:34px;font-size:0.8rem;">SC</div>
+                <div>
+                    <div id="side-menu-name" style="font-size:0.88rem;font-weight:900;color:var(--text-main);line-height:1.2;">Welcome</div>
+                    <div id="side-menu-reg" style="font-size:0.68rem;color:var(--text-muted);font-family:var(--font-mono);">SRMIST</div>
+                </div>
+            </div>
+            <button class="class-modal-close" onclick="closeVerticalSideMenu()">&times;</button>
+        </div>
+
+        <div class="vertical-menu-section-label">COMMUNITY & FEEDBACK</div>
+
+        <!-- 1. Suggest on Reddit -->
+        <a href="https://www.reddit.com/r/SRMist/" target="_blank" rel="noopener noreferrer" class="vertical-menu-item">
+            <div class="vertical-menu-item-icon" style="background:rgba(255, 69, 0, 0.15);color:#ff4500;border-color:rgba(255, 69, 0, 0.3);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l3 3"></path></svg>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:0.82rem;font-weight:800;color:#ff652f;">Suggest a Feature on Reddit &rarr;</div>
+                <div style="font-size:0.68rem;color:var(--text-muted);">Post feedback & ideas on r/SRMist</div>
+            </div>
+        </a>
+
+        <!-- 2. GitHub Source Code -->
+        <a href="https://github.com/" target="_blank" rel="noopener noreferrer" class="vertical-menu-item">
+            <div class="vertical-menu-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:0.82rem;font-weight:800;color:var(--text-main);">GitHub Source Code &rarr;</div>
+                <div style="font-size:0.68rem;color:var(--text-muted);">View repository & open source project</div>
+            </div>
+        </a>
+
+        <div class="vertical-menu-section-label">CAMPUS & SYSTEM</div>
+
+        <!-- 3. Student Help & Guidelines Modal -->
+        <button type="button" class="vertical-menu-item" onclick="closeVerticalSideMenu(); openStudentHelpModal();">
+            <div class="vertical-menu-item-icon" style="color:var(--accent);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:0.82rem;font-weight:800;color:var(--text-main);">Help & Guidelines</div>
+                <div style="font-size:0.68rem;color:var(--text-muted);">Attendance rules, offline mesh & FAQs</div>
+            </div>
+        </button>
+
+        <!-- 4. Open Campus Hub (Mess, Themes, Tools) -->
+        <button type="button" class="vertical-menu-item" onclick="closeVerticalSideMenu(); openCommandCenterModal();">
+            <div class="vertical-menu-item-icon" style="color:var(--blue);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:0.82rem;font-weight:800;color:var(--text-main);">Campus Hub</div>
+                <div style="font-size:0.68rem;color:var(--text-muted);">Hostel mess, 10 themes & utilities</div>
+            </div>
+        </button>
+
+        <!-- 5. Open Portal Tab -->
+        <button type="button" class="vertical-menu-item" onclick="closeVerticalSideMenu(); openPortalModal();">
+            <div class="vertical-menu-item-icon" style="color:var(--teal);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:0.82rem;font-weight:800;color:var(--text-main);">SRM Student Portal</div>
+                <div style="font-size:0.68rem;color:var(--text-muted);">Direct SP login window</div>
+            </div>
+        </button>
+
+        <!-- Spacer -->
+        <div style="flex:1;min-height:16px;"></div>
+
+        <!-- 6. Sign Out Option at Bottom -->
+        <button type="button" class="apex-btn" style="width:100%;padding:13px;background:var(--red);border-color:var(--red);color:#ffffff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:0.84rem;font-weight:800;margin-top:10px;" onclick="closeVerticalSideMenu(); doLogout();">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:16px;height:16px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            <span>Sign Out</span>
+        </button>
+    </div>
+</div>
+
+<!-- Student Help & Guidelines Modal Sheet -->
+<div id="student-help-modal" class="class-modal-backdrop" style="display:none;" onclick="if(event.target===this)closeStudentHelpModal()">
+    <div class="class-modal-sheet" style="max-height:85vh;overflow-y:auto;">
+        <div class="class-modal-header">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="status-dot" style="background:var(--accent);"></span>
+                <span style="font-size:0.95rem;font-weight:900;color:var(--text-main);">Help & Guidelines</span>
+            </div>
+            <button class="class-modal-close" onclick="closeStudentHelpModal()">&times;</button>
+        </div>
+
+        <div style="font-size:0.78rem;line-height:1.6;color:var(--text-sub);">
+            <div style="margin-bottom:14px;background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-md);padding:12px;">
+                <div style="font-weight:800;color:var(--text-main);margin-bottom:4px;">1. Offline Classroom P2P Mesh</div>
+                <div>Allows you to share notes and timetable info directly with classmates in class without requiring college Wi-Fi or external internet servers.</div>
+            </div>
+
+            <div style="margin-bottom:14px;background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-md);padding:12px;">
+                <div style="font-weight:800;color:var(--text-main);margin-bottom:4px;">2. Mandatory 75% Attendance Math</div>
+                <div>SRM requires at least 75% attendance in each subject to sit for semester end examinations. The app calculates your safe bunk margins in real-time.</div>
+            </div>
+
+            <div style="margin-bottom:14px;background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-md);padding:12px;">
+                <div style="font-weight:800;color:var(--text-main);margin-bottom:4px;">3. 140-Day Academic Calendar & Day Orders</div>
+                <div>The calendar dynamically follows SRM Kattankulathur academic schedules (Day 1 through Day 5). Tap the Day Order pill to preview any day's timetable.</div>
+            </div>
+
+            <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-md);padding:12px;">
+                <div style="font-weight:800;color:var(--text-main);margin-bottom:4px;">4. Campus Helplines & Security</div>
+                <div>Campus Control Room: <b>044-27455510</b><br>Hospital Ambulance: <b>112</b> / <b>044-47432333</b></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alias theme-modal for backward compatibility -->
+<div id="theme-modal" style="display:none;"></div>
 
 <!-- Interactive SRM Portal Modal -->
 <div id="portal-modal" class="portal-modal" style="display:none;">
     <div class="portal-modal-header">
         <div style="display:flex;align-items:center;gap:8px;">
             <span class="status-dot"></span>
-            <span style="font-weight:600;font-size:0.9rem;color:#f4f4f5;">SRM Student Portal</span>
+            <span style="font-weight:700;font-size:0.88rem;color:var(--text-main);">SRM Student Portal</span>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
-            <a href="https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp" target="_blank" rel="noopener noreferrer" style="font-size:0.75rem;color:#38bdf8;text-decoration:none;font-weight:600;padding:4px 8px;background:#18181b;border:1px solid #27272a;border-radius:6px;">Open New Tab ↗</a>
-            <button class="portal-done-btn" onclick="finishPortalLogin()">✅ Done & Continue</button>
-            <button class="portal-done-btn" style="background:#3f3f46;" onclick="closePortalModal()">✕</button>
+            <a href="https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp" target="_blank" rel="noopener noreferrer" style="font-size:0.75rem;color:var(--blue);text-decoration:none;font-weight:700;padding:4px 8px;background:var(--card-elevated);border:1px solid var(--card-border);border-radius:var(--radius-sm);">Open New Tab ↗</a>
+            <button class="portal-done-btn" onclick="finishPortalLogin()">Done & Continue</button>
+            <button class="portal-done-btn" style="background:var(--card-elevated);color:var(--text-main);border:1px solid var(--card-border);" onclick="closePortalModal()">&times;</button>
         </div>
     </div>
     <div class="portal-modal-body">
@@ -89,116 +522,348 @@
     </div>
 </div>
 
+<!-- What-If Bunk Simulation Modal Sheet -->
+<div id="what-if-modal" class="class-modal-backdrop" style="display:none;" onclick="if(event.target===this)closeWhatIfModal()">
+    <div class="class-modal-sheet">
+        <div class="class-modal-header">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="status-dot" style="background:var(--accent);"></span>
+                <span style="font-size:0.95rem;font-weight:900;color:var(--text-main);">What-If Bunk Simulator</span>
+            </div>
+            <button class="class-modal-close" onclick="closeWhatIfModal()">&times;</button>
+        </div>
+        <div class="class-modal-body">
+            <div class="class-info-card" style="text-align:center;padding:18px;">
+                <div style="font-size:0.72rem;color:var(--text-muted);font-family:var(--font-mono);text-transform:uppercase;">Simulated Attendance</div>
+                <div id="whatif-modal-pct" style="font-size:2.2rem;font-weight:900;color:var(--accent);font-family:var(--font-mono);margin:6px 0 4px;">--%</div>
+                <div id="whatif-modal-sub" style="font-size:0.78rem;font-weight:700;color:var(--text-sub);">-- Safe Bunks Remaining</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
+                <button class="apex-btn" style="padding:12px;" onclick="simulateBunkAction('attend')">+1 Attend Class</button>
+                <button class="apex-btn" style="padding:12px;background:var(--red);border-color:var(--red);color:#ffffff;" onclick="simulateBunkAction('bunk')">-1 Bunk Class</button>
+            </div>
+            <button class="apex-btn apex-btn-outline" style="width:100%;margin-top:8px;" onclick="simulateBunkAction('reset')">Reset to Real Portal Attendance</button>
+        </div>
+    </div>
+</div>
+
+<!-- Profile Customizer Modal — Clean Minimal Sheet -->
+<div id="profile-customizer-modal" class="class-modal-backdrop" style="display:none;" onclick="if(event.target===this)closeProfileCustomizerModal()">
+    <div class="cust-sheet">
+
+        <!-- Header with Live Banner Backdrop -->
+        <div class="cust-header discord-profile-banner" id="customizer-preview-banner" style="position:relative;padding:16px;border-radius:12px 12px 0 0;background-size:cover;background-position:center;display:flex;justify-content:space-between;align-items:center;overflow:hidden;">
+            <div style="position:absolute;inset:0;background:linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.75) 100%);pointer-events:none;"></div>
+            <div class="cust-header-left" style="display:flex;align-items:center;gap:12px;position:relative;z-index:2;">
+                <div class="cust-avatar-mini" id="customizer-preview-avatar" style="position:relative;width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
+                    <div style="width:40px;height:40px;border-radius:50%;background:#2b2d31;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:0.85rem;" id="customizer-preview-initials">KP</div>
+                </div>
+                <div>
+                    <div class="cust-header-name" id="customizer-preview-name" style="font-weight:900;color:#fff;font-size:1.05rem;text-shadow:0 1px 4px rgba(0,0,0,0.8);">Student Name</div>
+                    <div class="cust-header-sub" id="customizer-preview-handle" style="font-size:0.75rem;color:rgba(255,255,255,0.8);text-shadow:0 1px 3px rgba(0,0,0,0.8);">@student • SRMIST</div>
+                    <div id="customizer-preview-title" style="font-size:0.7rem;color:#fbbf24;font-weight:800;text-shadow:0 1px 3px rgba(0,0,0,0.8);margin-top:2px;">Bunk Mathematician</div>
+                </div>
+            </div>
+            <button class="cust-close-btn" onclick="closeProfileCustomizerModal()" style="position:relative;z-index:2;background:rgba(0,0,0,0.5);border:none;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;cursor:pointer;">&times;</button>
+        </div>
+
+        <!-- Pill Nav Tabs -->
+        <div class="cust-nav">
+            <button type="button" class="cust-tab active" id="tabbtn-decorations" onclick="switchDiscordCustomizerTab('tab-decorations', this)">Rings</button>
+            <button type="button" class="cust-tab" id="tabbtn-avatars" onclick="switchDiscordCustomizerTab('tab-avatars', this)">Avatar</button>
+            <button type="button" class="cust-tab" id="tabbtn-banners" onclick="switchDiscordCustomizerTab('tab-banners', this)">Banner</button>
+            <button type="button" class="cust-tab" id="tabbtn-titles" onclick="switchDiscordCustomizerTab('tab-titles', this)">Status</button>
+            <button type="button" class="cust-tab" id="tabbtn-badges" onclick="switchDiscordCustomizerTab('tab-badges', this)">Badges</button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="cust-body">
+
+            <!-- Tab: Avatar Rings & Animated Decorations -->
+            <div id="tab-decorations" class="discord-tab-section active">
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+                    <div style="position:relative;flex:1;min-width:200px;">
+                        <input type="text" id="frame-search-input" class="discord-search-input" placeholder="🔍 Search animated decorations (e.g. Mark, Glitch, Balance, Embers...)" oninput="searchAvatarFrames(this.value)" style="width:100%;padding:8px 12px 8px 34px;border-radius:var(--radius-sm);background:var(--card-elevated);border:1px solid var(--card-border);color:var(--text-main);font-size:0.8rem;outline:none;">
+                        <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:0.85rem;color:var(--text-muted);pointer-events:none;">✨</span>
+                    </div>
+                    <button type="button" class="filter-chip-btn" id="btn-toggle-density" onclick="toggleCustomizerGridDensity(this)" style="font-weight:800;background:var(--card-elevated);">⚡ Compact (10-Col)</button>
+                    <a href="/gallery.html" target="_blank" class="filter-chip-btn" style="background:#5865f2;color:#fff;border-color:#5865f2;font-weight:800;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">📸 Fullscreen Showcase ↗</a>
+                </div>
+                <div class="filter-chips-scroll" id="frame-categories-scroll" style="margin-bottom:10px;">
+                    <button type="button" class="filter-chip-btn active" onclick="filterAvatarFramesCategory('All', this)">All (255)</button>
+                    <button type="button" class="filter-chip-btn" style="color:#ff4655;border-color:rgba(255,70,85,0.6);" onclick="filterAvatarFramesCategory('S+ Tier', this)">👑 S+ Tier (11)</button>
+                    <button type="button" class="filter-chip-btn" style="color:#fbbf24;border-color:rgba(251,191,36,0.6);" onclick="filterAvatarFramesCategory('S Tier', this)">⭐ S Tier (56)</button>
+                    <button type="button" class="filter-chip-btn" style="color:#c084fc;border-color:rgba(192,132,252,0.6);" onclick="filterAvatarFramesCategory('A Tier', this)">🥇 A Tier (99)</button>
+                    <button type="button" class="filter-chip-btn" style="color:#38bdf8;border-color:rgba(56,189,248,0.6);" onclick="filterAvatarFramesCategory('B Tier', this)">🥈 B Tier (83)</button>
+                    <button type="button" class="filter-chip-btn" style="color:#94a3b8;border-color:rgba(148,163,184,0.6);" onclick="filterAvatarFramesCategory('C Tier', this)">🥉 C Tier (6)</button>
+                </div>
+                <div id="customizer-frames-grid" class="discord-frames-grid" style="grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;max-height:360px;"></div>
+            </div>
+
+            <!-- Tab: Avatar / PFP -->
+            <div id="tab-avatars" class="discord-tab-section">
+                <!-- Upload Row -->
+                <div class="cust-upload-row" style="margin-bottom:16px;">
+                    <div>
+                        <div class="cust-upload-label">Upload Custom Photo</div>
+                        <div class="cust-upload-sub">PNG · JPG · WebP · GIF — saved directly on your device</div>
+                    </div>
+                    <div style="display:flex;gap:6px;">
+                        <input type="file" id="custom-avatar-file-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;" onchange="handleCustomAvatarUpload(this)">
+                        <button type="button" class="cust-btn-primary" onclick="document.getElementById('custom-avatar-file-input').click()">Upload</button>
+                        <button type="button" class="cust-btn-ghost" onclick="resetCustomAvatar()">Reset</button>
+                    </div>
+                </div>
+
+                <div class="cust-section-label" style="margin:14px 0 8px;">Minimalist Monogram Studio</div>
+                <div class="discord-avatar-presets-grid" id="customizer-monograms-grid" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:10px;margin-bottom:16px;"></div>
+
+                <div id="customizer-pfps-grid" style="display:none;"></div>
+                <div id="pfp-load-more-container" style="display:none;"></div>
+
+                <!-- Download row -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+                    <button type="button" class="cust-btn-ghost" onclick="downloadAvatarWithDecoration()" style="gap:6px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download Avatar
+                    </button>
+                    <button type="button" class="cust-btn-ghost" onclick="downloadFullDiscordCard()" style="gap:6px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        Download ID Card
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab: Banners -->
+            <div id="tab-banners" class="discord-tab-section">
+                <!-- Upload Custom Banner Row -->
+                <div class="cust-upload-row" style="margin-bottom:12px;">
+                    <div>
+                        <div class="cust-upload-label">Upload Custom Banner</div>
+                        <div class="cust-upload-sub">16:9 or Wide · PNG · JPG · WebP · GIF</div>
+                    </div>
+                    <div style="display:flex;gap:6px;">
+                        <input type="file" id="custom-banner-upload-input" accept="image/*" style="display:none;" onchange="handleCustomBannerUpload(event)">
+                        <button type="button" class="cust-btn-primary" onclick="document.getElementById('custom-banner-upload-input').click()" style="padding:6px 14px;font-size:0.75rem;">
+                            📁 Upload Image
+                        </button>
+                        <button type="button" class="cust-btn-ghost" onclick="resetCustomBanner()" style="padding:6px 10px;font-size:0.75rem;">
+                            Reset
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search & Density Header -->
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+                    <div style="position:relative;flex:1;min-width:180px;">
+                        <input type="text" id="banner-search-input" class="discord-search-input" placeholder="🔍 Search banners (e.g. Shadow, Shibuya, Aurora, Void...)" oninput="searchProfileBanners(this.value)" style="width:100%;padding:8px 12px 8px 34px;border-radius:var(--radius-sm);background:var(--card-elevated);border:1px solid var(--card-border);color:var(--text-main);font-size:0.8rem;outline:none;">
+                        <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:0.85rem;color:var(--text-muted);pointer-events:none;">✨</span>
+                    </div>
+                    <button type="button" class="filter-chip-btn" id="btn-toggle-banner-density" onclick="toggleBannerGridDensity(this)" style="font-weight:800;background:var(--card-elevated);">⚡ Compact (3-Col)</button>
+                    <a href="/gallery.html?tab=banners" target="_blank" class="filter-chip-btn" style="background:#5865f2;color:#fff;border-color:#5865f2;font-weight:800;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">📸 Fullscreen Showcase ↗</a>
+                </div>
+
+                <!-- Tier Filter Chips for Banners -->
+                <div class="filter-chips-scroll" id="banner-categories-scroll" style="margin-bottom:10px;">
+                    <button type="button" class="filter-chip-btn active" onclick="filterProfileBannersCategory('All', this)">All (74)</button>
+                    <button type="button" class="filter-chip-btn" style="color:#fbbf24;border-color:rgba(251,191,36,0.7);background:rgba(251,191,36,0.12);font-weight:800;" onclick="filterProfileBannersCategory('Featured Ring Pins', this)">👑 Featured Ring Pins (28)</button>
+                    <button type="button" class="filter-chip-btn" style="color:#fbbf24;border-color:rgba(251,191,36,0.5);" onclick="filterProfileBannersCategory('Legendary', this)">👑 Legendary</button>
+                    <button type="button" class="filter-chip-btn" style="color:#c084fc;border-color:rgba(192,132,252,0.5);" onclick="filterProfileBannersCategory('Epic', this)">💎 Epic</button>
+                    <button type="button" class="filter-chip-btn" style="color:#38bdf8;border-color:rgba(56,189,248,0.5);" onclick="filterProfileBannersCategory('Rare', this)">🔮 Rare</button>
+                    <button type="button" class="filter-chip-btn" style="color:#94a3b8;border-color:rgba(148,163,184,0.5);" onclick="filterProfileBannersCategory('Common', this)">⚪ Common</button>
+                    <button type="button" class="filter-chip-btn" onclick="filterProfileBannersCategory('Anime', this)">🌸 Anime</button>
+                    <button type="button" class="filter-chip-btn" onclick="filterProfileBannersCategory('Game', this)">🎮 Gaming</button>
+                    <button type="button" class="filter-chip-btn" onclick="filterProfileBannersCategory('Cyber', this)">⚡ Cyber</button>
+                    <button type="button" class="filter-chip-btn" onclick="filterProfileBannersCategory('Cosmic', this)">🌌 Cosmic</button>
+                </div>
+
+                <!-- Dynamic Banners Grid -->
+                <div id="customizer-banners-grid" class="discord-banners-grid" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;max-height:360px;overflow-y:auto;"></div>
+            </div>
+
+            <!-- Tab: Status & Bio -->
+            <div id="tab-titles" class="discord-tab-section">
+                <div class="cust-section-label" style="margin-bottom:8px;">Status Title</div>
+                <div class="filter-chips-scroll" id="customizer-titles-container" style="margin-bottom:14px;"></div>
+                <div class="cust-section-label" style="margin-bottom:6px;">About Me</div>
+                <textarea id="customizer-bio-input" class="discord-textarea" rows="3" placeholder="Your campus story, bunk strategies, or SRM hacks..."></textarea>
+            </div>
+
+            <!-- Tab: Badges -->
+            <div id="tab-badges" class="discord-tab-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <span class="cust-section-label">Pinned Badges</span>
+                    <span id="customizer-badge-count" style="font-size:0.73rem;color:var(--accent);font-weight:800;">3 / 3</span>
+                </div>
+                <div id="customizer-badges-container" class="discord-badges-select-grid"></div>
+            </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="cust-footer">
+            <button type="button" class="cust-btn-ghost" onclick="closeProfileCustomizerModal()">Cancel</button>
+            <button type="button" class="cust-btn-primary" onclick="saveProfileCustomization()">Save Changes</button>
+        </div>
+
+    </div>
+</div>
+
+
+
     <div class="mobile-wrapper" style="display:none;">
-        <!-- Top Navigation -->
+        <!-- Top Navigation (Cleaned & Minimal) -->
         <div class="top-nav">
-            <div class="user-tag">
-                <div class="user-avatar" id="header-avatar">SC</div>
+            <div class="user-tag" onclick="toggleProfileView(event)" style="cursor:pointer;" title="Toggle Student Profile & Dashboard">
+                <div class="user-avatar-wrap" style="position:relative;display:inline-flex;align-items:center;">
+                    <div class="user-avatar" id="header-avatar">SC</div>
+                    <button type="button" onclick="openProfileCustomizerModal(); event.stopPropagation();" title="Edit Profile" style="position:absolute;bottom:-2px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--accent);border:2px solid var(--bg-main);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;z-index:2;">
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                </div>
                 <div class="user-meta">
                     <h2 id="header-name">Welcome</h2>
                     <p id="header-reg">SRM Companion &bull; SRMIST</p>
                 </div>
             </div>
-            <div id="island-pill" class="island-pill">
+            <div id="island-pill" class="island-pill" onclick="openDayOrderSwitcher()" style="cursor:pointer;" title="Tap to switch Day Order / set Holiday">
                 <span class="status-dot"></span>
-                <span id="current-day-badge">Day 2</span>
-                <span style="opacity:0.4;">|</span>
+                <span id="current-day-badge" style="font-weight:900;letter-spacing:0.04em;">Day 2</span>
+                <span style="opacity:0.3;">|</span>
                 <span id="live-clock">--:--</span>
             </div>
-            <button class="logout-btn" onclick="doLogout()" title="Log out">⏏</button>
+            <button class="theme-toggle-btn" onclick="openVerticalSideMenu()" title="Campus Quick Menu & Options" style="display:flex;align-items:center;justify-content:center;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px;"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+            </button>
         </div>
 
         <!-- Section 1: Today / Timetable View -->
         <div id="view-schedule" class="tab-view" style="display: block;">
+            
             <!-- AI WhatsApp Schedule Verification Alert -->
             <div id="wa-schedule-alert-wrap" class="wa-schedule-alert-banner" style="display:none;"></div>
 
-            <!-- Live Hero Card -->
-            <div class="live-hero">
-                <div class="hero-status-row">
-                    <span id="hud-pulse-status" class="hero-status-label">Now Playing</span>
-                    <span id="hud-time" class="hero-time-pill">09:45 - 11:30</span>
-                </div>
-                <div id="hud-class-title" class="hero-class-title">Programming for Problem Solving Lab</div>
-                <div class="hero-info-grid">
-                    <div class="hero-info-box">
-                        <div class="k">Venue</div>
-                        <div id="hud-venue" class="v">Tech Park 3rd Fl, Lab</div>
+            <!-- Redesigned Linear Class & Attendance Hero Card -->
+            <div class="monolith-hero" style="margin-top: 6px;">
+                <div class="hero-left-content">
+                    <div class="hero-tag" id="monolith-session-tag">
+                        <span class="status-dot"></span>
+                        <span id="monolith-status-text">NEXT SCHEDULED LECTURE</span>
                     </div>
-                    <div class="hero-info-box">
-                        <div class="k">Faculty</div>
-                        <div id="hud-faculty" class="v">Sheeba Rachel S</div>
+                    <h2 class="hero-main-heading" id="hud-class-title">Calculus & Linear Algebra</h2>
+                    
+                    <!-- Clean Single-Line Telemetry Metadata (Never Truncates) -->
+                    <div class="hero-telemetry-meta">
+                        <span class="telemetry-meta-item" id="monolith-time-venue">Mon, 10:40 AM • UB-901</span>
+                        <span class="telemetry-meta-dot">•</span>
+                        <span class="telemetry-meta-item" id="monolith-faculty-text">Dr. N. Parvathi</span>
+                    </div>
+
+                    <!-- Live Progress Countdown -->
+                    <div class="monolith-prog-wrap">
+                        <div class="monolith-prog-track">
+                            <div id="prog-fill" class="monolith-prog-fill" style="width: 0%;"></div>
+                        </div>
+                        <div class="monolith-prog-meta">
+                            <span id="prog-time-left">Session Interval</span>
+                        </div>
+                    </div>
+
+                    <!-- Hero Action Buttons (Equal 3-Column Grid) -->
+                    <div class="hero-btn-row">
+                        <button type="button" class="apex-btn" onclick="triggerManualScrape()">Sync Portal</button>
+                        <button type="button" class="apex-btn apex-btn-secondary" onclick="switchTab('view-attendance')">Attendance</button>
+                        <button type="button" class="apex-btn apex-btn-secondary" onclick="openAITabWithPrompt('What is the syllabus and upcoming tests for my subjects?')">Ask Copilot</button>
                     </div>
                 </div>
-                <div class="hero-footer">
-                    <span>Up Next:</span>
-                    <span id="hud-up-next" class="hero-next-target">Calculus @ UB 601</span>
+
+                <!-- Right Circular Attendance Radial Gauge -->
+                <div class="hero-right-orbit" onclick="switchTab('view-attendance')" title="Tap to view attendance telemetry" style="cursor:pointer;">
+                    <div class="orbit-chassis-wrap">
+                        <svg viewBox="0 0 100 100" class="orbit-svg-gauge">
+                            <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="7" />
+                            <circle id="orbit-circle-bar" cx="50" cy="50" r="40" fill="none" stroke="var(--accent)" stroke-width="7"
+                                stroke-dasharray="251.32" stroke-dashoffset="30" stroke-linecap="round" />
+                        </svg>
+                        <div class="orbit-center-stats">
+                            <span id="orbit-pct-val" class="orbit-center-pct">--%</span>
+                            <span id="orbit-sub-val" class="orbit-center-margin">+3 Safe</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Time-Left Dynamic Island Progress Bar -->
-            <div class="period-progress-card">
-                <div class="period-prog-header">
-                    <span id="prog-period-label">Current Period Progress</span>
-                    <span id="prog-time-left" class="prog-time-pill">-- min remaining</span>
-                </div>
-                <div class="period-prog-track">
-                    <div id="prog-fill" class="period-prog-fill" style="width: 0%;"></div>
-                </div>
+            <!-- Schedule Header & Day Selector Bar -->
+            <div class="schedule-section-header">
+                <span class="section-title">Academic Timetable</span>
+                <span class="day-order-badge" id="schedule-active-day-title" onclick="openDayOrderSwitcher()" style="cursor:pointer;" title="Tap to switch day order">Day 2 Order Active &rarr;</span>
             </div>
 
-            <div class="section-title">Today's Class Matrix</div>
-            <div class="day-scroll" id="day-selector"></div>
+            <!-- Day Order Segmented Control -->
+            <div class="day-scroll" id="day-selector" style="margin-top:2px;"></div>
 
-            <div id="period-list" class="timetable-list"></div>
+            <!-- Rich Timetable Rails Matrix -->
+            <div id="period-list" class="timetable-list" style="margin-top:10px;"></div>
         </div>
 
-        <!-- Section 2: Attendance Hub with Radial Gauge & Interactive Bunk Steppers -->
+        <!-- Section 2: Premium Attendance & Safe Bunk Telemetry Suite -->
         <div id="view-attendance" class="tab-view" style="display:none;">
-            <div class="section-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                <h3 style="font-size:0.98rem;font-weight:800;letter-spacing:0.02em;">📊 Live Attendance & Bunk Matrix</h3>
-                <button id="scrape-btn" class="pill-btn" onclick="triggerManualScrape()" style="background:#2563eb;color:#fff;border:none;padding:5px 12px;border-radius:8px;font-size:0.75rem;font-weight:700;cursor:pointer;">Sync Portal</button>
+            <!-- Header Controls -->
+            <div class="att-header-flex">
+                <div>
+                    <h3 class="att-page-title">Attendance Telemetry</h3>
+                    <p id="att-stamp" class="att-page-subtitle">Synced recently</p>
+                </div>
+                <div class="att-header-actions">
+                    <button class="att-action-pill" onclick="openWhatIfModal()">What-If Sim</button>
+                    <button id="scrape-btn" class="att-action-pill sync-pill" onclick="triggerManualScrape()">Sync Portal</button>
+                </div>
             </div>
 
-            <!-- Hero Attendance Radial Arc Gauge -->
-            <div class="att-hero-radial-card" id="att-hero-gauge-card">
-                <div class="radial-content-flex">
-                    <div class="radial-svg-wrap">
-                        <svg class="radial-svg" viewBox="0 0 120 120">
-                            <defs>
-                                <linearGradient id="radial-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#38bdf8" />
-                                    <stop offset="50%" stop-color="#818cf8" />
-                                    <stop offset="100%" stop-color="#22c55e" />
-                                </linearGradient>
-                            </defs>
-                            <circle class="radial-circle-bg" cx="60" cy="60" r="48" />
-                            <circle id="radial-gauge-bar" class="radial-circle-fill" cx="60" cy="60" r="48" stroke-dasharray="301.59" stroke-dashoffset="60" />
+            <!-- Master Hero Telemetry Deck -->
+            <div id="att-master-hero" class="att-master-hero">
+                <div class="att-hero-left">
+                    <div class="att-gauge-ring-wrap">
+                        <svg viewBox="0 0 100 100" class="att-gauge-ring-svg">
+                            <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="7"></circle>
+                            <circle id="att-master-gauge-arc" cx="50" cy="50" r="42" fill="none" stroke="var(--accent)" stroke-width="7" stroke-dasharray="263.89" stroke-dashoffset="30" stroke-linecap="round"></circle>
                         </svg>
-                        <div class="radial-center-val">
-                            <div id="radial-overall-pct" class="radial-pct">--%</div>
-                            <div class="radial-lbl">Overall</div>
+                        <div class="att-gauge-text-group">
+                            <span id="att-master-pct" class="att-master-pct-val">--%</span>
+                            <span id="att-master-status-tag" class="att-master-status-lbl">Safe</span>
                         </div>
                     </div>
-                    <div class="radial-stats-col">
-                        <div class="radial-stat-box">
-                            <span class="radial-stat-lbl">Attended / Conducted</span>
-                            <span id="radial-hrs-count" class="radial-stat-val">-- / -- hrs</span>
-                        </div>
-                        <div class="radial-stat-box">
-                            <span class="radial-stat-lbl">Safe Bunk Margin</span>
-                            <span id="radial-margin-val" class="radial-stat-val" style="color:#4ade80;">--</span>
-                        </div>
-                        <div style="display:flex;gap:6px;margin-top:2px;">
-                            <button class="pill-btn" onclick="resetBunkSimulations()" style="background:#1e1e28;color:#a1a1aa;border:1px solid #2d2d3c;padding:5px 8px;border-radius:6px;font-size:0.68rem;font-weight:600;cursor:pointer;flex:1;">🔄 Reset Bunk Sim</button>
-                            <button class="pill-btn" onclick="switchSuperTab('view-passport')" style="background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);padding:5px 8px;border-radius:6px;font-size:0.68rem;font-weight:600;cursor:pointer;flex:1;">🎯 CGPA Goal</button>
-                        </div>
+                </div>
+                <div class="att-hero-right">
+                    <div class="att-stat-pillar">
+                        <span class="att-pillar-label">Buffer</span>
+                        <span id="att-master-buffer-val" class="att-pillar-val">-- Bunks</span>
+                        <span class="att-pillar-desc">Safe Margin</span>
+                    </div>
+                    <div class="att-stat-pillar">
+                        <span class="att-pillar-label">Classes</span>
+                        <span id="att-master-hrs-val" class="att-pillar-val">-- / --</span>
+                        <span class="att-pillar-desc">Attended</span>
+                    </div>
+                    <div class="att-stat-pillar">
+                        <span class="att-pillar-label">Risk Count</span>
+                        <span id="att-master-risk-val" class="att-pillar-val">0</span>
+                        <span class="att-pillar-desc">&lt; 75% Critical</span>
                     </div>
                 </div>
             </div>
 
-            <p id="att-stamp" class="section-stamp" style="font-size:0.72rem;color:var(--text-muted);margin-bottom:12px;">Synced recently</p>
-            <div id="att-wrap" class="att-list" style="display:flex;flex-direction:column;gap:10px;">
+            <!-- Category Filter Pills Deck -->
+            <div class="att-filter-deck" id="att-filter-deck">
+                <button class="att-filter-chip active" id="chip-att-all" onclick="filterAttendanceView('ALL')">All (<span id="count-all">0</span>)</button>
+                <button class="att-filter-chip" id="chip-att-safe" onclick="filterAttendanceView('SAFE')">Safe Margin (<span id="count-safe">0</span>)</button>
+                <button class="att-filter-chip" id="chip-att-risk" onclick="filterAttendanceView('RISK')">Risk Alert (<span id="count-risk">0</span>)</button>
+                <button class="att-filter-chip" id="chip-att-theory" onclick="filterAttendanceView('THEORY')">Theory</button>
+                <button class="att-filter-chip" id="chip-att-lab" onclick="filterAttendanceView('LAB')">Practical / Labs</button>
+            </div>
+
+            <!-- Course Cards Deck -->
+            <div id="att-wrap" class="att-cards-deck">
                 <p class="att-empty" style="text-align:center;color:var(--text-muted);padding:30px 0;">Tap "Sync Portal" to fetch attendance records.</p>
             </div>
         </div>
@@ -206,29 +871,33 @@
         <!-- Section 3: High-Speed Academic AI Copilot -->
         <div id="view-ai" class="tab-view" style="display: none;">
             <div class="ai-view">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
                     <div style="display:flex;align-items:center;gap:6px;">
                         <span class="status-dot"></span>
-                        <span style="font-size:0.78rem;font-weight:700;color:var(--text-main);">SRM Academic AI Copilot</span>
+                        <span style="font-size:0.82rem;font-weight:800;color:var(--text-main);">SRM Academic AI Copilot</span>
                     </div>
-                    <span style="font-size:0.7rem;color:var(--accent);font-weight:600;">Zero-Timeout Engine</span>
+                    <span style="font-size:0.7rem;color:var(--accent);font-weight:700;">Zero-Timeout Engine</span>
                 </div>
 
                 <div class="ai-prompts">
-                    <div class="ai-prompt-pill" data-prompt="Analyze my real-time attendance, tell me which subjects are below 75%, and calculate safe bunks.">📊 Attendance Analysis</div>
-                    <div class="ai-prompt-pill" data-prompt="What is my schedule for today, what room is my next class in, and are there any cancellations?">🕒 Today's Schedule</div>
-                    <div class="ai-prompt-pill" data-prompt="Explain matrix eigenvalues and eigenvectors step-by-step for Calculus 26MAB1001T">📐 Calculus Matrix</div>
-                    <div class="ai-prompt-pill" data-prompt="Give me the C program and logic for prime numbers range in PPS 26CSE1002J">💻 C Code Practice</div>
+                    <div class="ai-prompt-pill" data-prompt="Analyze my real-time attendance, tell me which subjects are below 75%, and calculate safe bunks.">Attendance Analysis</div>
+                    <div class="ai-prompt-pill" data-prompt="What is my schedule for today, what room is my next class in, and are there any cancellations?">Today's Schedule</div>
+                    <div class="ai-prompt-pill" data-prompt="Who is my Faculty Advisor and Academic Advisor, and where are their cabins?">Faculty Advisor & Cabins</div>
+                    <div class="ai-prompt-pill" data-prompt="What is my allocated hostel block, room number, and hostel fee receipt info?">Hostel & Room Details</div>
+                    <div class="ai-prompt-pill" data-prompt="Summarize all active and pinned class notices, assignment deadlines, and lab notes.">Pinned Notices & Deadlines</div>
+                    <div class="ai-prompt-pill" data-prompt="What is my official tuition and hostel fee clearance status?">Fee & Dues Status</div>
+                    <div class="ai-prompt-pill" data-prompt="Explain matrix eigenvalues and eigenvectors step-by-step for Calculus 26MAB1001T">Calculus Matrix</div>
+                    <div class="ai-prompt-pill" data-prompt="Give me the C program and logic for prime numbers range in PPS 26CSE1002J">C Code Practice</div>
                 </div>
 
                 <div id="chat-history" class="chat-stream">
                     <div class="bubble bubble-ai">
-                        Hey! I'm your SRM Academic Copilot. I have real-time access to your Day Order schedule, live attendance margins, and exam syllabus. Ask me anything!
+                        Welcome to SRM Academic Copilot. I have real-time access to your Day Order schedule, live attendance margins, advisors, hostel, fees, and pinned class notices. Ask me anything.
                     </div>
                 </div>
 
                 <div class="ai-input-bar">
-                    <input type="text" id="ai-input" class="ai-input-field" placeholder="Ask AI (C code, matrix, safe bunks)...">
+                    <input type="text" id="ai-input" class="ai-input-field" placeholder="Ask about syllabus, calculate safe bunks, or write lab code...">
                     <button id="ai-send-btn" class="ai-send-action">Send</button>
                 </div>
             </div>
@@ -236,55 +905,45 @@
 
         <!-- Section 4: Categorized Announcements & WhatsApp Hub -->
         <div id="view-announcements" class="tab-view" style="display: none;">
-            <!-- Direct Mobile-to-Mobile WhatsApp Hub -->
+            <!-- Direct On-Device WhatsApp & Notice Hub -->
             <div class="wa-hub-card">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                    <div style="display:flex;align-items:center;gap:6px;">
-                        <span style="font-size:1.1rem;">🟢</span>
-                        <span style="font-size:0.85rem;font-weight:800;color:#ffffff;">Class WhatsApp Hub</span>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span class="status-dot" style="background:var(--accent);"></span>
+                        <span style="font-size:0.88rem;font-weight:800;color:var(--text-main);">Class WhatsApp & Notice Feed</span>
                     </div>
-                    <span class="wa-privacy-badge">🔒 Direct Multi-Device</span>
-                </div>
-                
-                <!-- Baileys Virtual Companion Pairing Bar -->
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:8px 10px;background:rgba(0,0,0,0.28);border-radius:10px;">
-                    <div style="display:flex;align-items:center;gap:6px;min-width:0;">
-                        <span id="wa-device-status-dot" class="status-dot" style="background:#f59e0b;"></span>
-                        <span id="wa-device-status-text" style="font-size:0.75rem;font-weight:700;color:#f4f4f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Companion: Standby</span>
-                    </div>
-                    <button id="wa-device-action-btn" class="pill-btn" style="background:#22c55e;color:#000;border:none;padding:4px 10px;border-radius:6px;font-size:0.72rem;font-weight:700;cursor:pointer;flex-shrink:0;" onclick="openWALinkedDeviceModal()">📱 Pair Device (QR)</button>
+                    <span class="wa-privacy-badge">Live Scraping</span>
                 </div>
 
-                <div class="holiday-actions-deck" style="margin:8px 0 6px;grid-template-columns: 1fr 1fr 1fr;">
-                    <button class="holiday-action-btn" style="background:#14241b;border-color:#166534;color:#4ade80;" onclick="openWAGroupSelectorModal()">
-                        <span>☑️</span>
-                        <span>Pick Groups</span>
+                <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:8px;">
+                    <button class="pill-btn" style="justify-content:center;color:var(--accent);font-size:0.75rem;padding:7px 8px;" onclick="openWALinkedDeviceModal()">
+                        <span>QR Link</span>
                     </button>
-                    <button class="holiday-action-btn" style="background:#1e1b4b;border-color:#3730a3;color:#818cf8;" onclick="openPasteChatForAISummaryModal()">
-                        <span>🤖</span>
-                        <span>AI Summarize</span>
+                    <button class="pill-btn" style="justify-content:center;color:var(--blue);font-size:0.75rem;padding:7px 8px;" onclick="openWAGroupSelectorModal()">
+                        <span>Groups</span>
                     </button>
-                    <button class="holiday-action-btn" style="background:#18181d;border-color:#3f3f46;color:#e4e4e7;" onclick="document.getElementById('wa-chat-file-input').click()">
-                        <span>📄</span>
-                        <span>Import .txt</span>
+                    <button class="pill-btn" style="justify-content:center;font-size:0.75rem;padding:7px 8px;" onclick="openCreateNoticeModal()">
+                        <span>Add Notice</span>
                     </button>
                 </div>
-                <input type="file" id="wa-chat-file-input" accept=".txt" style="display:none;" onchange="handleWAChatFileUpload(event)">
                 <div id="wa-groups-list" class="wa-groups-grid">
                     <!-- Populated by JS -->
                 </div>
             </div>
 
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                <h3 style="font-size:0.92rem;font-weight:700;letter-spacing:0.02em;">📢 Class Notices & Assignment Deadlines</h3>
-                <span id="ann-counter" style="font-size:0.72rem;background:#18181b;padding:3px 8px;border-radius:9999px;border:1px solid #27272a;color:var(--accent);">0 notices</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <h3 style="font-size:0.92rem;font-weight:800;letter-spacing:0.02em;">Notices & Deadlines</h3>
+                    <button class="pill-btn" style="padding:3px 8px;font-size:0.68rem;background:var(--card-elevated);color:var(--accent);" onclick="broadcastAllPinnedToP2P()">Broadcast P2P</button>
+                </div>
+                <span id="ann-counter" style="font-size:0.72rem;background:var(--card-elevated);padding:3px 8px;border-radius:var(--radius-sm);border:var(--border-width) solid var(--card-border);color:var(--accent);font-weight:700;font-family:var(--font-mono);">0 notices</span>
             </div>
 
-            <!-- Subject Filter Pills (Populated dynamically by JS) -->
-            <div class="day-scroll" id="ann-filter-scroll" style="margin-bottom:12px;"></div>
+            <!-- Subject & Pinned Filter Pills (Populated dynamically by JS) -->
+            <div class="filter-chips-scroll" id="ann-filter-scroll" style="margin-bottom:12px;"></div>
 
             <!-- Quick Search Bar -->
-            <input type="text" id="ann-search-input" class="ai-input-field" style="margin-bottom:12px;width:100%;font-size:0.82rem;" placeholder="🔍 Search notices (e.g. lab manual, assignment, test)...">
+            <input type="text" id="ann-search-input" class="ai-input-field" style="margin-bottom:12px;width:100%;font-size:0.82rem;" placeholder="Search notices by title, subject code, or keyword...">
 
             <!-- Announcements Feed -->
             <div id="announcements-container" style="display:flex;flex-direction:column;gap:10px;">
@@ -296,30 +955,31 @@
         <!-- Section 2.5: Hostel Mess & SRM Clubs Discovery Hub -->
         <div id="view-mess-clubs" class="tab-view" style="display:none;">
             <!-- Top Mode Switcher -->
-            <div class="day-scroll" style="margin-bottom:14px;">
-                <div id="btn-sub-mess" class="day-chip active" onclick="switchMessClubsSubTab('mess')">🍽️ Hostel Mess Menu</div>
-                <div id="btn-sub-clubs" class="day-chip" onclick="switchMessClubsSubTab('clubs')">🎪 SRM Clubs & Recruitments</div>
+            <div class="subtab-segmented-bar" style="margin-bottom:14px;">
+                <button id="btn-sub-mess" class="subtab-btn active" onclick="switchMessClubsSubTab('mess')">Hostel Mess Menu</button>
+                <button id="btn-sub-clubs" class="subtab-btn" onclick="switchMessClubsSubTab('clubs')">Clubs & Recruitments</button>
             </div>
 
             <!-- Subview A: Hostel Mess Menu -->
             <div id="subview-mess">
                 <!-- Live Meal Timing Banner -->
                 <div class="mess-hero-banner">
-                    <div>
-                        <div id="mess-meal-active-title" style="font-size:0.95rem;font-weight:800;color:#ffffff;display:flex;align-items:center;gap:6px;">
-                            <span>🍛</span> <span id="mess-active-meal-name">Lunch (12:00 PM - 02:15 PM)</span>
+                    <div style="min-width:0;">
+                        <div id="mess-meal-active-title" style="font-size:0.92rem;font-weight:800;color:var(--text-main);display:flex;align-items:center;gap:6px;">
+                            <span id="mess-active-meal-name">Lunch (12:00 PM - 02:15 PM)</span>
                         </div>
-                        <div id="mess-countdown-text" style="font-size:0.74rem;color:#94a3b8;margin-top:3px;font-family:'JetBrains Mono',monospace;">⏳ Next: Evening Tea & Snacks in 2h 15m</div>
+                        <div id="mess-countdown-text" style="font-size:0.74rem;color:var(--text-muted);margin-top:3px;font-family:var(--font-mono);">Next: Evening Tea & Snacks in 2h 15m</div>
                     </div>
-                    <span class="mess-meal-badge" id="mess-badge-status">🟢 Serving Now</span>
+                    <span class="mess-meal-badge" id="mess-badge-status">Serving Now</span>
                 </div>
 
                 <!-- Hostel Block Selector -->
-                <div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">Select Hostel Block</div>
-                <div class="day-scroll" id="mess-hostel-scroll" style="margin-bottom:12px;"></div>
+                <div style="font-size:0.72rem;font-weight:800;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">Select Hostel Block</div>
+                <div class="filter-chips-scroll" id="mess-hostel-scroll" style="margin-bottom:12px;"></div>
 
                 <!-- 7-Day Day Selector -->
-                <div class="day-scroll" id="mess-day-scroll" style="margin-bottom:14px;"></div>
+                <div style="font-size:0.72rem;font-weight:800;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">Select Day</div>
+                <div class="filter-chips-scroll" id="mess-day-scroll" style="margin-bottom:14px;"></div>
 
                 <!-- 4 Meal Cards Grid -->
                 <div class="meal-cards-grid" id="mess-meal-cards-container">
@@ -331,18 +991,18 @@
             <div id="subview-clubs" style="display:none;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
                     <div>
-                        <h3 style="font-size:0.95rem;font-weight:800;color:#f4f4f5;">SRM KTR Clubs & Hackathons</h3>
+                        <h3 style="font-size:0.95rem;font-weight:800;color:var(--text-main);">SRM KTR Clubs & Hackathons</h3>
                         <p style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Recruitments, flagship fests, and hackathons</p>
                     </div>
-                    <button class="pill-btn" onclick="openSubmitClubModal()" style="background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);padding:5px 10px;border-radius:8px;font-size:0.72rem;font-weight:700;cursor:pointer;">➕ Submit Event</button>
+                    <button class="pill-btn" onclick="openSubmitClubModal()" style="color:var(--blue);font-weight:800;">Submit Event</button>
                 </div>
 
                 <!-- Category Filters -->
                 <div class="day-scroll" id="club-category-scroll" style="margin-bottom:14px;">
                     <div class="day-chip active" onclick="filterClubs('All')">All Clubs</div>
-                    <div class="day-chip" onclick="filterClubs('Technical')">💻 Technical & AI</div>
-                    <div class="day-chip" onclick="filterClubs('Motorsports')">🏎️ Motorsports</div>
-                    <div class="day-chip" onclick="filterClubs('Cultural')">🎭 Cultural & Fests</div>
+                    <div class="day-chip" onclick="filterClubs('Technical')">Technical & AI</div>
+                    <div class="day-chip" onclick="filterClubs('Motorsports')">Motorsports</div>
+                    <div class="day-chip" onclick="filterClubs('Cultural')">Cultural & Fests</div>
                 </div>
 
                 <!-- Clubs Grid -->
@@ -352,122 +1012,212 @@
             </div>
         </div>
 
-        <!-- Section 2.6: Academic Passport & Faculty Counselor Hub -->
+        <!-- Section 2.6: Academic Passport & Digital Student Profile Card -->
         <div id="view-passport" class="tab-view" style="display:none;">
-            <!-- Student Academic Passport Header -->
-            <div class="passport-hero-card">
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
-                    <div style="display:flex;align-items:center;gap:12px;">
-                        <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg, #38bdf8 0%, #a855f7 100%);display:flex;align-items:center;justify-content:center;font-size:1.4rem;box-shadow:0 4px 15px rgba(56,189,248,0.3);">🎓</div>
-                        <div>
-                            <div id="pass-student-name" style="font-size:1rem;font-weight:800;color:#f4f4f5;">KARANAM SAI PRASANTH</div>
-                            <div id="pass-reg-sub" style="font-size:0.72rem;color:#a1a1aa;font-family:'JetBrains Mono',monospace;margin-top:2px;">RA2611026010283 &bull; Section P1 &bull; Sub-Batch P13</div>
+            
+            <!-- Sleek Interactive Student Identity Card -->
+            <div class="discord-profile-card" id="passport-discord-profile-card">
+                <div class="discord-profile-banner banner-theme" id="passport-smart-card-banner" onclick="openProfileCustomizerModal('tab-banners')" style="cursor:pointer;" title="Tap to change profile banner"></div>
+
+                <div class="discord-avatar-wrapper" onclick="openProfileCustomizerModal('tab-avatars')" style="cursor:pointer;" title="Tap to customize avatar & frame">
+                    <div class="discord-avatar-circle" id="passport-avatar-frame">
+                        <span id="passport-avatar-initials">KP</span>
+                    </div>
+                    <div class="discord-avatar-edit-badge" title="Edit Avatar">
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                    </div>
+                    <div class="discord-status-dot" title="Online & Synced"></div>
+                </div>
+
+                <div class="discord-profile-body">
+                    <div class="discord-user-header">
+                        <div class="discord-name-row">
+                            <h3 class="discord-display-name" id="passport-student-name">Student Name</h3>
+                            <button type="button" onclick="openProfileCustomizerModal('tab-decorations')" title="Customize Profile & Rings" style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;background:var(--accent-subtle,rgba(99,102,241,0.12));border:1.5px solid var(--accent-border,rgba(99,102,241,0.3));color:var(--accent,#6366f1);font-size:0.72rem;font-weight:700;cursor:pointer;letter-spacing:0.02em;margin-left:6px;white-space:nowrap;">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                Edit
+                            </button>
+                            <div class="discord-badges-row" id="passport-discord-badges-row" onclick="openProfileCustomizerModal('tab-badges')" title="Customize Badges" style="cursor:pointer;">
+                                <span class="discord-badge-pill" title="Verified Student">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                </span>
+                                <span class="discord-badge-pill" title="Campus Speed Runner">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                                </span>
+                                <span class="discord-badge-pill" title="Honors Titan">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="discord-handle-row">
+                            <span class="discord-username" id="passport-reg-no">Student ID &bull; SRMIST Kattankulathur</span>
                         </div>
                     </div>
-                    <span style="font-size:0.68rem;font-weight:700;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.3);color:#4ade80;padding:4px 8px;border-radius:6px;">Regular Active</span>
-                </div>
 
+                    <div class="discord-custom-status" id="passport-custom-status-box" onclick="openProfileCustomizerModal('tab-titles')" title="Tap to edit custom status">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                        <span class="discord-status-text" id="passport-nerd-title-text">Bunk Mathematician (75.1% Specialist)</span>
+                        <span class="discord-status-edit-cue" style="margin-left:auto;font-size:0.64rem;color:var(--text-muted);font-weight:700;display:flex;align-items:center;gap:3px;">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            Edit
+                        </span>
+                    </div>
+
+                    <div class="discord-divider"></div>
+
+                    <div class="discord-academic-grid">
+                        <div class="discord-info-item full-width">
+                            <span class="discord-info-label">PROGRAM</span>
+                            <span class="discord-info-val" id="passport-dept-pill">B.Tech Computer Science & Engineering</span>
+                        </div>
+                        <div class="discord-info-item">
+                            <span class="discord-info-label">SECTION</span>
+                            <span class="discord-info-val" id="passport-sec-pill">Sec AH1 &bull; 1st Year</span>
+                        </div>
+                        <div class="discord-info-item">
+                            <span class="discord-info-label">HOSTEL</span>
+                            <span class="discord-info-val" id="passport-hostel-pill">Adhiyaman &bull; Room 335</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attractive Segmented Passport Tabs -->
+            <div class="passport-sub-nav">
+                <button type="button" class="passport-tab-btn active" id="pass-sub-btn-overview" onclick="switchPassportSubTab('pass-sub-overview', this)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    <span>Overview</span>
+                </button>
+                <button type="button" class="passport-tab-btn" id="pass-sub-btn-credits" onclick="switchPassportSubTab('pass-sub-credits', this)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                    <span>Curriculum</span>
+                </button>
+                <button type="button" class="passport-tab-btn" id="pass-sub-btn-counselor" onclick="switchPassportSubTab('pass-sub-counselor', this)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    <span>Counselor & Hostel</span>
+                </button>
+                <button type="button" class="passport-tab-btn" id="pass-sub-btn-grades" onclick="switchPassportSubTab('pass-sub-grades', this)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                    <span>SGPA & Clearances</span>
+                </button>
+            </div>
+
+            <!-- Sub-Pane 1: Overview -->
+            <div id="pass-sub-overview" class="passport-sub-pane" style="display:block;">
                 <!-- Degree Credits Completion Gauge -->
-                <div style="margin-top:14px;background:rgba(0,0,0,0.25);border-radius:12px;padding:12px;border:1px solid rgba(255,255,255,0.06);">
+                <div style="background:var(--card-elevated);border-radius:var(--radius-md);padding:10px 12px;border:1px solid var(--card-border);margin-bottom:14px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                        <span style="font-size:0.75rem;font-weight:700;color:#f4f4f5;">B.Tech Degree Completion (NEP 2021)</span>
-                        <span id="pass-credits-ratio" style="font-size:0.75rem;font-weight:800;color:#38bdf8;font-family:'JetBrains Mono',monospace;">22 / 160 Credits (13.7%)</span>
+                        <span style="font-size:0.72rem;font-weight:800;color:var(--text-main);">Degree Credits (NEP 2021)</span>
+                        <span id="pass-credits-ratio" style="font-size:0.72rem;font-weight:800;color:var(--accent);font-family:var(--font-mono);">22 / 160 Credits (13.7%)</span>
                     </div>
-                    <div style="width:100%;height:8px;background:#1e1e28;border-radius:9999px;overflow:hidden;">
-                        <div id="pass-credit-progress-bar" style="width:13.7%;height:100%;background:linear-gradient(90deg, #38bdf8, #a855f7);border-radius:9999px;"></div>
+                    <div style="width:100%;height:7px;background:var(--card);border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--card-border);">
+                        <div id="pass-credit-progress-bar" style="width:13.7%;height:100%;background:var(--accent);border-radius:var(--radius-sm);"></div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Faculty Advisor & Academic Counselor Card -->
-            <div class="fa-advisor-card">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                    <span style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Official Faculty Advisor (FA)</span>
-                    <span style="font-size:0.68rem;background:#181822;color:#38bdf8;padding:2px 8px;border-radius:4px;border:1px solid #28283a;">Emp ID: 100429</span>
+                <!-- Faculty Advisor Quick Card -->
+                <div class="fa-advisor-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Official Faculty Advisor</span>
+                        <span style="font-size:0.68rem;background:var(--card-elevated);color:var(--accent);padding:2px 8px;border-radius:var(--radius-sm);border:1px solid var(--card-border);font-weight:700;">CSE Faculty</span>
+                    </div>
+                    <div style="font-size:0.95rem;font-weight:800;color:var(--text-main);margin-bottom:2px;" id="fa-name">Dr. Prithi S.</div>
+                    <div style="font-size:0.74rem;color:var(--text-sub);margin-bottom:6px;" id="fa-dept">Department of Computer Science & Engineering</div>
+                    <div style="font-size:0.74rem;color:var(--text-main);background:var(--card-elevated);border:1px solid var(--card-border);padding:8px 10px;border-radius:var(--radius-md);margin-bottom:10px;" id="fa-cabin">
+                        <b>Office Base:</b> UB 6th Floor, Room 601 &bull; <b>Section:</b> Sec AH1
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <a id="fa-email-btn" href="mailto:prithis@srmist.edu.in" class="fa-action-btn" style="flex:1;text-decoration:none;justify-content:center;">
+                            <span>Email Counselor</span>
+                        </a>
+                        <button class="fa-action-btn" onclick="copyFAToClipboard()">
+                            <span>Copy Details</span>
+                        </button>
+                    </div>
                 </div>
-                <div style="font-size:0.92rem;font-weight:800;color:#f4f4f5;margin-bottom:2px;" id="fa-name">DR. N. PARVATHI</div>
-                <div style="font-size:0.74rem;color:#a1a1aa;margin-bottom:6px;" id="fa-dept">Computational Mathematics & Data Analytics</div>
-                <div style="font-size:0.74rem;color:#38bdf8;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.15);padding:6px 10px;border-radius:8px;margin-bottom:10px;" id="fa-cabin">
-                    📍 <b>Cabin:</b> University Building (UB) 6th Floor, Cabin 604
-                </div>
-                <div style="display:flex;gap:8px;">
-                    <a id="fa-email-btn" href="mailto:parvathi.n@srmist.edu.in" class="fa-action-btn" style="flex:1;text-decoration:none;justify-content:center;">
-                        <span>✉️ Email Counselor</span>
-                    </a>
-                    <button class="fa-action-btn" style="background:#181822;border-color:#2a2a38;color:#f4f4f5;" onclick="copyFAToClipboard()">
-                        <span>📋 Copy Details</span>
-                    </button>
-                </div>
-            </div>
 
-            <!-- Degree Credit Categories Breakdown -->
-            <div style="font-size:0.82rem;font-weight:800;color:#f4f4f5;margin-bottom:8px;">Curriculum Credit Breakdown</div>
-            <div id="pass-credit-categories-container" style="margin-bottom:14px;">
-                <!-- Populated dynamically by JS -->
-            </div>
-
-            <!-- Hostel & Campus Emergency Hotline -->
-            <div class="fa-advisor-card">
-                <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">Hostel Allocation & Emergency Hotline</div>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                    <span style="font-size:0.82rem;font-weight:700;color:#f4f4f5;" id="pass-hostel-room">Paari Block &bull; Room 408 (Bed B)</span>
-                    <span style="font-size:0.68rem;background:#181822;color:#a1a1aa;padding:2px 6px;border-radius:4px;">Non-AC 3-Sharing</span>
-                </div>
-                <div style="font-size:0.74rem;color:#a1a1aa;margin-bottom:4px;" id="pass-hostel-warden">Warden: Dr. K. Senthil Kumar</div>
-                <div style="font-size:0.72rem;color:#f87171;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);padding:6px 10px;border-radius:8px;margin-top:6px;">
-                    🚨 <b>Ambulance / Casualty Desk:</b> 044-27453140 / 108 (24/7 SRM Hospital)
+                <!-- Clearances Summary -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+                    <div class="clearance-badge"><span class="status-dot-sm" style="background:var(--accent);"></span> <span>Tuition: Paid</span></div>
+                    <div class="clearance-badge"><span class="status-dot-sm" style="background:var(--accent);"></span> <span>Hostel: Paid</span></div>
+                    <div class="clearance-badge"><span class="status-dot-sm" style="background:var(--accent);"></span> <span>Library: 0 Dues</span></div>
+                    <div class="clearance-badge"><span class="status-dot-sm" style="background:var(--accent);"></span> <span>Lab: Clear</span></div>
                 </div>
             </div>
 
-            <!-- Official Portal Clearances & No-Dues -->
-            <div style="font-size:0.82rem;font-weight:800;color:#f4f4f5;margin-bottom:8px;">Portal "No Dues" & Fee Status</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
-                <div class="clearance-badge"><span>🟢</span> <span>Tuition: Paid</span></div>
-                <div class="clearance-badge"><span>🟢</span> <span>Hostel: Paid</span></div>
-                <div class="clearance-badge"><span>🟢</span> <span>Library: 0 Dues</span></div>
-                <div class="clearance-badge"><span>🟢</span> <span>Lab: Clear</span></div>
-            </div>
-
-            <!-- Regulation-Aware CGPA / SGPA Simulator -->
-            <div class="gpa-dial-card">
-                <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Regulation 2021 Grade & SGPA Simulator</div>
-                <div id="sim-sgpa-value" style="font-size:2.2rem;font-weight:900;font-family:'JetBrains Mono',monospace;color:#22c55e;line-height:1;margin:8px 0 4px;">9.42</div>
-                <div style="font-size:0.74rem;font-weight:600;color:#a1a1aa;margin-bottom:14px;">Projected Semester SGPA &bull; 14 Credits</div>
-                
-                <div id="gpa-courses-simulator-list" style="text-align:left;display:flex;flex-direction:column;gap:8px;">
+            <!-- Sub-Pane 2: Curriculum & Credits -->
+            <div id="pass-sub-credits" class="passport-sub-pane" style="display:none;">
+                <div style="font-size:0.82rem;font-weight:800;color:var(--text-main);margin-bottom:8px;">Curriculum Credit Breakdown</div>
+                <div id="pass-credit-categories-container" style="margin-bottom:14px;">
                     <!-- Populated dynamically by JS -->
+                </div>
+            </div>
+
+            <!-- Sub-Pane 3: Counselor & Hostel -->
+            <div id="pass-sub-counselor" class="passport-sub-pane" style="display:none;">
+                <!-- Hostel Allocation Card -->
+                <div class="fa-advisor-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Hostel Allocation</span>
+                        <button class="pill-btn" onclick="editHostelDetails()" style="color:var(--blue);font-weight:800;">Set Block</button>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <span style="font-size:0.82rem;font-weight:800;color:var(--text-main);" id="pass-hostel-room">Not Linked &bull; Tap 'Set Block'</span>
+                        <span style="font-size:0.68rem;background:var(--card-elevated);color:var(--text-muted);padding:2px 6px;border-radius:var(--radius-sm);" id="pass-hostel-type">Custom</span>
+                    </div>
+                    <div style="font-size:0.74rem;color:var(--text-sub);margin-bottom:4px;" id="pass-hostel-warden">Campus: Kattankulathur Main Campus</div>
+                    <div style="font-size:0.72rem;color:var(--red);background:var(--red-subtle);border:1px solid var(--red-border);padding:6px 10px;border-radius:var(--radius-md);margin-top:6px;">
+                        <b>Emergency Hotline:</b> 044-27453140 / 108 (24/7 SRM Hospital)
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sub-Pane 4: SGPA & Clearances -->
+            <div id="pass-sub-grades" class="passport-sub-pane" style="display:none;">
+                <!-- Regulation-Aware CGPA / SGPA Simulator -->
+                <div class="gpa-dial-card">
+                    <div style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Regulation 2021 Grade & SGPA Simulator</div>
+                    <div id="sim-sgpa-value" style="font-size:2.2rem;font-weight:900;font-family:var(--font-mono);color:var(--accent);line-height:1;margin:8px 0 4px;">9.42</div>
+                    <div style="font-size:0.74rem;font-weight:700;color:var(--text-muted);margin-bottom:14px;">Projected Semester SGPA &bull; 14 Credits</div>
+                    
+                    <div id="gpa-courses-simulator-list" style="text-align:left;display:flex;flex-direction:column;gap:8px;">
+                        <!-- Populated dynamically by JS -->
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Section 5: Calendar & Holidays -->
         <div id="view-calendar" class="tab-view" style="display: none;">
-            <input type="text" id="cal-search-input" class="ai-input-field" style="margin-bottom:12px;width:100%;" placeholder="🔍 Search dates (e.g. 04-09, Oct), Day Order, Holidays...">
+            <input type="text" id="cal-search-input" class="ai-input-field" style="margin-bottom:12px;width:100%;" placeholder="Search by date (DD-MM), day order (1-5), or holiday...">
             <div class="cal-list" id="cal-list-container">
                 <!-- Populated by JS -->
             </div>
         </div>
 
-        <!-- Section 6: Real P2P WebRTC Device-to-Device Mesh Chat -->
+        <!-- Section 6: Real P2P WebRTC / MQTT Classroom Mesh Chat -->
         <div id="view-p2p" class="tab-view" style="display: none;">
             <div class="ai-view">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
                     <div style="display:flex;align-items:center;gap:6px;">
-                        <span class="status-dot" style="background:#22c55e;"></span>
-                        <span style="font-size:0.75rem;font-weight:600;color:var(--text-sub);">P2P Classroom Mesh (WebRTC &bull; Zero Server DB)</span>
+                        <span class="status-dot" style="background:var(--accent);"></span>
+                        <span id="p2p-section-tag" class="p2p-section-badge">Section P1 Mesh</span>
                     </div>
-                    <span id="p2p-peer-count" style="font-size:0.7rem;background:#18181b;padding:2px 8px;border-radius:9999px;color:var(--accent);border:1px solid #27272a;">Connecting...</span>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <button class="pill-btn" style="padding:2px 8px;font-size:0.68rem;color:var(--accent);" onclick="broadcastAllPinnedToP2P()">Share Pinned</button>
+                        <span id="p2p-peer-count" style="font-size:0.7rem;background:var(--card-elevated);padding:2px 8px;border-radius:var(--radius-sm);color:var(--accent);border:1px solid var(--card-border);font-family:var(--font-mono);font-weight:700;">Mesh: Online</span>
+                    </div>
                 </div>
 
                 <div id="p2p-chat-history" class="chat-stream">
-                    <div class="bubble bubble-ai" style="background:#121215;border:1px solid #222227;">
-                        🌐 <b>True Device-to-Device P2P Classroom Mesh</b><br>
-                        Messages travel directly between student devices via WebRTC data channels with zero server storage.
+                    <div class="bubble bubble-ai">
+                        <b>Device-to-Device Classroom Mesh</b><br>
+                        Messages and notices broadcast directly between section classmates in real-time with zero server storage.
                     </div>
                 </div>
 
                 <div class="ai-input-bar">
-                    <input type="text" id="p2p-input" class="ai-input-field" placeholder="Send P2P message to classmates...">
+                    <input type="text" id="p2p-input" class="ai-input-field" placeholder="Broadcast message to section classmates...">
                     <button id="p2p-send-btn" class="ai-send-action" onclick="sendP2PMessage()">Send</button>
                 </div>
             </div>
@@ -476,20 +1226,25 @@
         <!-- Section 7: Tools & ICS Export -->
         <div id="view-tools" class="tab-view" style="display: none;">
             <div style="display:flex;flex-direction:column;gap:10px;">
+                <button class="quick-action-btn" onclick="openThemeModal()">
+                    <span>Visual Theme Engine</span>
+                    <span>&rarr;</span>
+                </button>
+
                 <button id="btn-share-wa" class="quick-action-btn">
-                    <span>📲 Share Today's Schedule on WhatsApp</span>
+                    <span>Share Today's Schedule on WhatsApp</span>
                     <span>&rarr;</span>
                 </button>
 
                 <button id="btn-download-ics" class="quick-action-btn">
-                    <span>📅 Export 140-Day Calendar (.ics)</span>
+                    <span>Export 140-Day Calendar (.ics)</span>
                     <span>&rarr;</span>
                 </button>
 
                 <div class="hero-info-box" style="margin-top:10px;padding:16px;">
                     <div class="k">App Architecture Status</div>
-                    <div style="font-size:0.8rem;color:var(--text-sub);margin-top:4px;line-height:1.4;">
-                        ⚡ <b>100% $0-Forever Zero-Bottleneck Setup:</b><br>
+                    <div style="font-size:0.8rem;color:var(--text-sub);margin-top:4px;line-height:1.5;">
+                        <b>100% Zero-Bottleneck Setup:</b><br>
                         • Pure HTTP Session Proxy (15MB RAM)<br>
                         • Stale-While-Revalidate 0ms App Boot<br>
                         • Zero-Login Serverless AI Engine<br>
@@ -501,7 +1256,7 @@
 
     </div>
 
-    <!-- Bottom Navigation Dock -->
+    <!-- Bottom Navigation Dock with Central Command Hub Button -->
     <div class="dock" style="display:none;">
         <button class="dock-item active" data-tab="view-schedule">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
@@ -511,17 +1266,15 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
             <span>Attendance</span>
         </button>
-        <button class="dock-item" data-tab="view-mess-clubs">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
-            <span>Mess & Clubs</span>
+        <button class="dock-item dock-center-action" type="button" onclick="openCommandCenterModal(); event.stopPropagation();" title="Command Hub & Settings">
+            <div class="dock-hub-btn-circle" onclick="openCommandCenterModal(); event.stopPropagation();">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </div>
+            <span>Hub</span>
         </button>
         <button class="dock-item" data-tab="view-ai">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-            <span>AI Copilot</span>
-        </button>
-        <button class="dock-item" data-tab="view-passport">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-            <span>Passport</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            <span>Copilot</span>
         </button>
         <button class="dock-item" data-tab="view-announcements">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
@@ -529,7 +1282,7 @@
         </button>
     </div>
 
-    <script src="data.js?v=2.5.0"></script>
-    <script src="app.js?v=2.5.0"></script>
+    <script src="data.js?v=5.7.2"></script>
+    <script src="app.js?v=5.7.2"></script>
 </body>
 </html>

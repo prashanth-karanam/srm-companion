@@ -3,8 +3,8 @@
   "appName": "SRM Companion",
   "webDir": "www",
   "server": {
-    "url": "https://prashanth-karanam.github.io/srm-companion/",
-    "cleartext": true
+    "cleartext": true,
+    "androidScheme": "https"
   },
   "plugins": {
     "CapacitorHttp": {

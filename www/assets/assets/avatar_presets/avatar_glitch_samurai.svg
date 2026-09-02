@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="samBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#450a0a" />
+    </linearGradient>
+    <linearGradient id="bladeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#ef4444" />
+    </linearGradient>
+  </defs>
+  <style>
+    @keyframes glitchPulse {
+      0%, 100% { transform: translateY(0); filter: drop-shadow(0 0 4px #ef4444); }
+      50% { transform: translateY(-1px) scale(1.02); filter: drop-shadow(0 0 10px #f43f5e); }
+    }
+    .sam-body { transform-origin: 50px 50px; animation: glitchPulse 2.5s ease-in-out infinite; }
+  </style>
+  <circle cx="50" cy="50" r="50" fill="url(#samBg)" />
+  <g class="sam-body">
+    <!-- Kabuto Helmet Crest -->
+    <path d="M50,16 L38,28 L50,26 L62,28 Z" fill="#fde047" stroke="#ca8a04" stroke-width="1" />
+    <polygon points="50,10 54,20 46,20" fill="#ef4444" />
+    <!-- Helmet Dome -->
+    <path d="M26,44 C26,26 74,26 74,44 L70,58 C70,72 30,72 30,58 Z" fill="#09090b" stroke="#ef4444" stroke-width="2" />
+    <!-- Menpo Mask Visor -->
+    <path d="M34,46 L66,46 L60,54 L40,54 Z" fill="url(#bladeGrad)" />
+    <!-- Cyber Mask Fang Grille -->
+    <line x1="42" y1="62" x2="42" y2="68" stroke="#ef4444" stroke-width="2" />
+    <line x1="50" y1="62" x2="50" y2="70" stroke="#ef4444" stroke-width="2" />
+    <line x1="58" y1="62" x2="58" y2="68" stroke="#ef4444" stroke-width="2" />
+  </g>
+</svg>

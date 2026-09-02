@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="animeBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fdf2f8" />
+      <stop offset="50%" stop-color="#fce7f3" />
+      <stop offset="100%" stop-color="#fbcfe8" />
+    </linearGradient>
+  </defs>
+  <style>
+    @keyframes blushPulse {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+    .blush { transform-origin: center; animation: blushPulse 2.5s ease-in-out infinite; }
+  </style>
+  <circle cx="50" cy="50" r="50" fill="url(#animeBg)" />
+  <!-- Eyes -->
+  <ellipse cx="36" cy="46" rx="6" ry="8" fill="#ec4899" />
+  <circle cx="34" cy="43" r="2.5" fill="#ffffff" />
+  <circle cx="38" cy="48" r="1.5" fill="#ffffff" />
+  
+  <ellipse cx="64" cy="46" rx="6" ry="8" fill="#ec4899" />
+  <circle cx="62" cy="43" r="2.5" fill="#ffffff" />
+  <circle cx="66" cy="48" r="1.5" fill="#ffffff" />
+  <!-- Smile -->
+  <path d="M44,58 Q50,64 56,58" stroke="#be185d" stroke-width="2" stroke-linecap="round" fill="none" />
+  <!-- Blushes -->
+  <ellipse cx="28" cy="56" rx="5" ry="3" fill="#f43f5e" class="blush" />
+  <ellipse cx="72" cy="56" rx="5" ry="3" fill="#f43f5e" class="blush" />
+</svg>

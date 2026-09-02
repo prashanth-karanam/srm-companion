@@ -1,6 +1,6 @@
 """
 SRM Companion - Smart One-Time Browser Login + Persistent API Client
-Student: Karanam Sai Prasanth (RA2611026010283)
+Multi-user: Accepts dynamic per-request credentials.
 
 Strategy (you were right — there IS a better way):
   1. ONE-TIME: Use Playwright browser to login (handles JS encryption, CSRF, etc.)
@@ -51,6 +51,9 @@ REPORT_URLS = {
     "timetable" : f"{CREATOR_BASE}/My_Time_Table",
     "calendar"  : f"{CREATOR_BASE}/My_Academic_Calender",
     "circulars" : f"{CREATOR_BASE}/My_Circulars",
+    "hostel"    : f"{CREATOR_BASE}/My_Hostel_Details",
+    "grades"    : f"{CREATOR_BASE}/My_Grade_Book",
+    "fees"      : f"{CREATOR_BASE}/My_Fee_Details",
 }
 
 HEADERS = {
@@ -254,13 +257,15 @@ class SRMAcademiaAPI:
     Uses saved cookies — zero browser involvement.
     """
 
-    def __init__(self):
+    def __init__(self, netid=None, password=None):
         retry   = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
         adapter = HTTPAdapter(max_retries=retry)
         self.session = requests.Session()
         self.session.mount("https://", adapter)
         self.session.headers.update(HEADERS)
-        self.username, self.password = load_credentials()
+        _file_user, _file_pass = load_credentials()
+        self.username = netid or _file_user
+        self.password = password or _file_pass
 
     def ensure_authenticated(self) -> bool:
         """Load cookies and verify session. Re-login if expired."""
@@ -349,8 +354,12 @@ class SRMAcademiaAPI:
         print("[API] Fetching calendar...")
         records = self._fetch_report("calendar")
         calendar = []
+        seen_dates = set()
         for rec in records:
             date      = str(rec.get("Date", rec.get("date", ""))).strip()
+            if not date or date in seen_dates:
+                continue
+            seen_dates.add(date)
             day       = str(rec.get("Day", "")).strip()
             status    = str(rec.get("Status", rec.get("Working_Status", "Working"))).strip()
             day_order = str(rec.get("Day_Order", rec.get("DayOrder", "-"))).strip()

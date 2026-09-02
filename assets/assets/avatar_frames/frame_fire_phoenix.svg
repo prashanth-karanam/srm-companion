@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="fireGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#7c2d12" />
+      <stop offset="30%" stop-color="#ea580c" />
+      <stop offset="70%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#fef08a" />
+    </linearGradient>
+    <filter id="fireGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  <style>
+    @keyframes flameFlicker {
+      0%, 100% { transform: scale(1) translateY(0); filter: drop-shadow(0 0 8px #f97316); }
+      50% { transform: scale(1.03) translateY(-2px); filter: drop-shadow(0 0 20px #ef4444); }
+    }
+    @keyframes emberRise {
+      0% { transform: translateY(0); opacity: 0.8; }
+      100% { transform: translateY(-16px); opacity: 0; }
+    }
+    .flame-anim { transform-origin: 60px 60px; animation: flameFlicker 2.2s ease-in-out infinite; }
+    .ember1 { animation: emberRise 1.6s ease-out infinite; }
+    .ember2 { animation: emberRise 2.1s ease-out infinite 0.7s; }
+  </style>
+
+  <g class="flame-anim">
+    <!-- Molten Magma Ring -->
+    <circle cx="60" cy="60" r="53" stroke="url(#fireGrad)" stroke-width="3.2" fill="none" stroke-dasharray="24 6 10 6" filter="url(#fireGlow)" />
+    <!-- Rising Phoenix Flame Crest -->
+    <g filter="url(#fireGlow)">
+      <path d="M42,22 C48,10 54,4 60,0 C66,4 72,10 78,22 C70,18 60,18 42,22 Z" fill="url(#fireGrad)" />
+      <path d="M30,36 C24,24 34,16 46,18 C38,24 36,30 30,36 Z" fill="url(#fireGrad)" />
+      <path d="M90,36 C96,24 86,16 74,18 C82,24 84,30 90,36 Z" fill="url(#fireGrad)" />
+    </g>
+    <!-- Sparks -->
+    <circle cx="48" cy="12" r="1.8" fill="#fef08a" class="ember1" />
+    <circle cx="72" cy="10" r="2.2" fill="#ffffff" class="ember2" />
+    <circle cx="60" cy="4" r="2.5" fill="#ffffff" filter="drop-shadow(0 0 6px #fef08a)" />
+  </g>
+</svg>

@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: srm-companion-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python backend_server.py
+    healthCheckPath: /api/status
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: PORT
+        value: 8000

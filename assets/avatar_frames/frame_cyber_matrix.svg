@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="matGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a7f3d0" />
+      <stop offset="50%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <filter id="matrixGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  <style>
+    @keyframes hudSpin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @keyframes bracketPulse {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px #10b981); }
+      50% { transform: scale(1.03); filter: drop-shadow(0 0 12px #34d399); }
+    }
+    .hud-rotating { transform-origin: 60px 60px; animation: hudSpin 16s linear infinite; }
+    .hud-brackets { transform-origin: 60px 60px; animation: bracketPulse 2.5s ease-in-out infinite; }
+  </style>
+
+  <g class="hud-brackets">
+    <!-- Targeting Brackets -->
+    <path d="M20,36 L12,36 L12,20 L28,20" stroke="#34d399" stroke-width="2.5" fill="none" filter="url(#matrixGlow)" />
+    <path d="M100,36 L108,36 L108,20 L92,20" stroke="#34d399" stroke-width="2.5" fill="none" filter="url(#matrixGlow)" />
+    <path d="M20,84 L12,84 L12,100 L28,100" stroke="#34d399" stroke-width="2.5" fill="none" filter="url(#matrixGlow)" />
+    <path d="M100,84 L108,84 L108,100 L92,100" stroke="#34d399" stroke-width="2.5" fill="none" filter="url(#matrixGlow)" />
+    
+    <g class="hud-rotating">
+      <circle cx="60" cy="60" r="53" stroke="url(#matGrad)" stroke-width="2" fill="none" stroke-dasharray="30 10 10 10" />
+      <circle cx="60" cy="60" r="56" stroke="rgba(16, 185, 129, 0.4)" stroke-width="1" fill="none" stroke-dasharray="4 16" />
+    </g>
+  </g>
+</svg>

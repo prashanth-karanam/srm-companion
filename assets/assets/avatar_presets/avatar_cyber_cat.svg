@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="catBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#3b0764" />
+    </linearGradient>
+    <linearGradient id="neonGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+  </defs>
+  <style>
+    @keyframes earTwitch {
+      0%, 90%, 100% { transform: rotate(0deg); }
+      95% { transform: rotate(4deg); }
+    }
+    @keyframes visorGlow {
+      0%, 100% { filter: drop-shadow(0 0 4px #06b6d4); }
+      50% { filter: drop-shadow(0 0 12px #ec4899); }
+    }
+    .cat-head { transform-origin: 50px 50px; animation: earTwitch 4s ease-in-out infinite; }
+    .cat-visor { animation: visorGlow 2s ease-in-out infinite; }
+  </style>
+  <circle cx="50" cy="50" r="50" fill="url(#catBg)" />
+  <g class="cat-head">
+    <!-- Cat Ears -->
+    <polygon points="22,46 32,18 46,38" fill="#1e1b4b" stroke="#ec4899" stroke-width="2" />
+    <polygon points="78,46 68,18 54,38" fill="#1e1b4b" stroke="#ec4899" stroke-width="2" />
+    <!-- Cat Face Base -->
+    <ellipse cx="50" cy="58" rx="28" ry="24" fill="#0f172a" stroke="#06b6d4" stroke-width="2" />
+    <!-- Cyber Visor -->
+    <path d="M28,52 Q50,44 72,52 L70,62 Q50,56 30,62 Z" class="cat-visor" fill="url(#neonGlow)" />
+    <!-- Whisker Neon Lines -->
+    <line x1="18" y1="62" x2="30" y2="64" stroke="#06b6d4" stroke-width="1.5" />
+    <line x1="18" y1="70" x2="30" y2="68" stroke="#06b6d4" stroke-width="1.5" />
+    <line x1="82" y1="62" x2="70" y2="64" stroke="#06b6d4" stroke-width="1.5" />
+    <line x1="82" y1="70" x2="70" y2="68" stroke="#06b6d4" stroke-width="1.5" />
+  </g>
+</svg>

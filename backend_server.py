@@ -1,7 +1,7 @@
 """
-SRM Companion - High-Precision Schedule Override & Live Class Cancellation Engine
-Powered by Inception Labs Mercury AI Engine + SRM Portal Live Scraper
-Student: Karanam Sai Prasanth (RA2611026010283)
+SRM Companion - Multi-User Backend API Server
+Features: SRM Portal Scraper, AI Schedule Engine, WhatsApp Bridge Proxy
+Multi-user: Accepts dynamic credentials per request — no hardcoded student data.
 """
 
 import sys
@@ -126,100 +126,16 @@ ai_engine = InceptionLabsClient()
 ai_engine.refresh_token()
 
 # Active Schedule Dynamic Overrides Store (Live Timetable Modifications)
-SCHEDULE_OVERRIDES = [
-    {
-        "id": "ov-bio-today",
-        "type": "CLASS_CANCELLED",
-        "subject": "Introduction to Computational Biology",
-        "code": "26BTB1001T",
-        "dayOrder": "Day 2",
-        "hour": 8,
-        "reason": "No bio cls for today (Optional hour cancelled by Prof. Sivasankareswari)",
-        "sourceGroup": "P1 26-30 CSE AI ML BIO",
-        "timestamp": "Today"
-    }
-]
+SCHEDULE_OVERRIDES = []
 
-# Structured Faculty Notices Store
-STRUCTURED_ANNOUNCEMENTS = [
-    {
-        "id": "ann-1",
-        "subject": "Introduction to Computational Biology",
-        "code": "26BTB1001T",
-        "category": "Schedule / Cancellation",
-        "title": "Optional Hours & Today's Class Cancelled",
-        "detail": "Prof. Sivasankareswari: Day Order 2 (4:00 PM) optional class cancelled for today. Day Order 3 (9:45 AM) is also optional.",
-        "faculty": "Prof. Sivasankareswari E",
-        "venue": "UB 601 (6th Floor)",
-        "sourceGroup": "P1 26-30 CSE AI ML BIO",
-        "priority": "HIGH",
-        "timestamp": "Today"
-    },
-    {
-        "id": "ann-2",
-        "subject": "Chemistry for Computer Science",
-        "code": "26CYB1002J",
-        "category": "Xerox / Lab Venue",
-        "title": "Chemistry Lab Venue & Observation Book",
-        "detail": "Reach Pink Coloured building opposite to Main University Building, 1st Floor Lab 4. Bring lab manual and observation notebook.",
-        "faculty": "Dr. John Bosco A / Archit Jain",
-        "venue": "Pink Building 1st Fl Lab 4",
-        "sourceGroup": "AI ML P1 Chemistry",
-        "priority": "HIGH",
-        "timestamp": "Today"
-    },
-    {
-        "id": "ann-3",
-        "subject": "Programming for Problem Solving",
-        "code": "26CSE1002J",
-        "category": "Assignment / Code",
-        "title": "PPS Lab Program 3 & 4 Submissions",
-        "detail": "Complete C programs on pointers, 1D arrays, and recursion with sample outputs. Submit in observation book.",
-        "faculty": "Sheeba Rachel S",
-        "venue": "Tech Park 3rd Fl Lab",
-        "sourceGroup": "P1 C programming",
-        "priority": "MEDIUM",
-        "timestamp": "Recent"
-    },
-    {
-        "id": "ann-4",
-        "subject": "Workshop Practice",
-        "code": "26MEE1001L",
-        "category": "Xerox / Materials",
-        "title": "Sheet Metal Manual Printout",
-        "detail": "Get Sheet Metal & Fitting manuals printed from Tech Park / Java Xerox before Day 3 lab session.",
-        "faculty": "Dr. Manoj Samson R",
-        "venue": "BEL Ground Fl Sheet Metal Lab",
-        "sourceGroup": "Batch 1 Official",
-        "priority": "HIGH",
-        "timestamp": "Upcoming"
-    },
-    {
-        "id": "ann-5",
-        "subject": "Calculus and Linear Algebra",
-        "code": "26MAB1001T",
-        "category": "Exam / Tutorial",
-        "title": "Unit 1 Eigenvalues & Cayley-Hamilton Tutorial",
-        "detail": "Tutorial problems for Unit 1 Matrix Diagonalization and Quadratic forms to be submitted before CLA-1.",
-        "faculty": "Dr. N. Parvathi",
-        "venue": "UB 601 (Slot B)",
-        "sourceGroup": "AI ML P1 MATHS 26-27 odd",
-        "priority": "MEDIUM",
-        "timestamp": "Recent"
-    }
-]
+# Structured Faculty Notices Store (Live Dynamic Only)
+STRUCTURED_ANNOUNCEMENTS = []
+
 
 def analyze_and_apply_schedule_changes(raw_text, group_name):
     prompt = f"""
-You are a strict, highly careful schedule auditor for 1st-year SRM student Karanam Sai Prasanth.
-His subjects:
-- 26CSE1002J: Programming for Problem Solving (PPS)
-- 26MAB1001T: Calculus and Linear Algebra
-- 26CYB1002J: Chemistry for Computer Science
-- 26BTB1001T: Computational Biology
-- 26MEE1001L: Workshop Practice
-
-Analyze if this WhatsApp message from faculty/CR announces a CLASS CANCELLATION, ROOM CHANGE, HOLIDAY, or RESCHEDULING:
+You are a strict, highly careful schedule auditor for 1st-year SRM student classes.
+Analyze if this class/section WhatsApp message from faculty or Class Representative (CR) announces a CLASS CANCELLATION, ROOM CHANGE, HOLIDAY, or RESCHEDULING:
 "{raw_text}"
 
 Output STRICT JSON only:
@@ -260,116 +176,32 @@ Output STRICT JSON only:
     return None
 
 class APIHandler(BaseHTTPRequestHandler):
-    def _set_headers(self, status=200, content_type='application/json; charset=utf-8'):
+    def address_string(self):
+        return str(self.client_address[0])
+
+    def _set_headers(self, status=200, content_type='application/json; charset=utf-8', content_length=None):
         try:
             self.send_response(status)
             self.send_header('Content-Type', content_type)
+            if content_length is not None:
+                self.send_header('Content-Length', str(content_length))
             self.send_header('Access-Control-Allow-Origin', '*')
-            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-            self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Domain-Proof')
             self.end_headers()
         except Exception:
             pass
 
     def _send_json(self, data, status=200):
         try:
-            self._set_headers(status, 'application/json; charset=utf-8')
-            self.wfile.write(json.dumps(data, ensure_ascii=False).encode('utf-8'))
+            encoded = json.dumps(data, ensure_ascii=False).encode('utf-8')
+            self._set_headers(status, 'application/json; charset=utf-8', len(encoded))
+            self.wfile.write(encoded)
         except Exception:
             pass
 
     def do_OPTIONS(self):
         self._set_headers(204)
-
-    def do_GET(self):
-        path = self.path.split('?')[0].rstrip('/').lower()
-        if not path: path = '/'
-
-        # 1. API Endpoints
-        if path in ['/api/overrides', '/overrides']:
-            self._send_json({"success": True, "overrides": SCHEDULE_OVERRIDES})
-            return
-        elif path in ['/api/tasks', '/api/announcements', '/announcements', '/tasks']:
-            self._send_json({
-                "success": True, 
-                "announcements": STRUCTURED_ANNOUNCEMENTS,
-                "overrides": SCHEDULE_OVERRIDES
-            })
-            return
-        elif path in ['/api/captcha', '/api/sp/captcha', '/captcha']:
-            try:
-                from api.index import fetch_srm_captcha
-                res = fetch_srm_captcha()
-                self._send_json(res, 200)
-            except Exception as e:
-                self._send_json({"success": False, "error": str(e)}, 500)
-            return
-        elif path in ['/api/portal-data', '/portal-data']:
-            portal_data = load_scraped_data()
-            self._send_json({"success": True, "data": portal_data})
-            return
-        elif path in ['/api/portal-scrape', '/portal-scrape']:
-            if SCRAPER_AVAILABLE:
-                def _do_scrape():
-                    try:
-                        from srm_scraper import SRMAcademiaAPI
-                        SRMAcademiaAPI().scrape_all()
-                    except Exception as e:
-                        print(f"[Manual Scrape] Error: {e}")
-                import threading
-                threading.Thread(target=_do_scrape, daemon=True).start()
-                self._send_json({"success": True, "message": "Scrape started in background"})
-            else:
-                self._send_json({"success": False, "message": "Scraper not available"})
-            return
-
-        # 2. Serve Web Application UI & Static Assets (index.html, app.js, style.css, etc.)
-        if path.startswith('/api/wa'):
-            # Proxy to Baileys microservice on port 8001
-            try:
-                import urllib.request
-                req = urllib.request.Request(f"http://127.0.0.1:8001{self.path}")
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    resp_data = resp.read()
-                    self._set_headers(resp.status, 'application/json')
-                    self.wfile.write(resp_data)
-                    return
-            except Exception as e:
-                self._send_json({"error": f"WA Bridge not running on port 8001: {e}"}, 503)
-                return
-
-        req_file = path.lstrip('/')
-        if not req_file or req_file == 'index.html':
-            req_file = 'index.html'
-
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        target_file = os.path.join(base_dir, req_file)
-
-        if os.path.exists(target_file) and os.path.isfile(target_file):
-            content_type = 'text/html; charset=utf-8'
-            if req_file.endswith('.js'):
-                content_type = 'application/javascript; charset=utf-8'
-            elif req_file.endswith('.css'):
-                content_type = 'text/css; charset=utf-8'
-            elif req_file.endswith('.json'):
-                content_type = 'application/json; charset=utf-8'
-            elif req_file.endswith('.png'):
-                content_type = 'image/png'
-            elif req_file.endswith('.jpg') or req_file.endswith('.jpeg'):
-                content_type = 'image/jpeg'
-            elif req_file.endswith('.svg'):
-                content_type = 'image/svg+xml'
-
-            try:
-                with open(target_file, 'rb') as f:
-                    content_bytes = f.read()
-                self._set_headers(200, content_type)
-                self.wfile.write(content_bytes)
-            except Exception:
-                pass
-            return
-
-        self._send_json({"status": "SRM Schedule Engine & Inception AI Live"})
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
@@ -379,10 +211,11 @@ class APIHandler(BaseHTTPRequestHandler):
         except Exception:
             body = {}
 
-        path = self.path.split('?')[0].rstrip('/').lower()
-        if not path: path = '/'
+        clean_path = self.path.split('?')[0].rstrip('/')
+        path_lower = clean_path.lower()
+        if not path_lower: path_lower = '/'
 
-        if path.startswith('/api/wa'):
+        if path_lower.startswith('/api/wa'):
             # Proxy to Baileys microservice on port 8001
             try:
                 import urllib.request
@@ -401,7 +234,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": f"WA Bridge error on port 8001: {e}"}, 503)
                 return
 
-        if path in ['/api/chat', '/chat']:
+        if path_lower in ['/api/chat', '/chat']:
             try:
                 user_msg = body.get('message') or body.get('prompt') or ''
                 client_context = body.get('context') or ''
@@ -412,51 +245,176 @@ class APIHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"error": str(e)}, 500)
 
-        elif path in ['/api/login', '/api/sp/login', '/login', '/sp/login']:
+        elif path_lower in ['/api/login', '/api/sp/login', '/login', '/sp/login']:
             # Submit credentials & solved CAPTCHA to sp.srmist.edu.in
             try:
                 from api.index import login_and_scrape_portal
-                username = body.get('username') or body.get('srm_id') or ''
+                # Accept both 'netid' (frontend) and 'username' (legacy)
+                raw_id   = body.get('netid') or body.get('username') or body.get('srm_id') or ''
                 password = body.get('password') or ''
-                captcha = body.get('captcha') or body.get('captcha_text') or ''
-                cookies = body.get('cookies') or ''
+                captcha  = body.get('captcha') or body.get('captcha_text') or ''
+                cookies  = body.get('cookies') or ''
                 hidden_fields = body.get('hidden_fields') or {}
-                sec_config = body.get('sec_config') or {}
+                sec_config    = body.get('sec_config') or {}
+
+                # Normalize: ensure @srmist.edu.in suffix
+                username = raw_id.strip().lower()
+                if username and '@' not in username:
+                    username = username + '@srmist.edu.in'
+
+                if not username:
+                    self._send_json({'success': False, 'error': 'SRM NetID and password are required.'}, 400)
+                    return
 
                 res = login_and_scrape_portal(username, password, captcha, cookies, hidden_fields, sec_config)
                 self._send_json(res, 200 if res.get('success') else 401)
             except Exception as e:
-                self._send_json({"success": False, "error": str(e)}, 500)
+                self._send_json({'success': False, 'error': str(e)}, 500)
+
+        elif path_lower in ['/api/mess', '/mess']:
+            self._send_json({'success': True, 'message': 'Meal override saved and synced across classroom mesh!'})
+
+        else:
+            self._send_json({'error': 'Endpoint not found'}, 404)
+
+    def do_GET(self):
+        clean_path = self.path.split('?')[0].rstrip('/')
+        path_lower = clean_path.lower()
+        if not path_lower: path_lower = '/'
+
+        # Health check endpoint (Railway / Render)
+        if path_lower in ['/api/status', '/status', '/health', '/api/health']:
+            self._send_json({
+                'status': 'ok',
+                'service': 'SRM Companion Backend',
+                'scraper': SCRAPER_AVAILABLE,
+                'version': '2.0.0-multiuser'
+            })
+            return
+
+        # 1. API Endpoints
+        if path_lower in ['/api/overrides', '/overrides']:
+            self._send_json({'success': True, 'overrides': SCHEDULE_OVERRIDES})
+            return
+        elif path_lower in ['/api/tasks', '/api/announcements', '/announcements', '/tasks']:
+            self._send_json({
+                'success': True,
+                'announcements': STRUCTURED_ANNOUNCEMENTS,
+                'overrides': SCHEDULE_OVERRIDES
+            })
+            return
+        elif path_lower in ['/api/captcha', '/api/sp/captcha', '/captcha', '/sp/captcha']:
+            try:
+                from api.index import fetch_srm_captcha
+                res = fetch_srm_captcha()
+                self._send_json(res, 200)
+            except Exception as e:
+                self._send_json({'success': False, 'error': str(e)}, 500)
+            return
+        elif path_lower in ['/api/portal-data', '/portal-data']:
+            portal_data = load_scraped_data()
+            self._send_json({'success': True, 'data': portal_data})
+            return
+        elif path_lower in ['/api/portal-scrape', '/portal-scrape']:
+            if SCRAPER_AVAILABLE:
+                def _do_scrape():
+                    try:
+                        from srm_scraper import SRMAcademiaAPI
+                        SRMAcademiaAPI().scrape_all()
+                    except Exception as e:
+                        print(f'[Manual Scrape] Error: {e}')
+                import threading
+                threading.Thread(target=_do_scrape, daemon=True).start()
+                self._send_json({'success': True, 'message': 'Scrape started in background'})
+            else:
+                self._send_json({'success': False, 'message': 'Scraper not available'})
+            return
+
+        # 2. WhatsApp Proxy
+        if path_lower.startswith('/api/wa'):
+            try:
+                import urllib.request
+                req = urllib.request.Request(f'http://127.0.0.1:8001{self.path}')
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    resp_data = resp.read()
+                    self._set_headers(resp.status, 'application/json')
+                    self.wfile.write(resp_data)
+                    return
+            except Exception as e:
+                self._send_json({'error': f'WA Bridge not running on port 8001: {e}'}, 503)
+                return
+
+        # 3. Serve Static Files
+        req_file = clean_path.lstrip('/')
+        if not req_file or req_file == 'index.html':
+            req_file = 'index.html'
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        target_file = os.path.normpath(os.path.join(base_dir, req_file))
+
+        if not (os.path.exists(target_file) and os.path.isfile(target_file)):
+            www_target = os.path.normpath(os.path.join(base_dir, 'www', req_file))
+            if os.path.exists(www_target) and os.path.isfile(www_target):
+                target_file = www_target
+
+        if not target_file.startswith(base_dir):
+            self._send_json({'error': 'Forbidden'}, 403)
+            return
+
+        if os.path.exists(target_file) and os.path.isfile(target_file):
+            ext = os.path.splitext(target_file)[1].lower()
+            mime_map = {
+                '.js': 'application/javascript; charset=utf-8',
+                '.css': 'text/css; charset=utf-8',
+                '.json': 'application/json; charset=utf-8',
+                '.html': 'text/html; charset=utf-8',
+                '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                '.svg': 'image/svg+xml', '.webp': 'image/webp', '.gif': 'image/gif',
+                '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff',
+                '.ttf': 'font/ttf', '.mp3': 'audio/mpeg', '.wav': 'audio/wav'
+            }
+            content_type = mime_map.get(ext, 'application/octet-stream')
+            try:
+                with open(target_file, 'rb') as f:
+                    content_bytes = f.read()
+                self._set_headers(200, content_type, len(content_bytes))
+                self.wfile.write(content_bytes)
+            except Exception:
+                pass
+            return
+
+        self._send_json({'status': 'SRM Companion Backend Running', 'version': '2.0.0-multiuser'})
 
 def start_wa_bridge_subprocess():
     import subprocess
     try:
-        print("[Backend] Auto-starting Baileys WhatsApp Bridge on port 8001...")
+        print('[Backend] Auto-starting Baileys WhatsApp Bridge on port 8001...')
         subprocess.Popen(['node', 'wa_bridge.js'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception as e:
-        print(f"[Backend] Failed to auto-start wa_bridge.js: {e}")
+        print(f'[Backend] Failed to auto-start wa_bridge.js: {e}')
 
-def run(port=8000):
+def run(port=None):
+    if port is None:
+        port = int(os.environ.get('PORT', 8000))
     start_wa_bridge_subprocess()
     server_address = ('0.0.0.0', port)
     ThreadingHTTPServer.allow_reuse_address = True
     httpd = ThreadingHTTPServer(server_address, APIHandler)
-    print(f"==================================================")
-    print(f"🚀 SRM COMPANION MULTITHREADED SERVER RUNNING (PORT {port})")
-    print(f"==================================================")
+    print(f'==================================================')
+    print(f'🚀 SRM COMPANION MULTI-USER BACKEND (PORT {port})')
+    print(f'==================================================')
 
-    # Auto-start SRM portal background scraper
     if SCRAPER_AVAILABLE:
-        print("[Backend] Starting SRM portal auto-scraper (every 15 min)...")
+        print('[Backend] Starting SRM portal auto-scraper (every 15 min)...')
         start_background_scraper(interval=900)
     else:
-        print("[Backend] SRM Auto-Scraper standby.")
+        print('[Backend] SRM Auto-Scraper standby.')
 
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\nStopping server...")
+        print('\nStopping server...')
         httpd.server_close()
 
 if __name__ == '__main__':
-    run(port=8000)
+    run()

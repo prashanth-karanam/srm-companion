@@ -1,0 +1,9 @@
+android/
+node_modules/
+*.apk
+*.apk.idsig
+.gradle/
+.system_generated/
+wa_auth/
+__pycache__/
+*.log

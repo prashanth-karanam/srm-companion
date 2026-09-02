@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+    
+    <defs>
+      <linearGradient id="ch_gold" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fef08a"/><stop offset="50%" stop-color="#eab308"/><stop offset="100%" stop-color="#854d0e"/></linearGradient>
+      <linearGradient id="ch_blue" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient>
+      <filter id="ch_glow"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <g filter="url(#ch_glow)">
+      <polygon points="80,10 92,30 84,30 80,24 76,30 68,30" fill="url(#ch_gold)"><animateTransform attributeName="transform" type="translate" values="0,0;0,-3;0,0" dur="2s" repeatCount="indefinite"/></polygon>
+      <circle cx="80" cy="24" r="4" fill="url(#ch_blue)"/>
+      <circle cx="80" cy="80" r="54" fill="none" stroke="url(#ch_gold)" stroke-width="4" stroke-dasharray="20 6"><animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="10s" repeatCount="indefinite"/></circle>
+      <circle cx="80" cy="80" r="49" fill="none" stroke="url(#ch_blue)" stroke-width="2"/>
+    </g>
+    
+    </svg>
