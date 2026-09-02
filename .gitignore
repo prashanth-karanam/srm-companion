@@ -1,16 +1,26 @@
-# Sensitive Credentials & Cookies (NEVER commit to GitHub)
+# Sensitive Credentials & Session Tokens (NEVER commit)
 credentials.json
 srm_cookies.json
 auth_cookies.json
 scraped_data.json
 wa_auth/
+.env
+
+# Logs & Temporary Server Files
+*.log
+backend_server_detached.log
+backend_server.log
+start_detached_server.py
+
+# Keep essential config JSON files
 *.json
 !package.json
 !package-lock.json
 !manifest.json
 !vercel.json
 !capacitor.config.json
-.env
+!version.json
+!www/version.json
 
 # Test scripts & debug scratch dumps
 test_*.py
@@ -20,15 +30,26 @@ shot_*.py
 fetch_*.py
 live_login_instant.py
 scrape_portal_data.py
-*.jpg
-*.jpeg
-*.png
 *_output.html
 *_tab.html
 instant_response.html
 loggedin_page.html
+vercel_*
+test_*
+*_cap.jpg
+*_captcha.jpg
+login_debug.png
+current_captcha.jpg
+e2e_cap.jpg
+audit_cap.jpg
+probe_cap.jpg
+probe_test_cap.jpg
+live_test_cap.jpg
+local_cap_api.jpg
+local_srv_cap.jpg
+local_test_cap.jpg
 
-# Python bytecode & venv
+# Python bytecode & virtual environments
 __pycache__/
 *.pyc
 *.pyo
@@ -36,10 +57,16 @@ __pycache__/
 env/
 venv/
 
-# Node modules & Android build artifacts
+# Node modules
 node_modules/
-android/
-.idea/
-.vscode/
+
+# Android build cache & build outputs (Preserve Android project template)
+android/.gradle/
+android/app/build/
+android/build/
+android/.idea/
+android/*.iml
+android/app/*.iml
+android/local.properties
 
 .vercel

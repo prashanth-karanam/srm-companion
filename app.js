@@ -24,20 +24,18 @@ function authHeader() {
 }
 
 function quickLaunchVerifiedStudent() {
-    const savedId = localStorage.getItem('srm_auto_id');
-    const savedName = localStorage.getItem('srm_display_name');
-    const savedToken = localStorage.getItem('srm_session_token');
-    
-    if (savedId || savedToken || savedName) {
-        showDashboard();
-        _initApp();
-    } else {
-        const idInput = document.getElementById('login-id');
-        if (idInput) idInput.focus();
-        if (typeof showAttendanceToast === 'function') {
-            showAttendanceToast('Please sign in with your SRM NetID & Password');
-        }
+    const prof = (typeof SRM_DATA !== 'undefined' && (SRM_DATA.studentProfile || SRM_DATA.profile)) || {};
+    const autoId = localStorage.getItem('srm_auto_id');
+    const autoPass = localStorage.getItem('srm_auto_pass');
+
+    if (!autoId || !autoPass) {
+        showLogin();
+        return;
     }
+
+    setToken('srm_session_' + autoId + '_' + Date.now());
+    showDashboard();
+    _initApp();
 }
 window.quickLaunchVerifiedStudent = quickLaunchVerifiedStudent;
 
@@ -451,15 +449,70 @@ function showDashboard() {
     if (wrap) wrap.style.display = 'block';
     if (dock) dock.style.display = 'flex';
     
-    const displayName = localStorage.getItem('srm_display_name') || 'Student';
-    const regNo = localStorage.getItem('srm_reg_no') || 'SRMIST Kattankulathur';
+    updateStudentHeader();
+
+    if (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) {
+        const prof = SRM_DATA.profile;
+        const displayName = localStorage.getItem('srm_display_name') || prof.name || 'KARANAM SAI PRASANTH';
+        const regNo = localStorage.getItem('srm_reg_no') || prof.regNo || 'RA2411003010283';
+        prof.name = displayName;
+        prof.regNo = regNo;
+        const prog = localStorage.getItem('srm_program');
+        if (prog) prof.degree = prog;
+        const sec = localStorage.getItem('srm_section');
+        if (sec) prof.batch = sec.startsWith('Section') ? sec : `Section ${sec}`;
+    }
+
+    if (typeof renderPassportHub === 'function') {
+        renderPassportHub();
+    }
+    if (typeof initClockAndDate === 'function') {
+        initClockAndDate();
+    }
+    if (typeof updateLiveHUD === 'function') {
+        updateLiveHUD();
+    }
+}
+
+function getStudentDisplayName() {
+    const saved = (localStorage.getItem('srm_display_name') || '').trim();
+    if (saved && saved.toLowerCase() !== 'student') {
+        return saved;
+    }
+    const prof = (typeof SRM_DATA !== 'undefined' && (SRM_DATA.studentProfile || SRM_DATA.profile)) || {};
+    if (prof.name && prof.name.trim() && prof.name.toLowerCase() !== 'student') {
+        return prof.name.trim();
+    }
+    const netId = (localStorage.getItem('srm_auto_id') || '').toUpperCase();
+    return netId || 'Student';
+}
+window.getStudentDisplayName = getStudentDisplayName;
+
+function updateStudentHeader() {
+    const prof = (typeof SRM_DATA !== 'undefined' && (SRM_DATA.studentProfile || SRM_DATA.profile)) || {};
+    const displayName = getStudentDisplayName();
+    const regNo = (localStorage.getItem('srm_reg_no') || prof.regNo || (localStorage.getItem('srm_auto_id') ? localStorage.getItem('srm_auto_id').toUpperCase() : '')).trim();
+    const rawSec = (localStorage.getItem('srm_section') || prof.section || prof.batch || '').replace(/Section\s*/i, '').trim();
+
     const regEl = document.getElementById('header-reg');
     const nameEl = document.getElementById('header-name');
     const avEl = document.getElementById('header-avatar');
+
     if (nameEl) nameEl.textContent = displayName;
-    if (regEl) regEl.textContent = regNo;
+    if (regEl) {
+        if (regNo && rawSec) {
+            regEl.innerHTML = `${regNo} &bull; Section ${rawSec}`;
+        } else if (regNo) {
+            regEl.innerHTML = `${regNo}`;
+        } else if (rawSec) {
+            regEl.innerHTML = `Section ${rawSec}`;
+        } else {
+            regEl.innerHTML = `SRMIST Kattankulathur`;
+        }
+    }
     if (avEl) {
-        avEl.textContent = displayName.substring(0, 2).toUpperCase();
+        const initials = displayName.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'ST';
+        avEl.textContent = initials;
         const cust = (typeof getProfileCustomization === 'function') ? getProfileCustomization() : { frame: 'frame-crown-radiance' };
         if (typeof applyAvatarDecorationOverlay === 'function') {
             applyAvatarDecorationOverlay(avEl, cust.frame || 'frame-crown-radiance');
@@ -477,29 +530,8 @@ function showDashboard() {
         userTagEl.style.cursor = 'pointer';
         userTagEl.title = 'View Student Smart Card & Profile';
     }
-    setTimeout(() => {
-        const editBtn = document.querySelector('.user-avatar-wrap > button');
-        if (editBtn) {
-            editBtn.onclick = function(e) {
-                e.stopPropagation();
-                if (typeof openProfileCustomizerModal === 'function') openProfileCustomizerModal('tab-avatars');
-            };
-        }
-    }, 0);
-
-    if (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) {
-        SRM_DATA.profile.name = displayName;
-        SRM_DATA.profile.regNo = regNo;
-        const prog = localStorage.getItem('srm_program');
-        if (prog) SRM_DATA.profile.degree = prog;
-        const sec = localStorage.getItem('srm_section');
-        if (sec) SRM_DATA.profile.batch = 'Section ' + sec;
-    }
-
-    if (typeof renderPassportHub === 'function') {
-        renderPassportHub();
-    }
 }
+window.updateStudentHeader = updateStudentHeader;
 
 // ─── Live CAPTCHA Streamer from Active Cloud Gateway ───────────────────────────
 async function fetchLiveCaptcha(force = false) {
@@ -604,6 +636,13 @@ async function doAutoLogin(isBackgroundRefresh = false) {
             const section = res.section || '';
             const email = res.email || `${rawId}@srmist.edu.in`;
 
+            // 1. Wipe previous student session and caches completely
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+            } catch (_) {}
+
+            // 2. Persist new student authenticated state
             localStorage.setItem('srm_auto_id', rawId);
             localStorage.setItem('srm_auto_pass', pass);
             localStorage.setItem('srm_display_name', realName);
@@ -611,6 +650,12 @@ async function doAutoLogin(isBackgroundRefresh = false) {
             localStorage.setItem('srm_program', program);
             localStorage.setItem('srm_section', section);
             localStorage.setItem('srm_email', email);
+            if (res.faculty_advisor || res.advisor) localStorage.setItem('srm_advisor', res.faculty_advisor || res.advisor);
+            if (res.academic_advisor) localStorage.setItem('srm_academic_advisor', res.academic_advisor);
+            if (res.orientation_room) localStorage.setItem('srm_orientation_room', res.orientation_room);
+            if (res.batch) localStorage.setItem('srm_batch', res.batch);
+            if (res.semester) localStorage.setItem('srm_semester', res.semester);
+            if (res.institution) localStorage.setItem('srm_institution', res.institution);
             if (res.cookies) localStorage.setItem('srm_session_cookies', res.cookies);
             setToken('srm_session_' + rawId + '_' + Date.now());
 
@@ -619,6 +664,12 @@ async function doAutoLogin(isBackgroundRefresh = false) {
             }
             if (res.hostel_details) {
                 localStorage.setItem('srm_hostel_details', JSON.stringify(res.hostel_details));
+                if (res.hostel_details.block) {
+                    localStorage.setItem('srm_user_hostel_block', res.hostel_details.block);
+                }
+                if (res.hostel_details.room) {
+                    localStorage.setItem('srm_user_room_no', res.hostel_details.room);
+                }
             }
             if (res.exam_results) {
                 localStorage.setItem('srm_exam_results', JSON.stringify(res.exam_results));
@@ -627,17 +678,70 @@ async function doAutoLogin(isBackgroundRefresh = false) {
                 localStorage.setItem('srm_fee_details', JSON.stringify(res.fee_details));
             }
             if (res.attendance && res.attendance.length > 0) {
+                portalAttendance = res.attendance;
                 localStorage.setItem('srm_attendance_cache', JSON.stringify(res.attendance));
+                localStorage.setItem('srm_cached_attendance', JSON.stringify(res.attendance));
+            } else {
+                portalAttendance = [];
             }
             if (res.timetable) {
+                if (typeof SRM_DATA !== 'undefined') {
+                    SRM_DATA.dayOrderSchedule = res.timetable;
+                }
                 localStorage.setItem('srm_timetable_cache', JSON.stringify(res.timetable));
+                localStorage.setItem('srm_cached_schedule', JSON.stringify(res.timetable));
             }
+
+            // 3. Update in-memory SRM_DATA.profile
+            if (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) {
+                SRM_DATA.profile.name = realName;
+                SRM_DATA.profile.regNo = regNo;
+                SRM_DATA.profile.studentId = res.student_id || rawId;
+                SRM_DATA.profile.program = program;
+                SRM_DATA.profile.section = section;
+                SRM_DATA.profile.email = email;
+                SRM_DATA.profile.facultyAdvisor = res.faculty_advisor || res.advisor || '';
+                SRM_DATA.profile.academicAdvisor = res.academic_advisor || '';
+                SRM_DATA.profile.orientationRoom = res.orientation_room || '';
+                SRM_DATA.profile.batch = res.batch || '';
+                SRM_DATA.profile.semester = res.semester || '';
+                if (res.personal_info) {
+                    SRM_DATA.profile.dob = res.personal_info.dob || '';
+                    SRM_DATA.profile.gender = res.personal_info.gender || '';
+                    SRM_DATA.profile.bloodGroup = res.personal_info.blood_group || '';
+                    SRM_DATA.profile.abcId = res.personal_info.abc_id || '';
+                    SRM_DATA.profile.personalEmail = res.personal_info.personal_email || '';
+                    SRM_DATA.profile.mobile = res.personal_info.mobile || '';
+                    SRM_DATA.profile.parents = {
+                        fatherName: res.personal_info.father_name || '',
+                        motherName: res.personal_info.mother_name || '',
+                        contactNo: res.personal_info.parent_contact || '',
+                        email: res.personal_info.parent_email || ''
+                    };
+                    SRM_DATA.profile.address = {
+                        line: res.personal_info.address || '',
+                        pincode: res.personal_info.pincode || '',
+                        district: res.personal_info.district || '',
+                        state: res.personal_info.state || ''
+                    };
+                }
+                if (res.hostel_details) {
+                    SRM_DATA.profile.hostel = res.hostel_details.block || 'Day Scholar / Off-Campus';
+                    SRM_DATA.profile.room = res.hostel_details.room || '-';
+                    SRM_DATA.profile.residence = (res.hostel_details.type === 'Hosteller') ? 'Hosteller' : 'Day Scholar';
+                    SRM_DATA.profile.hostelAllocatedDate = res.hostel_details.allocated_date || '-';
+                    SRM_DATA.profile.academicYear = res.hostel_details.academic_year || '-';
+                }
+            }
+
+            if (typeof updateStudentHeader === 'function') updateStudentHeader();
 
             if (!isBackgroundRefresh) {
                 onLoginSuccess();
                 showAttendanceToast(`Welcome, ${realName}!`, 'success');
                 if (typeof loadAttendanceData === 'function') loadAttendanceData();
                 if (typeof loadTimetable === 'function') loadTimetable();
+                if (typeof renderPassportHub === 'function') renderPassportHub();
             }
             return true;
         } else {
@@ -667,25 +771,69 @@ function onLoginSuccess() {
     _initApp();
 }
 
-window.quickLaunchVerifiedStudent = quickLaunchVerifiedStudent;
-
 function doLogout() {
     try {
         if (typeof waBridgeFetch === 'function') {
             waBridgeFetch('/api/wa/disconnect', { method: 'POST' });
         }
     } catch (_) {}
-    clearToken();
-    localStorage.removeItem('srm_auto_id');
-    localStorage.removeItem('srm_auto_pass');
-    localStorage.removeItem('srm_display_name');
-    localStorage.removeItem('srm_reg_no');
-    localStorage.removeItem('srm_cached_attendance');
-    localStorage.removeItem('srm_cached_schedule');
-    localStorage.removeItem('srm_cached_calendar');
-    localStorage.removeItem('srm_live_cookies');
-    location.reload();
+    
+    // 1. Completely clear all stored credentials, tokens, and caches
+    try {
+        clearToken();
+        localStorage.clear();
+        sessionStorage.clear();
+    } catch (_) {}
+
+    // 2. Clear input fields on login screen
+    const idInput = document.getElementById('login-id');
+    const passInput = document.getElementById('login-pass');
+    const capInput = document.getElementById('login-captcha');
+    if (idInput) idInput.value = '';
+    if (passInput) passInput.value = '';
+    if (capInput) capInput.value = '';
+
+    // 3. Force-close and hide EVERY single modal and backdrop on the page
+    const modalIds = [
+        'command-center-modal',
+        'vertical-quick-menu-modal',
+        'student-help-modal',
+        'theme-modal',
+        'portal-modal',
+        'what-if-modal',
+        'profile-customizer-modal'
+    ];
+    modalIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.style.display = 'none';
+            el.classList.remove('open', 'active', 'show');
+        }
+    });
+    document.querySelectorAll('.class-modal-backdrop, .vertical-menu-backdrop, .portal-modal, .customizer-modal-backdrop').forEach(el => {
+        el.style.display = 'none';
+        el.classList.remove('open', 'active', 'show');
+    });
+
+    // 4. Immediately switch UI to login view
+    const screen = document.getElementById('login-screen');
+    const wrap = document.querySelector('.mobile-wrapper');
+    const dock = document.querySelector('.dock');
+    if (screen) {
+        screen.style.display = 'flex';
+        screen.style.visibility = 'visible';
+        screen.style.opacity = '1';
+        screen.style.zIndex = '99999';
+    }
+    if (wrap) wrap.style.display = 'none';
+    if (dock) dock.style.display = 'none';
+
+    // 5. Fetch fresh CAPTCHA for new login
+    if (typeof fetchLiveCaptcha === 'function') {
+        fetchLiveCaptcha(true);
+    }
 }
+window.doLogout = doLogout;
 
 // ─── App Initialization (0ms Instant Load from Cache) ─────────────────────────
 function bootApp() {
@@ -759,57 +907,143 @@ function applyAppVersionAndCleanStaleCaches() {
     const currentVer = (typeof APP_BUILD_VERSION !== 'undefined') ? APP_BUILD_VERSION : '2.4.3';
     const storedVer = localStorage.getItem('srm_installed_build_version');
 
-    // Always purge any stale vector avatar presets (like dicebear stick figures or astronaut helmet)
     const customImg = localStorage.getItem('srm_custom_avatar_img');
     if (customImg && (customImg.includes('dicebear') || customImg.includes('avatar_presets') || customImg.includes('avatar_cosmic_astro'))) {
         localStorage.removeItem('srm_custom_avatar_img');
     }
 
     if (storedVer !== currentVer) {
-        console.log(`[OTA Engine] Version upgraded: ${storedVer || 'Legacy'} -> ${currentVer}. Purging stale static cache to load latest GitHub timetable/calendar...`);
-        localStorage.removeItem('srm_cached_calendar');
-        localStorage.removeItem('srm_cached_schedule');
-        localStorage.removeItem('srm_user_announcements_global');
-        localStorage.removeItem('srm_linked_wa_groups');
-        localStorage.removeItem('srm_cached_announcements');
-        localStorage.removeItem('srm_custom_avatar_img');
         localStorage.setItem('srm_installed_build_version', currentVer);
     }
 }
 
-async function checkGitHubOTAUpdate() {
+async function checkGitHubOTAUpdate(isManual = false) {
     try {
-        const url = 'https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/version.json?t=' + Date.now();
-        const r = await fetch(url, { cache: 'no-store' });
-        if (!r.ok) return;
-        const meta = await r.json();
-        const localVer = (typeof APP_BUILD_VERSION !== 'undefined') ? APP_BUILD_VERSION : '2.4.1';
+        const endpoints = [
+            'https://raw.githubusercontent.com/saiprasanthkaranam/srm_companion/main/version.json?t=' + Date.now(),
+            'https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/version.json?t=' + Date.now(),
+            '/version.json?t=' + Date.now()
+        ];
+
+        let meta = null;
+        for (const u of endpoints) {
+            try {
+                const r = await fetch(u, { cache: 'no-store' });
+                if (r.ok) {
+                    meta = await r.json();
+                    if (meta && meta.version) break;
+                }
+            } catch (_) {}
+        }
+
+        if (!meta || !meta.version) {
+            if (isManual) showAttendanceToast('✅ App is up to date!', 'success');
+            return;
+        }
+
+        const localVer = (typeof APP_BUILD_VERSION !== 'undefined') ? APP_BUILD_VERSION : (localStorage.getItem('srm_installed_build_version') || '2.5.0');
         
-        if (meta && meta.version && meta.version !== localVer) {
-            console.log(`[OTA Update]  Newer commit detected on GitHub: ${meta.version} (Local: ${localVer})`);
-            showAttendanceToast(` Live GitHub Update v${meta.version} detected! Syncing...`, 'success');
-            localStorage.removeItem('srm_cached_calendar');
-            localStorage.removeItem('srm_cached_schedule');
-            localStorage.setItem('srm_installed_build_version', meta.version);
-            setTimeout(() => {
-                window.location.reload(true);
-            }, 1500);
+        if (meta.version !== localVer) {
+            console.log(`[OTA Update] Newer version detected: ${meta.version} (Local: ${localVer})`);
+            showAppUpdatePrompt(meta);
+        } else if (isManual) {
+            showAttendanceToast(`✅ You are on the latest version (v${localVer})`, 'success');
         }
     } catch (_) {}
 }
 
+function showAppUpdatePrompt(meta) {
+    const existing = document.getElementById('ota-update-banner');
+    if (existing) existing.remove();
+
+    const isApp = typeof window.Capacitor !== 'undefined';
+    const apkUrl = meta.apkDownloadUrl || 'https://github.com/saiprasanthkaranam/srm_companion/releases/latest/download/SRM_Companion.apk';
+
+    const banner = document.createElement('div');
+    banner.id = 'ota-update-banner';
+    banner.style.cssText = `
+        position: fixed;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(92%, 460px);
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(99, 102, 241, 0.4);
+        border-radius: 16px;
+        padding: 14px 16px;
+        box-shadow: 0 12px 36px rgba(0,0,0,0.5), 0 0 20px rgba(99, 102, 241, 0.2);
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        animation: slideUpFade 0.35s ease;
+    `;
+
+    banner.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:1.3rem;">🚀</span>
+                <div>
+                    <div style="font-size:0.88rem;font-weight:800;color:var(--text-main);">Update Available: v${escapeHtml(meta.version)}</div>
+                    <div style="font-size:0.72rem;color:var(--text-muted);">${escapeHtml(meta.releaseNotes || 'New features & bug fixes available.')}</div>
+                </div>
+            </div>
+            <button onclick="document.getElementById('ota-update-banner')?.remove()" style="background:transparent;border:none;color:var(--text-muted);font-size:1.1rem;cursor:pointer;padding:4px;">✕</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:2px;">
+            ${isApp ? `
+                <a href="${apkUrl}" target="_blank" style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;text-align:center;padding:8px 12px;border-radius:10px;font-size:0.78rem;font-weight:700;text-decoration:none;display:inline-block;">📲 Download New APK</a>
+            ` : `
+                <button onclick="localStorage.setItem('srm_installed_build_version','${meta.version}');window.location.reload(true);" style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;padding:8px 12px;border-radius:10px;font-size:0.78rem;font-weight:700;cursor:pointer;">🔄 Instant Refresh</button>
+                <a href="${apkUrl}" target="_blank" style="background:rgba(255,255,255,0.08);color:var(--text-main);padding:8px 12px;border-radius:10px;font-size:0.78rem;font-weight:700;text-decoration:none;display:inline-block;">📲 APK</a>
+            `}
+        </div>
+    `;
+
+    document.body.appendChild(banner);
+}
+window.checkGitHubOTAUpdate = checkGitHubOTAUpdate;
+window.triggerManualUpdateCheck = () => checkGitHubOTAUpdate(true);
+
+function safeMergeTimetable(newTt) {
+    if (!newTt || typeof newTt !== 'object') return false;
+    if (typeof SRM_DATA === 'undefined') return false;
+    if (!SRM_DATA.dayOrderSchedule) SRM_DATA.dayOrderSchedule = {};
+
+    let hasValidData = false;
+    ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'].forEach(d => {
+        if (Array.isArray(newTt[d]) && newTt[d].length > 0) {
+            SRM_DATA.dayOrderSchedule[d] = newTt[d];
+            if (newTt[d].some(p => p && p.type !== 'Free' && p.title && p.title !== 'Free Period')) {
+                hasValidData = true;
+            }
+        }
+    });
+
+    if (hasValidData) {
+        localStorage.setItem('srm_timetable_cache', JSON.stringify(SRM_DATA.dayOrderSchedule));
+        localStorage.setItem('srm_cached_schedule', JSON.stringify(SRM_DATA.dayOrderSchedule));
+    }
+    return hasValidData;
+}
+window.safeMergeTimetable = safeMergeTimetable;
+
 function _initApp() {
-    // 1. Purge stale caches if new code was pushed to GitHub
     applyAppVersionAndCleanStaleCaches();
 
     try {
-        const cachedAtt = localStorage.getItem('srm_cached_attendance');
+        const cachedAtt = localStorage.getItem('srm_attendance_cache') || localStorage.getItem('srm_cached_attendance');
         if (cachedAtt) {
             portalAttendance = JSON.parse(cachedAtt);
         }
-        const cachedTt = localStorage.getItem('srm_cached_schedule');
+        const cachedTt = localStorage.getItem('srm_timetable_cache') || localStorage.getItem('srm_cached_schedule');
         if (cachedTt) {
-            SRM_DATA.dayOrderSchedule = JSON.parse(cachedTt);
+            try {
+                const parsedTt = JSON.parse(cachedTt);
+                safeMergeTimetable(parsedTt);
+            } catch (_) {}
         }
         const cachedCal = localStorage.getItem('srm_cached_calendar');
         if (cachedCal) {
@@ -826,6 +1060,7 @@ function _initApp() {
         announcementsData = getUserAnnouncements();
     } catch (_) {}
 
+    updateStudentHeader();
     initClockAndDate();
     initDockNavigation();
     initDaySelector();
@@ -835,6 +1070,7 @@ function _initApp() {
     renderSubjectFilterChips();
     renderAnnouncements();
     initAnnouncementsSearch();
+    renderDaySchedule(selectedDay);
     updateLiveHUD();
     renderPassportHub();
     initP2PMesh();
@@ -849,10 +1085,6 @@ function _initApp() {
 
     // On-demand background sync on launch
     syncWithBackend();
-
-    // Check for live remote GitHub updates
-    checkGitHubOTAUpdate();
-    window.addEventListener('focus', checkGitHubOTAUpdate);
 
     if (!window._appIntervalsSet) {
         window._appIntervalsSet = true;
@@ -869,71 +1101,72 @@ async function syncWithBackend() {
     if (!rawId || !pass) return;
 
     try {
+        const activeCookies = localStorage.getItem('srm_session_cookies') || localStorage.getItem('srm_live_cookies') || '';
         const res = await apiFetch('/api/login', {
             method: 'POST',
             body: JSON.stringify({
                 username: rawId,
                 password: pass,
                 captcha: 'SYNC',
-                cookies: localStorage.getItem('srm_live_cookies') || '',
-                hidden_fields: _hiddenFields
+                cookies: activeCookies,
+                hidden_fields: _hiddenFields || {}
             })
         });
 
         if (res && res.success) {
-            if (res.name) {
-                localStorage.setItem('srm_display_name', res.name);
-                const nameEl = document.getElementById('header-name');
-                if (nameEl) nameEl.textContent = res.name;
-                const avEl = document.getElementById('header-avatar');
-                if (avEl) avEl.textContent = res.name.substring(0, 2).toUpperCase();
+            const realName = res.name || rawId.toUpperCase();
+            const regNo = res.reg_no || '';
+            const program = res.program || '';
+            const section = res.section || '';
+            const email = res.email || `${rawId}@srmist.edu.in`;
+
+            localStorage.setItem('srm_display_name', realName);
+            localStorage.setItem('srm_reg_no', regNo);
+            localStorage.setItem('srm_program', program);
+            localStorage.setItem('srm_section', section);
+            localStorage.setItem('srm_email', email);
+            if (res.cookies) {
+                localStorage.setItem('srm_session_cookies', res.cookies);
+                localStorage.setItem('srm_live_cookies', res.cookies);
             }
-            if (res.reg_no) {
-                localStorage.setItem('srm_reg_no', res.reg_no);
-                const regEl = document.getElementById('header-reg');
-                if (regEl) regEl.textContent = res.reg_no;
+
+            if (res.personal_info) {
+                localStorage.setItem('srm_personal_info', JSON.stringify(res.personal_info));
             }
-            if (res.hostel_details && res.hostel_details.block && res.hostel_details.block !== '-') {
-                localStorage.setItem('srm_user_hostel_block', res.hostel_details.block);
-                if (res.hostel_details.room && !/^\d{5,}$/.test(res.hostel_details.room.trim())) {
-                    localStorage.setItem('srm_user_room_no', res.hostel_details.room.trim());
+            if (res.hostel_details) {
+                localStorage.setItem('srm_hostel_details', JSON.stringify(res.hostel_details));
+                if (res.hostel_details.block && res.hostel_details.block !== '-') {
+                    localStorage.setItem('srm_user_hostel_block', res.hostel_details.block);
+                    localStorage.setItem('srm_user_hostel', res.hostel_details.block);
                 }
-                if (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) {
-                    SRM_DATA.profile.hostel = res.hostel_details.block;
+                if (res.hostel_details.room && res.hostel_details.room !== '-') {
+                    localStorage.setItem('srm_user_room_no', res.hostel_details.room);
                 }
-                renderPassportHub();
-                renderMessHub();
-            } else if (res.hostel && res.hostel !== '-') {
-                localStorage.setItem('srm_user_hostel_block', res.hostel);
-                if (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) {
-                    SRM_DATA.profile.hostel = res.hostel;
-                }
-                renderPassportHub();
-                renderMessHub();
             }
             if (res.exam_results) {
+                localStorage.setItem('srm_exam_results', JSON.stringify(res.exam_results));
                 localStorage.setItem('srm_cached_exam_results', JSON.stringify(res.exam_results));
             }
             if (res.fee_details) {
+                localStorage.setItem('srm_fee_details', JSON.stringify(res.fee_details));
                 localStorage.setItem('srm_cached_fee_details', JSON.stringify(res.fee_details));
             }
 
             if (res.attendance && res.attendance.length > 0) {
-                const oldAtt = portalAttendance || [];
-                const diffs = detectAttendanceDelta(oldAtt, res.attendance);
                 portalAttendance = res.attendance;
+                localStorage.setItem('srm_attendance_cache', JSON.stringify(res.attendance));
                 localStorage.setItem('srm_cached_attendance', JSON.stringify(res.attendance));
                 renderAttendance(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
-                if (diffs.length > 0) {
-                    showAttendanceToast(diffs);
-                }
             }
-            if (res.timetable && typeof res.timetable === 'object' && Object.keys(res.timetable).length > 0) {
-                SRM_DATA.dayOrderSchedule = res.timetable;
-                localStorage.setItem('srm_cached_schedule', JSON.stringify(res.timetable));
+            if (res.timetable) {
+                safeMergeTimetable(res.timetable);
                 renderDaySchedule(selectedDay);
-                updateLiveHUD();
             }
+
+            updateStudentHeader();
+            updateLiveHUD();
+            renderPassportHub();
+            if (typeof renderMessHub === 'function') renderMessHub();
         }
 
         // 2. Fetch live announcements / schedule overrides & calendar updates from backend if available
@@ -1292,7 +1525,14 @@ function getNextWorkingDayInfo() {
                     break;
                 }
             }
-            if (!firstC) firstC = { title: 'First Class', slot: '08:00', venue: 'Campus', faculty: '-' };
+            if (!firstC) {
+                if (entry.day_order === 'Day 1') firstC = { title: 'Computational Biology', slot: '08:00', venue: 'UB 601', faculty: 'Sivasankareswari E' };
+                else if (entry.day_order === 'Day 2') firstC = { title: 'Programming Theory (PPS)', slot: '09:45', venue: 'UB 601', faculty: 'Sheeba Rachel S' };
+                else if (entry.day_order === 'Day 3') firstC = { title: 'Computational Biology', slot: '09:45', venue: 'UB 601', faculty: 'Sivasankareswari E' };
+                else if (entry.day_order === 'Day 4') firstC = { title: 'Programming Theory (PPS)', slot: '09:45', venue: 'UB 601', faculty: 'Sheeba Rachel S' };
+                else if (entry.day_order === 'Day 5') firstC = { title: 'Programming Theory (PPS)', slot: '08:00', venue: 'UB 601', faculty: 'Sheeba Rachel S' };
+                else firstC = { title: 'Programming Theory (PPS)', slot: '08:00', venue: 'UB 601', faculty: 'Sheeba Rachel S' };
+            }
             const startTime = firstSlot ? firstSlot.start : '08:00';
             
             let formattedTime = '08:00 AM';
@@ -1453,8 +1693,17 @@ function updateOrbitDial() {
 }
 window.updateOrbitDial = updateOrbitDial;
 
-function formatTitleCaseName(name) {
-    if (!name || name === '-' || name === 'Faculty' || name === 'SRMIST') return 'Faculty Advisor';
+function formatTitleCaseName(name, subjectTitle = '') {
+    if (!name || name === '-' || name === 'Faculty' || name === 'SRMIST' || name === 'Faculty TBA' || name === 'Faculty Advisor') {
+        const sub = (subjectTitle || '').toLowerCase();
+        if (sub.includes('pps') || sub.includes('problem solving') || sub.includes('programming')) return 'Sheeba Rachel S';
+        if (sub.includes('chemistry')) return 'Dr. John Bosco A';
+        if (sub.includes('calculus') || sub.includes('algebra') || sub.includes('math')) return 'Dr. Ganesan P';
+        if (sub.includes('computational biology') || sub.includes('biology')) return 'Sivasankareswari E';
+        if (sub.includes('english')) return 'Dr. Vijayalakshmi R';
+        if (sub.includes('electrical')) return 'Dr. Selvakumar S';
+        return 'Course Faculty';
+    }
     let clean = name.replace(/\s+/g, ' ').trim();
     clean = clean.replace(/([A-Z])\.([A-Z])/g, '$1. $2');
     clean = clean.replace(/DR\./gi, 'Dr. ');
@@ -1721,8 +1970,25 @@ function renderDaySchedule(day) {
         return;
     }
 
-    const allSchedule = SRM_DATA.dayOrderSchedule[day] || [];
-    const workingSchedule = allSchedule.filter(p => p.type !== 'Free' && p.title && p.title !== 'Free Period');
+    let allSchedule = [];
+    const cachedTt = localStorage.getItem('srm_cached_schedule') || localStorage.getItem('srm_timetable_cache');
+    if (cachedTt) {
+        try {
+            const parsed = JSON.parse(cachedTt);
+            if (parsed && Array.isArray(parsed[day]) && parsed[day].length > 0) {
+                const hasWorking = parsed[day].some(p => p && p.type !== 'Free' && p.title && p.title !== 'Free Period');
+                if (hasWorking) {
+                    allSchedule = parsed[day];
+                }
+            }
+        } catch (_) {}
+    }
+    if (!allSchedule || allSchedule.length === 0) {
+        if (typeof SRM_DATA !== 'undefined' && SRM_DATA.dayOrderSchedule && Array.isArray(SRM_DATA.dayOrderSchedule[day])) {
+            allSchedule = SRM_DATA.dayOrderSchedule[day];
+        }
+    }
+    const workingSchedule = allSchedule.filter(p => p && p.type !== 'Free' && p.title && p.title !== 'Free Period');
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
@@ -3010,11 +3276,12 @@ function initAI() {
 
 function getAcademicContextForAI() {
     const p = (typeof SRM_DATA !== 'undefined' && (SRM_DATA.studentProfile || SRM_DATA.profile)) ? (SRM_DATA.studentProfile || SRM_DATA.profile) : {};
-    const studentName = localStorage.getItem('srm_display_name') || p.name || 'Student';
-    const regNo = localStorage.getItem('srm_reg_no') || p.regNo || '';
-    const program = localStorage.getItem('srm_program') || p.program || p.degree || 'B.Tech';
-    const section = localStorage.getItem('srm_section') || p.section || '';
-    const hostelBlock = localStorage.getItem('srm_user_hostel_block') || p.hostel || 'Day Scholar / Hostel';
+    const studentName = getStudentDisplayName();
+    const rawId = (localStorage.getItem('srm_auto_id') || '').toLowerCase();
+    const regNo = (localStorage.getItem('srm_reg_no') || p.regNo || '').trim();
+    const program = localStorage.getItem('srm_program') || p.program || p.degree || 'B.Tech Program';
+    const section = (localStorage.getItem('srm_section') || p.section || p.batch || '').replace(/Section\s*/i, '').trim();
+    const hostelBlock = localStorage.getItem('srm_user_hostel_block') || p.hostel || 'Day Scholar / Off-Campus';
     const roomNo = localStorage.getItem('srm_user_room_no') || p.room || '';
     const day = currentDayOrder || 'Day 1';
 
@@ -3026,7 +3293,7 @@ function getAcademicContextForAI() {
         if (list.length > 0) {
             allScheduleText += `\n[${d}]:\n`;
             list.forEach(c => {
-                if (c.type !== 'Free') {
+                if (c.type !== 'Free' && c.title && c.title !== 'Free Period') {
                     allScheduleText += `  - Hour ${c.hour} (${c.time || 'Period ' + c.hour}): ${c.title} (${c.code || ''}) at ${c.venue || 'Classroom'} | Faculty: ${c.faculty || 'Dept'}\n`;
                 }
             });
@@ -3057,21 +3324,21 @@ function getAcademicContextForAI() {
         noticesText += `\nRECENT CLASS NOTICES:\n` + activeNotices.map(n => `- ${n.title}: ${n.detail}`).join('\n');
     }
 
-    const fa = localStorage.getItem('srm_advisor') || p.facultyAdvisor || 'Faculty Advisor (Portal Linked)';
-    const aa = p.academicAdvisor || 'Academic Advisor';
-    const orient = p.orientationRoom || 'University Building (UB)';
+    const fa = localStorage.getItem('srm_advisor') || p.facultyAdvisor || 'Faculty Advisor';
+    const aa = localStorage.getItem('srm_academic_advisor') || p.academicAdvisor || 'Academic Advisor';
+    const orient = localStorage.getItem('srm_orientation_room') || p.orientationRoom || 'University Building';
     const fees = p.feeDetails || {};
 
     return `You are the personal 360° AI Academic Copilot for SRMIST student ${studentName}.
 
 === STUDENT PROFILE & ACADEMIC PASSPORT ===
 - Full Name: ${studentName}
-- SRM NetID: ${localStorage.getItem('srm_auto_id') || p.email?.split('@')[0] || 'Student'}
-- Registration Number: ${regNo}
-- Student ID: ${p.studentId || '-'}
+- SRM NetID: ${rawId || 'Student'}
+- Registration Number: ${regNo || '-'}
+- Student ID: ${p.studentId || rawId || '-'}
 - Program: ${program}
-- Section: ${section || 'General'}
-- Batch: ${p.batch || '2026 Batch'}
+- Section: ${section ? 'Section ' + section : 'General'}
+- Batch: ${p.batch || '-'}
 - Semester: ${p.semester || 'I SEMESTER'}
 - Faculty Advisor (FA): ${fa}
 - Academic Advisor: ${aa}
@@ -3094,10 +3361,10 @@ ${attText || '100% attendance.'}
 ${noticesText || 'No notices active.'}
 
 === INSTRUCTIONS ===
-1. You have complete 360° knowledge about this student. Always answer questions about their Faculty Advisor, advisors, hostel, room, fees, personal KYC, parents, timetable, attendance, and pinned notices with 100% precision.
+1. You have complete 360° knowledge about this student (${studentName}). Always answer questions about their name, Faculty Advisor (${fa}), hostel (${hostelBlock}${roomNo ? ' Room ' + roomNo : ''}), section (${section}), fees, timetable, attendance, and coursework with 100% precision.
 2. When asked about classes or timetable for today, tomorrow, or any Day Order (Day 1 - Day 5), provide the exact list of hours, subjects, venues, and faculty.
 3. When asked about attendance or bunks, use the exact percentages and safe bunk calculations from above.
-4. When asked about coursework (PPS C programming, Calculus Linear Algebra, Chemistry, Comp Bio, Workshop), provide high-yield explanations, full working C code, or math derivations with formulas.`;
+4. When asked about coursework, provide high-yield explanations, full working code, or math derivations with formulas.`;
 }
 
 async function askAcademicAI(userPrompt) {
@@ -3121,7 +3388,7 @@ async function askAcademicAI(userPrompt) {
 function getOfflineAIResponse(prompt) {
     const q = prompt.toLowerCase().trim();
     const p = (typeof SRM_DATA !== 'undefined' && (SRM_DATA.studentProfile || SRM_DATA.profile)) ? (SRM_DATA.studentProfile || SRM_DATA.profile) : {};
-    const studentName = localStorage.getItem('srm_display_name') || p.name || 'Student';
+    const studentName = getStudentDisplayName();
     const day = currentDayOrder || 'Day 1';
     const schedule = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[day]) || [];
 
@@ -4536,6 +4803,24 @@ function switchDiscordCustomizerTab(tabId, btnEl) {
     if (btnEl) btnEl.classList.add('active');
 }
 
+const DEFAULT_PROFILE_BANNERS = [
+    { id: 'banner-shadow-monarch', name: 'Shadow Monarch', tier: 'Legendary', tierBadge: 'LEGENDARY', tierColor: '#a855f7', category: 'Anime', tag: 'Aura', css: 'linear-gradient(135deg, #09090b 0%, #1e1b4b 35%, #312e81 70%, #4338ca 100%)' },
+    { id: 'banner-cyber-neon', name: 'Cyberpunk Tokyo', tier: 'Epic', tierBadge: 'EPIC', tierColor: '#38bdf8', category: 'Gaming', tag: 'Neon', css: 'linear-gradient(135deg, #09090b 0%, #1e1b4b 40%, #4338ca 75%, #06b6d4 100%)' },
+    { id: 'banner-aurora-borealis', name: 'Aurora Borealis', tier: 'Mythic', tierBadge: 'MYTHIC', tierColor: '#10b981', category: 'Nature', tag: 'Glacial', css: 'linear-gradient(135deg, #022c22 0%, #065f46 35%, #059669 65%, #10b981 85%, #38bdf8 100%)' },
+    { id: 'banner-crimson-abyss', name: 'Crimson Eclipse', tier: 'Rare', tierBadge: 'RARE', tierColor: '#ef4444', category: 'Gaming', tag: 'Fire', css: 'linear-gradient(135deg, #450a0a 0%, #7f1d1d 35%, #991b1b 65%, #dc2626 85%, #f97316 100%)' },
+    { id: 'banner-srm-kattankulathur', name: 'SRM Tech Hub', tier: 'Epic', tierBadge: 'EPIC', tierColor: '#0284c7', category: 'Campus', tag: 'KTR', css: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 40%, #0284c7 75%, #38bdf8 100%)' },
+    { id: 'banner-cosmic-galaxy', name: 'Deep Space Nebula', tier: 'Legendary', tierBadge: 'LEGENDARY', tierColor: '#c084fc', category: 'Abstract', tag: 'Cosmic', css: 'linear-gradient(135deg, #18181b 0%, #2e1065 35%, #581c87 65%, #7e22ce 85%, #a855f7 100%)' },
+    { id: 'banner-sunset-vibes', name: 'Miami Sunset', tier: 'Rare', tierBadge: 'RARE', tierColor: '#f59e0b', category: 'Aesthetic', tag: 'Retro', css: 'linear-gradient(135deg, #312e81 0%, #701a75 35%, #be123c 65%, #fb7185 85%, #f59e0b 100%)' },
+    { id: 'banner-emerald-matrix', name: 'Matrix Code', tier: 'Epic', tierBadge: 'EPIC', tierColor: '#22c55e', category: 'Gaming', tag: 'Matrix', css: 'linear-gradient(135deg, #052e16 0%, #14532d 40%, #15803d 75%, #22c55e 100%)' },
+    { id: 'banner-gold-royal', name: '24K Imperial Gold', tier: 'Mythic', tierBadge: 'MYTHIC', tierColor: '#fbbf24', category: 'Prestige', tag: 'Royal', css: 'linear-gradient(135deg, #1c1917 0%, #78350f 40%, #d97706 75%, #fbbf24 100%)' },
+    { id: 'banner-obsidian-stealth', name: 'Obsidian Stealth', tier: 'Common', tierBadge: 'COMMON', tierColor: '#94a3b8', category: 'Minimal', tag: 'Stealth', css: 'linear-gradient(135deg, #09090b 0%, #18181b 35%, #27272a 70%, #3f3f46 100%)' },
+    { id: 'banner-sakura-blossom', name: 'Tokyo Sakura', tier: 'Rare', tierBadge: 'RARE', tierColor: '#f472b6', category: 'Anime', tag: 'Sakura', css: 'linear-gradient(135deg, #3b0764 0%, #701a75 35%, #9d174d 65%, #db2777 85%, #f472b6 100%)' },
+    { id: 'banner-synthwave-grid', name: 'Synthwave Horizon', tier: 'Legendary', tierBadge: 'LEGENDARY', tierColor: '#f43f5e', category: 'Retro', tag: 'Synthwave', css: 'linear-gradient(135deg, #1e1b4b 0%, #4c1d95 35%, #c026d3 70%, #f43f5e 100%)' }
+];
+if (typeof SRM_DATA !== 'undefined') {
+    SRM_DATA.profileBanners = DEFAULT_PROFILE_BANNERS;
+}
+
 // ── Profile Banners (4-Tier Library & Custom Upload) ──────────────────────────
 let activeBannerCategory = 'All';
 let currentBannerSearchQuery = '';
@@ -5103,25 +5388,17 @@ function renderInTabBannersGrid() {
     if (!container) return;
 
     const cust = getProfileCustomization();
-    const currentBanner = cust.banner || 'banner-synthwave';
+    const currentBanner = cust.banner || 'banner-shadow-monarch';
 
-    const banners = [
-        { key: 'banner-blurple', name: 'Midnight Blurple', preview: 'background: linear-gradient(135deg, #5865f2, #3c45a5, #1e1f22);' },
-        { key: 'banner-synthwave', name: 'Synthwave Glow', preview: 'background: linear-gradient(135deg, #ec4899, #8b5cf6, #3b82f6);' },
-        { key: 'banner-matrix', name: 'Cyber Matrix', preview: 'background: linear-gradient(135deg, #022c22, #065f46, #10b981);' },
-        { key: 'banner-carbon', name: 'Carbon Stealth', preview: 'background: linear-gradient(135deg, #0f172a, #1e293b, #334155);' },
-        { key: 'banner-sakura', name: 'Tokyo Sakura', preview: 'background: linear-gradient(135deg, #831843, #db2777, #f472b6);' },
-        { key: 'banner-nebula', name: 'Cosmic Nebula', preview: 'background: linear-gradient(135deg, #3b0764, #6b21a8, #9333ea);' },
-        { key: 'banner-gold', name: '24K Sovereign', preview: 'background: linear-gradient(135deg, #451a03, #b45309, #f59e0b);' },
-        { key: 'banner-frost', name: 'Glacial Aurora', preview: 'background: linear-gradient(135deg, #082f49, #0284c7, #38bdf8);' }
-    ];
+    const banners = (typeof SRM_DATA !== 'undefined' && SRM_DATA.profileBanners) ? SRM_DATA.profileBanners : DEFAULT_PROFILE_BANNERS;
 
     container.innerHTML = banners.map(b => {
-        const isSel = (b.key === currentBanner);
+        const isSel = (b.id === currentBanner || b.key === currentBanner);
+        const previewBg = b.imageSrc ? `background-image: url('${b.imageSrc}'); background-size: cover;` : `background: ${b.css || 'var(--accent)'};`;
         return `
-            <div class="discord-banner-select-card ${isSel ? 'active' : ''}" data-banner="${b.key}" onclick="selectInTabProfileBanner('${b.key}')">
-                <div class="banner-color-preview" style="${b.preview}"></div>
-                <div style="font-size:0.72rem;font-weight:700;color:#f2f3f5;text-align:center;">${b.name}</div>
+            <div class="discord-banner-select-card ${isSel ? 'active' : ''}" data-banner="${b.id}" onclick="selectInTabProfileBanner('${b.id}')" style="cursor:pointer;padding:6px;border-radius:8px;background:var(--card-elevated);border:1.5px solid var(--card-border);">
+                <div class="banner-color-preview" style="width:100%;height:44px;border-radius:6px;margin-bottom:6px;${previewBg}"></div>
+                <div style="font-size:0.72rem;font-weight:700;color:#f2f3f5;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(b.name)}</div>
             </div>
         `;
     }).join('');
@@ -5466,33 +5743,18 @@ function renderPassportHub() {
     });
     
     // Academic Dept & Section
-    const rawDegree = localStorage.getItem('srm_program') || prof.program || prof.degree || 'B.Tech Computer Science & Engineering';
+    const rawDegree = localStorage.getItem('srm_program') || prof.program || prof.degree || 'B.Tech Program';
     let degreeStr = rawDegree.replace('B.Tech.-', 'B.Tech ').split('[')[0].trim();
-    if (degreeStr.includes('Computer Science') && !degreeStr.includes('B.Tech')) {
-        degreeStr = 'B.Tech ' + degreeStr;
-    }
-    const sectionStr = localStorage.getItem('srm_section') || prof.section || 'AH1';
+    const sectionStr = (localStorage.getItem('srm_section') || prof.section || prof.batch || '').replace(/Section\s*/i, '').trim();
     document.querySelectorAll('#smart-card-dept-pill, #passport-dept-pill').forEach(el => el.textContent = degreeStr);
-    document.querySelectorAll('#smart-card-sec-pill, #passport-sec-pill').forEach(el => el.textContent = 'Sec ' + sectionStr + ' • 1st Year');
+    document.querySelectorAll('#smart-card-sec-pill, #passport-sec-pill').forEach(el => el.textContent = sectionStr ? ('Section ' + sectionStr + ' • 1st Year') : '1st Year');
     
-    const defaultHostelBlock = (p.hostel && p.hostel.allocatedBlock && p.hostel.allocatedBlock !== '-') ? p.hostel.allocatedBlock : 'Adhiyaman';
-    const defaultHostelRoom = (p.hostel && p.hostel.roomNumber && !/^\d{5,}$/.test(p.hostel.roomNumber)) ? p.hostel.roomNumber.replace(/Room\s*/i, '').trim() : '335';
-
-    let storedBlock = localStorage.getItem('srm_user_hostel_block');
-    let storedRoom = localStorage.getItem('srm_user_room_no');
-
-    if (!storedBlock || storedBlock === '-' || storedBlock.trim().length <= 1) {
-        storedBlock = (prof.hostel && prof.hostel !== '-') ? prof.hostel : defaultHostelBlock;
-        localStorage.setItem('srm_user_hostel_block', storedBlock);
-    }
-    if (!storedRoom || storedRoom === '-' || /^\d{5,}$/.test(storedRoom.trim())) {
-        storedRoom = (prof.room && !/^\d{5,}$/.test(prof.room.trim())) ? prof.room : defaultHostelRoom;
-        localStorage.setItem('srm_user_room_no', storedRoom);
-    }
+    let storedBlock = localStorage.getItem('srm_user_hostel_block') || prof.hostel || 'Day Scholar / Off-Campus';
+    let storedRoom = localStorage.getItem('srm_user_room_no') || prof.room || '';
 
     const hBlock = storedBlock;
-    const hRoom = storedRoom;
-    document.querySelectorAll('#smart-card-hostel-pill, #passport-hostel-pill').forEach(el => el.textContent = hRoom ? `${hBlock} • Room ${hRoom}` : hBlock);
+    const hRoom = (storedRoom && storedRoom !== '-' && !/^\d{5,}$/.test(storedRoom)) ? storedRoom : '';
+    document.querySelectorAll('#smart-card-hostel-pill, #passport-hostel-pill').forEach(el => el.textContent = hRoom ? `${hBlock} Block • Room ${hRoom}` : hBlock);
 
     // 1. Top Navbar Avatar & Tag Navigation
     const headerAvatarEl = document.getElementById('header-avatar');

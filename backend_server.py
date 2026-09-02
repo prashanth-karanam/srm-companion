@@ -13,6 +13,17 @@ import time
 import requests
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
+if sys.stdout is None:
+    try:
+        sys.stdout = open(os.path.join(os.path.dirname(__file__), 'backend_server.log'), 'a', encoding='utf-8')
+    except Exception:
+        sys.stdout = open(os.devnull, 'w')
+if sys.stderr is None:
+    try:
+        sys.stderr = open(os.path.join(os.path.dirname(__file__), 'backend_server.log'), 'a', encoding='utf-8')
+    except Exception:
+        sys.stderr = open(os.devnull, 'w')
+
 if hasattr(sys.stdout, 'reconfigure'):
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -257,10 +268,8 @@ class APIHandler(BaseHTTPRequestHandler):
                 hidden_fields = body.get('hidden_fields') or {}
                 sec_config    = body.get('sec_config') or {}
 
-                # Normalize: ensure @srmist.edu.in suffix
-                username = raw_id.strip().lower()
-                if username and '@' not in username:
-                    username = username + '@srmist.edu.in'
+                # Strictly normalize to NetID WITHOUT @srmist.edu.in as required by SRM LoginServlet
+                username = raw_id.strip().lower().replace('@srmist.edu.in', '').strip()
 
                 if not username:
                     self._send_json({'success': False, 'error': 'SRM NetID and password are required.'}, 400)
@@ -388,8 +397,11 @@ class APIHandler(BaseHTTPRequestHandler):
 def start_wa_bridge_subprocess():
     import subprocess
     try:
-        print('[Backend] Auto-starting Baileys WhatsApp Bridge on port 8001...')
-        subprocess.Popen(['node', 'wa_bridge.js'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        wa_path = os.path.join(base_dir, 'wa_bridge.js')
+        if os.path.exists(wa_path):
+            print('[Backend] Auto-starting Baileys WhatsApp Bridge on port 8001...')
+            subprocess.Popen(['node', wa_path], cwd=base_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception as e:
         print(f'[Backend] Failed to auto-start wa_bridge.js: {e}')
 

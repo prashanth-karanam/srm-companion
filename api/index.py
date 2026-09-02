@@ -357,13 +357,13 @@ def _execute_login_and_scrape(username, password, captcha, cookies_str="", hidde
     is_session_authenticated = False
     
     if cookies_str:
+        sess.headers['Cookie'] = cookies_str
         for item in cookies_str.split(';'):
             if '=' in item:
                 k, v = item.strip().split('=', 1)
                 k_clean = k.strip()
                 v_clean = v.strip()
-                c_path = '/srmiststudentportal' if k_clean == 'JSESSIONID' else '/'
-                sess.cookies.set(k_clean, v_clean, domain='sp.srmist.edu.in', path=c_path)
+                sess.cookies.set(k_clean, v_clean, domain='sp.srmist.edu.in')
         
         # Test active session with existing cookies
         try:
@@ -382,9 +382,11 @@ def _execute_login_and_scrape(username, password, captcha, cookies_str="", hidde
                 "error": "Session expired. Please sign in with CAPTCHA to refresh."
             }
 
+        clean_username = username.strip().lower().replace('@srmist.edu.in', '').strip()
+
         # Perform fresh authentication through LoginServlet
         login_payload = {
-            'username': username.strip().lower(),
+            'username': clean_username,
             'password': password.strip(),
             'captcha': captcha.strip()
         }
