@@ -26,7 +26,22 @@
     <script>
     (function() {
         try {
+            // 1. Purge any dead/stale gateway configurations from localStorage
+            var deadPatterns = ['onrender.com', 'railway.app', 'srm-backend.vercel.app'];
+            var saved = localStorage.getItem('srm_api_base');
+            if (saved && deadPatterns.some(function(d) { return saved.indexOf(d) !== -1; })) {
+                localStorage.removeItem('srm_api_base');
+            }
+            localStorage.removeItem('srm_remote_gateways');
+            localStorage.removeItem('srm_custom_gateway');
+            
+            // 2. Clean up stale hot code if version mismatched
             var hotCode = localStorage.getItem('srm_ota_hot_code');
+            var installedVer = localStorage.getItem('srm_installed_build_version');
+            if (hotCode && installedVer !== '2.5.2') {
+                localStorage.removeItem('srm_ota_hot_code');
+                hotCode = null;
+            }
             if (hotCode && hotCode.length > 5000) {
                 var s = document.createElement('script');
                 s.text = hotCode;

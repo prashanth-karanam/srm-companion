@@ -311,9 +311,7 @@ window.closeStudentHelpModal = closeStudentHelpModal;
 // ==========================================================================
 const MULTI_CLOUD_GATEWAYS = [
     { name: 'Cluster Alpha (Vercel Production Edge)', url: 'https://srmbackend.vercel.app' },
-    { name: 'Cluster Cloudflare (Global Edge Shield)', url: 'https://srm-edge-gateway.srm-companion.workers.dev' },
-    { name: 'Cluster Beta (Render Cloud Microservice)', url: 'https://srm-companion-backend.onrender.com' },
-    { name: 'Cluster Gamma (Railway Gateway)', url: 'https://srm-companion-backend.up.railway.app' }
+    { name: 'Cluster Cloudflare (Global Edge Shield)', url: 'https://srm-edge-gateway.srm-companion.workers.dev' }
 ];
 
 function getActiveGateways() {
@@ -347,10 +345,22 @@ var _lastAuthClickTime = 0;
 function getApiBase() {
     try {
         const custom = localStorage.getItem('srm_custom_gateway');
-        if (custom && custom.trim()) return custom.trim().replace(/\/$/, '');
+        if (custom && custom.trim()) {
+            const clean = custom.trim().replace(/\/$/, '');
+            if (!clean.includes('onrender.com') && !clean.includes('railway.app') && !clean.includes('srm-backend.vercel.app')) {
+                return clean;
+            }
+            localStorage.removeItem('srm_custom_gateway');
+        }
 
         const saved = localStorage.getItem('srm_api_base');
-        if (saved && saved.trim()) return saved.trim().replace(/\/$/, '');
+        if (saved && saved.trim()) {
+            const clean = saved.trim().replace(/\/$/, '');
+            if (!clean.includes('onrender.com') && !clean.includes('railway.app') && !clean.includes('srm-backend.vercel.app')) {
+                return clean;
+            }
+            localStorage.removeItem('srm_api_base');
+        }
 
         const currentStudent = localStorage.getItem('srm_auto_id') || localStorage.getItem('srm_reg_no');
         if (currentStudent) {
@@ -359,7 +369,7 @@ function getApiBase() {
 
         if (typeof window !== 'undefined' && window.location) {
             const host = window.location.hostname || '';
-            if (host.includes('vercel.app') || host.includes('onrender.com') || host.includes('railway.app') || host.includes('workers.dev')) {
+            if (host.includes('vercel.app') || host.includes('workers.dev')) {
                 return window.location.origin;
             }
         }
@@ -790,7 +800,7 @@ async function fetchDirectSRMCaptchaNative() {
     return null;
 }
 
-// ─── Live CAPTCHA Streamer with Multi-Gateway & Native Fallback ───────────────
+// ─── Live CAPTCHA Streamer with Multi-Gateway Failover ───────────────
 async function fetchLiveCaptcha(force = false) {
     if (_isFetchingCaptcha && !force) return;
     _isFetchingCaptcha = true;
@@ -805,18 +815,40 @@ async function fetchLiveCaptcha(force = false) {
     try {
         let res = null;
 
-        // 1. On Android/Capacitor native app: Always prioritize direct native device fetch!
-        const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-        if (isNative) {
-            console.log('[Captcha] Running on native mobile device - fetching directly from SRM...');
-            res = await fetchDirectSRMCaptchaNative();
+        // Candidate gateways in priority order
+        const candidateGateways = [
+            'https://srmbackend.vercel.app',
+            'https://srm-edge-gateway.srm-companion.workers.dev'
+        ];
+
+        // If running in browser and current origin is a known valid host, prioritize origin
+        if (typeof window !== 'undefined' && window.location && window.location.origin) {
+            const curOrigin = window.location.origin.replace(/\/$/, '');
+            if (curOrigin.includes('vercel.app') || curOrigin.includes('workers.dev')) {
+                const idx = candidateGateways.indexOf(curOrigin);
+                if (idx > -1) candidateGateways.splice(idx, 1);
+                candidateGateways.unshift(curOrigin);
+            }
         }
 
-        // 2. If not on native app or if native fetch failed, use gateway API
-        if (!res || !res.success || !res.captchaImg) {
-            res = await apiFetch('/api/captcha', { timeout: 8000 });
+        // Sequential multi-gateway attempt with fast timeout
+        for (const gw of candidateGateways) {
+            try {
+                const r = await nativeHttp(`${gw}/api/captcha`, { timeout: 4500 });
+                if (r && r.ok) {
+                    const data = await r.json();
+                    if (data && data.success && data.captchaImg) {
+                        res = data;
+                        _activeGatewayUrl = gw;
+                        break;
+                    }
+                }
+            } catch (gwErr) {
+                console.warn(`[Captcha] Gateway ${gw} error:`, gwErr);
+            }
         }
 
+        // Render result if successful
         if (res && res.success && res.captchaImg) {
             if (res.cookies) _liveCookies = res.cookies;
             if (res.sec_config) _secConfig = res.sec_config;
@@ -844,7 +876,7 @@ async function fetchLiveCaptcha(force = false) {
             return;
         } else {
             const err = (res && res.error) ? res.error : 'Portal unreachable';
-            console.warn('[Captcha] Gateway returned error:', err);
+            console.warn('[Captcha] All gateways failed:', err);
             box.innerHTML = `<div onclick="fetchLiveCaptcha(true)" style="cursor:pointer;display:flex;align-items:center;justify-content:center;height:42px;width:140px;background:rgba(239,68,68,0.1);border-radius:6px;font-size:0.75rem;color:#ef4444;border:1px solid rgba(239,68,68,0.3);text-align:center;">🔄 Tap to Reload</div>`;
         }
     } catch (e) {
