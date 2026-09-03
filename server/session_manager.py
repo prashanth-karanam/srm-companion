@@ -87,7 +87,32 @@ class SessionManager:
                 pass
         self._captcha_sessions.pop(session_id, None)
 
-    # ─── Student Data Caching (3000-User Scale Optimization) ──────────────────
+    # ─── Student Data Caching (Multi-User Scale Optimization) ──────────────────
+    def _get_disk_store_path(self):
+        import tempfile
+        import os
+        td = tempfile.gettempdir()
+        return os.path.join(td, "srm_student_store.json")
+
+    def _read_disk_store(self) -> dict:
+        import os
+        p = self._get_disk_store_path()
+        if os.path.exists(p):
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception:
+                return {}
+        return {}
+
+    def _write_disk_store(self, store: dict):
+        p = self._get_disk_store_path()
+        try:
+            with open(p, 'w', encoding='utf-8') as f:
+                json.dump(store, f)
+        except Exception as e:
+            logger.warning(f"Error saving to disk store: {e}")
+
     def save_student_data(self, srm_id: str, data: dict):
         clean_id = srm_id.strip().lower()
         cache_entry = {
@@ -102,6 +127,12 @@ class SessionManager:
                 logger.warning(f"Redis write error: {e}")
 
         self._student_cache[clean_id] = cache_entry
+        try:
+            disk_store = self._read_disk_store()
+            disk_store[clean_id] = cache_entry
+            self._write_disk_store(disk_store)
+        except Exception:
+            pass
 
     def get_student_data(self, srm_id: str, max_age_seconds: int = None) -> Optional[Dict[str, Any]]:
         clean_id = srm_id.strip().lower()
@@ -123,6 +154,18 @@ class SessionManager:
                 return entry.get("data")
             else:
                 self._student_cache.pop(clean_id, None)
+
+        # Fallback to persistent disk store
+        try:
+            disk_store = self._read_disk_store()
+            if clean_id in disk_store:
+                d_entry = disk_store[clean_id]
+                if time.time() - d_entry.get("cached_at", 0) < max_age:
+                    self._student_cache[clean_id] = d_entry
+                    return d_entry.get("data")
+        except Exception:
+            pass
+
         return None
 
     def invalidate_student_data(self, srm_id: str):
@@ -133,6 +176,12 @@ class SessionManager:
             except Exception:
                 pass
         self._student_cache.pop(clean_id, None)
+        try:
+            disk_store = self._read_disk_store()
+            disk_store.pop(clean_id, None)
+            self._write_disk_store(disk_store)
+        except Exception:
+            pass
 
     # ─── Housekeeping ─────────────────────────────────────────────────────────
     def _cleanup_expired_captcha(self):

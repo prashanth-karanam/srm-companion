@@ -211,6 +211,21 @@ async def login_and_scrape_all(
             logger.warning("LOGIN FAILED: 'Invalid Captcha Code' in response")
             return {"success": False, "error": "Invalid CAPTCHA entered. Please tap reload and try again."}
 
+        # Follow loader to promote session in Tomcat
+        if ".theGR8LoginLoader" in login_html:
+            logger.info("Following .theGR8LoginLoader to youLogin.jsp...")
+            try:
+                await client.post(
+                    "https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp",
+                    headers={
+                        'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/LoginServlet',
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    timeout=10.0
+                )
+            except Exception as e:
+                logger.warning(f"Error following loader: {e}")
+
         logger.info("LOGIN SUCCESS! Proceeding to fetch student report tabs...")
 
         # 3. Concurrent Scraping of All Student Data Tabs
@@ -350,46 +365,65 @@ def _parse_attendance(html: str) -> list:
         return attendance_list
 
     soup = BeautifulSoup(html, 'html.parser')
-    table = soup.find('table')
-    if not table:
-        return attendance_list
+    seen_codes = set()
 
-    for row in table.find_all('tr')[1:]:
-        cols = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
-        if len(cols) >= 8 and cols[0] not in ['Total', 'Code', '']:
+    for table in soup.find_all('table'):
+        for row in table.find_all('tr'):
+            cols = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
+            if len(cols) < 5:
+                continue
+
+            # Check if row is a header or summary
+            first = cols[0].upper()
+            if any(h in first for h in ['TOTAL', 'CODE', 'SL', 'S.NO', 'COURSE', 'SEMESTER']):
+                continue
+
+            # Detect course code and numeric stats
+            code = cols[0].strip()
+            title = cols[1].strip() if len(cols) > 1 else code
+            
+            # Find conducted, attended, absent, percentage across columns
+            numeric_cols = [c.replace('%', '').strip() for c in cols[2:] if c.replace('%', '').strip().replace('.', '', 1).isdigit()]
+            if len(numeric_cols) < 2:
+                continue
+
             try:
-                conducted = int(cols[2]) if cols[2].isdigit() else 0
-                attended = int(cols[3]) if cols[3].isdigit() else 0
-                absent = int(cols[4]) if cols[4].isdigit() else 0
-                pct_str = cols[7].replace('%', '').strip()
-                pct = float(pct_str) if pct_str else 0.0
+                conducted = int(float(cols[2])) if len(cols) > 2 and cols[2].replace('.', '', 1).isdigit() else 0
+                attended = int(float(cols[3])) if len(cols) > 3 and cols[3].replace('.', '', 1).isdigit() else 0
+                absent = int(float(cols[4])) if len(cols) > 4 and cols[4].replace('.', '', 1).isdigit() else max(0, conducted - attended)
+                
+                # Percentage is usually column 7 or computed
+                pct_str = cols[7].replace('%', '').strip() if len(cols) > 7 else ""
+                if pct_str and pct_str.replace('.', '', 1).isdigit():
+                    pct = float(pct_str)
+                else:
+                    pct = round((attended / conducted * 100.0), 2) if conducted > 0 else 100.0
 
-                # Bunk and recovery calculation
-                # 75% threshold: Attended / Conducted >= 0.75
-                # Max buncanble = floor((4 * Attended - 3 * Conducted) / 3)
                 safe_bunk = math.floor((4 * attended - 3 * conducted) / 3) if conducted > 0 else 0
                 safe_bunk = max(0, safe_bunk)
-
                 recovery_needed = math.ceil((3 * conducted - 4 * attended)) if conducted > 0 else 0
                 recovery_needed = max(0, recovery_needed)
 
-                attendance_list.append({
-                    "code": cols[0],
-                    "title": cols[1],
-                    "conducted": conducted,
-                    "attended": attended,
-                    "absent": absent,
-                    "percentage": pct,
-                    "safe_bunks": safe_bunk,
-                    "recovery_needed": recovery_needed
-                })
+                if code and code not in seen_codes:
+                    seen_codes.add(code)
+                    attendance_list.append({
+                        "code": code,
+                        "title": title,
+                        "conducted": conducted,
+                        "attended": attended,
+                        "absent": absent,
+                        "percentage": pct,
+                        "safe_bunks": safe_bunk,
+                        "recovery_needed": recovery_needed
+                    })
             except Exception as e:
                 logger.warning(f"Error parsing attendance row: {e}")
+
     return attendance_list
 
 
 def _parse_timetable(html: str) -> Dict[str, list]:
-    schedule = {"Day 1": [], "Day 2": [], "Day 3": [], "Day 4": [], "Day 5": []}
+    schedule = {"Day 1": [], "Day 2": [], "Day 3": [], "Day 4": [], "Day 5": [], "Day 6": []}
     if not html:
         return schedule
 
@@ -398,25 +432,21 @@ def _parse_timetable(html: str) -> Dict[str, list]:
     if not tables:
         return schedule
 
-    # 1. Parse Course Registration Details Table (tables[1] if exists)
+    # 1. Parse Course Registration Details Table
     course_map = {}
-    if len(tables) >= 2:
-        for row in tables[1].find_all('tr')[1:]:
+    for table in tables:
+        for row in table.find_all('tr')[1:]:
             cols = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
-            if len(cols) >= 5:
+            if len(cols) >= 5 and any(cols[0].startswith(p) for p in ['19', '20', '21', '22', '23', '24', '25', '26', 'CSE', 'ECE', 'MAB', 'MEE']):
                 c_code = cols[0]
-                c_name = cols[1]
-                c_slot = cols[3]
-                c_fac = cols[4].split('[')[0].strip() if cols[4] else ""
+                c_name = cols[1] if len(cols) > 1 else c_code
+                c_slot = cols[3] if len(cols) > 3 else ""
+                c_fac = cols[4].split('[')[0].strip() if len(cols) > 4 and cols[4] else ""
 
                 venue_parts = []
-                if len(cols) > 6 and cols[6] and cols[6] != '-':
-                    venue_parts.append(cols[6])
-                if len(cols) > 7 and cols[7] and cols[7] != '-':
-                    venue_parts.append(cols[7])
-                if len(cols) > 8 and cols[8] and cols[8] != '-':
-                    venue_parts.append(cols[8])
-
+                for idx in [6, 7, 8]:
+                    if len(cols) > idx and cols[idx] and cols[idx] != '-':
+                        venue_parts.append(cols[idx])
                 c_venue = " - ".join(venue_parts) if venue_parts else "Main Campus"
 
                 entry = {
@@ -426,50 +456,52 @@ def _parse_timetable(html: str) -> Dict[str, list]:
                     "faculty": c_fac,
                     "venue": c_venue
                 }
-
                 course_map[f"{c_code}_{c_slot}"] = entry
                 course_map[c_code] = entry
                 if any(k in c_name.upper() for k in ['LAB', 'PRACTICE']) or any(s.strip().startswith('P') for s in c_slot.split(',')):
                     course_map[f"{c_code}_LAB"] = entry
 
-    # 2. Parse Day Order Matrix Grid (tables[0])
-    for row in tables[0].find_all('tr'):
+    # 2. Parse Day Order Matrix Grid (dynamically find matrix table)
+    grid_table = tables[0]
+    for row in grid_table.find_all('tr'):
         cols = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
         if not cols:
             continue
         first_col = cols[0].strip()
-        for day_num in range(1, 6):
+        day_match = re.search(r"Day\s*(\d+)", first_col, re.IGNORECASE)
+        if day_match:
+            day_num = day_match.group(1)
             day_key = f"Day {day_num}"
-            if day_key.lower() in first_col.lower():
-                day_periods = []
-                for hour_idx, raw_code in enumerate(cols[1:], start=1):
-                    code_clean = raw_code.strip()
-                    if not code_clean or code_clean == '-':
-                        day_periods.append({
-                            "hour": hour_idx,
-                            "type": "Free",
-                            "title": "Free Period",
-                            "code": "",
-                            "venue": "-",
-                            "faculty": "-"
-                        })
-                    else:
-                        is_lab_period = hour_idx in [7, 8, 9, 10] or code_clean.endswith('L')
-                        info = course_map.get(f"{code_clean}_LAB") if (is_lab_period and f"{code_clean}_LAB" in course_map) else course_map.get(code_clean, {})
-                        
-                        course_title = info.get("title") or code_clean
-                        is_lab = 'LAB' in course_title.upper() or 'PRACTICE' in course_title.upper() or code_clean.endswith('L')
-                        
-                        day_periods.append({
-                            "hour": hour_idx,
-                            "type": "Lab" if is_lab else "Lecture",
-                            "title": course_title,
-                            "code": code_clean,
-                            "venue": info.get("venue") or "University Building",
-                            "faculty": info.get("faculty") or "-"
-                        })
-                schedule[day_key] = day_periods
-                break
+            day_periods = []
+            for hour_idx, raw_code in enumerate(cols[1:], start=1):
+                code_clean = raw_code.strip()
+                if not code_clean or code_clean == '-':
+                    day_periods.append({
+                        "hour": hour_idx,
+                        "type": "Free",
+                        "title": "Free Period",
+                        "code": "",
+                        "venue": "-",
+                        "faculty": "-"
+                    })
+                else:
+                    is_lab_period = hour_idx in [7, 8, 9, 10, 11, 12] or code_clean.endswith('L') or code_clean.endswith('J')
+                    info = course_map.get(f"{code_clean}_LAB") if (is_lab_period and f"{code_clean}_LAB" in course_map) else course_map.get(code_clean, {})
+                    
+                    course_title = info.get("title") or code_clean
+                    is_lab = 'LAB' in course_title.upper() or 'PRACTICE' in course_title.upper() or code_clean.endswith('L')
+                    
+                    day_periods.append({
+                        "hour": hour_idx,
+                        "type": "Lab" if is_lab else "Theory",
+                        "title": course_title,
+                        "code": code_clean,
+                        "slot": info.get("slot") or "",
+                        "venue": info.get("venue") or "University Building",
+                        "faculty": info.get("faculty") or "-"
+                    })
+            schedule[day_key] = day_periods
+
     return schedule
 
 

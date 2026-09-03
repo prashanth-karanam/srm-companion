@@ -77,8 +77,8 @@ class StudentSyncPayload(BaseModel):
     program: Optional[str] = ""
     section: Optional[str] = ""
     email: Optional[str] = ""
-    attendance: Optional[list] = []
-    timetable: Optional[list] = []
+    attendance: Optional[Any] = []
+    timetable: Optional[Any] = {}
     personal_info: Optional[dict] = {}
     hostel_details: Optional[dict] = {}
     sync_code: Optional[str] = None
@@ -397,7 +397,8 @@ async def get_synced_student(identifier: str):
 
     # Query persistent Global Edge KV if RAM was flushed on container cold start
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
+        edge_headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        async with httpx.AsyncClient(headers=edge_headers, timeout=4.0) as client:
             if clean.isdigit() and len(clean) == 6:
                 kv_url = f"https://srm-edge-gateway.srm-companion.workers.dev/api/restore-code/{clean}"
             else:

@@ -1,4 +1,5 @@
-const APP_BUILD_VERSION = '2.5.2';
+var APP_BUILD_VERSION = window.APP_BUILD_VERSION || '2.5.2';
+window.APP_BUILD_VERSION = APP_BUILD_VERSION;
 var _liveCookies = '';
 var _secConfig = {};
 var _hiddenFields = {};
@@ -112,7 +113,7 @@ function safeJsonParse(val, fallback = null) {
 // ==========================================================================
 //  SRM COMPANION THEME ENGINE
 // ==========================================================================
-const SUPPORTED_THEMES = ['alabaster-silk', 'kyoto-matcha', 'mocha-cashmere', 'nordic-midnight', 'fcuk-clay', 'claymorph', 'linear-pro', 'luminous', 'smooth', 'obsidian', 'monolith', 'velvet-aurora', 'tokyo-sakura', 'clay-minimal', 'white-manga', 'dark-manga', 'offwhite', 'dominator', 'arcade', 'linear', 'tokyo', 'nord', 'paper', 'neobrutalist'];
+var SUPPORTED_THEMES = ['alabaster-silk', 'kyoto-matcha', 'mocha-cashmere', 'nordic-midnight', 'fcuk-clay', 'claymorph', 'linear-pro', 'luminous', 'smooth', 'obsidian', 'monolith', 'velvet-aurora', 'tokyo-sakura', 'clay-minimal', 'white-manga', 'dark-manga', 'offwhite', 'dominator', 'arcade', 'linear', 'tokyo', 'nord', 'paper', 'neobrutalist'];
 
 function initTheme() {
     const saved = localStorage.getItem('srm_theme') || 'alabaster-silk';
@@ -309,7 +310,7 @@ window.closeStudentHelpModal = closeStudentHelpModal;
 // ==========================================================================
 //  100% PURE CLOUD SERVERLESS & NATIVE ENGINE (Tri-Cluster Architecture)
 // ==========================================================================
-const MULTI_CLOUD_GATEWAYS = [
+var MULTI_CLOUD_GATEWAYS = [
     { name: 'Cluster Alpha (Vercel Production Edge)', url: 'https://srmbackend.vercel.app' },
     { name: 'Cluster Cloudflare (Global Edge Shield)', url: 'https://srm-edge-gateway.srm-companion.workers.dev' }
 ];
@@ -1001,22 +1002,23 @@ async function doNativePortalLogin(rawId, pass, captchaVal) {
                 data: 'iden=1&filter=&hdnFormDetails=1&csrfPreventionSalt='
             }),
             capHttp.request({
-                url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentAttendance.jsp',
+                url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentAttendanceDetails.jsp',
                 method: 'POST',
                 headers: reportHeaders,
-                data: 'iden=2&filter=&hdnFormDetails=2&csrfPreventionSalt='
+                data: 'iden=9&filter=&hdnFormDetails=9&csrfPreventionSalt='
             }),
             capHttp.request({
-                url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentTimetable.jsp',
+                url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentTimeTableDetails.jsp',
                 method: 'POST',
                 headers: reportHeaders,
-                data: 'iden=3&filter=&hdnFormDetails=3&csrfPreventionSalt='
+                data: 'iden=10&filter=&hdnFormDetails=10&csrfPreventionSalt='
             })
         ]);
 
         const parser = new DOMParser();
         const profDoc = parser.parseFromString(profRes.data || '', 'text/html');
         const attDoc = parser.parseFromString(attRes.data || '', 'text/html');
+        const ttDoc = parser.parseFromString(ttRes.data || '', 'text/html');
 
         let studentName = rawId.toUpperCase();
         let regNo = '';
@@ -1035,35 +1037,128 @@ async function doNativePortalLogin(rawId, pass, captchaVal) {
             else if (txt.includes('Faculty Advisor')) advisor = nxt;
         });
 
+        // ─── Real Dynamic Attendance Parsing (Multi-Table Support) ─────────────
         const attendance = [];
-        const attTable = attDoc.querySelector('table');
-        if (attTable) {
-            const rows = attTable.querySelectorAll('tr');
-            for (let i = 1; i < rows.length; i++) {
-                const cols = Array.from(rows[i].querySelectorAll('td, th')).map(c => c.textContent.trim());
-                if (cols.length >= 8 && cols[0] && cols[0] !== 'Code' && cols[0] !== 'Total') {
-                    const conducted = parseInt(cols[2], 10) || 0;
-                    const attended = parseInt(cols[3], 10) || 0;
-                    const absent = parseInt(cols[4], 10) || 0;
-                    const pct = parseFloat(cols[7].replace('%', '')) || 0.0;
-                    const safeBunk = conducted > 0 ? Math.max(0, Math.floor((4 * attended - 3 * conducted) / 3)) : 0;
-                    const recovery = conducted > 0 ? Math.max(0, Math.ceil(3 * conducted - 4 * attended)) : 0;
-                    attendance.push({
-                        code: cols[0],
-                        title: cols[1],
-                        conducted,
-                        attended,
-                        absent,
-                        percentage: pct,
-                        safe_bunks: safeBunk,
-                        recovery_needed: recovery
-                    });
+        const seenAttCodes = new Set();
+        attDoc.querySelectorAll('table').forEach(table => {
+            table.querySelectorAll('tr').forEach(row => {
+                const cols = Array.from(row.querySelectorAll('td, th')).map(c => c.textContent.trim());
+                if (cols.length >= 5) {
+                    const first = cols[0].toUpperCase();
+                    if (first.includes('TOTAL') || first.includes('CODE') || first.includes('SL') || first.includes('S.NO')) return;
+                    
+                    const code = cols[0].trim();
+                    const title = cols[1] ? cols[1].trim() : code;
+                    if (!code || seenAttCodes.has(code)) return;
+
+                    const numCols = cols.slice(2).filter(c => c.replace('%', '').trim().length > 0 && !isNaN(c.replace('%', '').trim()));
+                    if (numCols.length >= 2) {
+                        const conducted = parseInt(cols[2], 10) || 0;
+                        const attended = parseInt(cols[3], 10) || 0;
+                        const absent = parseInt(cols[4], 10) || Math.max(0, conducted - attended);
+                        let pct = 100.0;
+                        if (cols[7] && !isNaN(cols[7].replace('%', '').trim())) {
+                            pct = parseFloat(cols[7].replace('%', '').trim());
+                        } else if (conducted > 0) {
+                            pct = parseFloat(((attended / conducted) * 100).toFixed(2));
+                        }
+                        const safeBunk = conducted > 0 ? Math.max(0, Math.floor((4 * attended - 3 * conducted) / 3)) : 0;
+                        const recovery = conducted > 0 ? Math.max(0, Math.ceil(3 * conducted - 4 * attended)) : 0;
+                        
+                        seenAttCodes.add(code);
+                        attendance.push({
+                            code,
+                            title,
+                            conducted,
+                            attended,
+                            absent,
+                            percentage: pct,
+                            safe_bunks: safeBunk,
+                            recovery_needed: recovery
+                        });
+                    }
                 }
-            }
+            });
+        });
+
+        // ─── Real Dynamic Timetable Parsing (Day 1 - Day 6, Extended Hours 1 - 12) ───
+        const timetable = { "Day 1": [], "Day 2": [], "Day 3": [], "Day 4": [], "Day 5": [], "Day 6": [] };
+        const ttTables = ttDoc.querySelectorAll('table');
+        const courseMap = {};
+
+        // 1. Build course registry mapping from metadata tables
+        ttTables.forEach(table => {
+            table.querySelectorAll('tr').forEach(row => {
+                const cols = Array.from(row.querySelectorAll('td, th')).map(c => c.textContent.trim());
+                if (cols.length >= 5 && cols[0].length >= 5) {
+                    const cCode = cols[0];
+                    const cName = cols[1] || cCode;
+                    const cSlot = cols[3] || '';
+                    const cFac = cols[4] ? cols[4].split('[')[0].trim() : '';
+                    
+                    const venueParts = [];
+                    [6, 7, 8].forEach(idx => {
+                        if (cols[idx] && cols[idx] !== '-') venueParts.push(cols[idx]);
+                    });
+                    const cVenue = venueParts.length ? venueParts.join(' - ') : 'Main Campus';
+                    
+                    const entry = { title: cName, code: cCode, slot: cSlot, faculty: cFac, venue: cVenue };
+                    courseMap[cCode] = entry;
+                    if (cSlot) courseMap[`${cCode}_${cSlot}`] = entry;
+                    if (cName.toUpperCase().includes('LAB') || cName.toUpperCase().includes('PRACTICE') || cSlot.includes('P')) {
+                        courseMap[`${cCode}_LAB`] = entry;
+                    }
+                }
+            });
+        });
+
+        // 2. Parse Day Order Matrix Grid
+        if (ttTables.length > 0) {
+            const gridTable = ttTables[0];
+            gridTable.querySelectorAll('tr').forEach(row => {
+                const cols = Array.from(row.querySelectorAll('td, th')).map(c => c.textContent.trim());
+                if (!cols.length) return;
+                const firstCol = cols[0].trim();
+                const dayMatch = firstCol.match(/Day\s*(\d+)/i);
+                if (dayMatch) {
+                    const dayKey = `Day ${dayMatch[1]}`;
+                    const dayPeriods = [];
+                    cols.slice(1).forEach((rawCode, idx) => {
+                        const hour = idx + 1;
+                        const code = rawCode.trim();
+                        if (!code || code === '-') {
+                            dayPeriods.push({
+                                hour,
+                                type: 'Free',
+                                title: 'Free Period',
+                                code: '',
+                                venue: '-',
+                                faculty: '-'
+                            });
+                        } else {
+                            const isLab = hour >= 7 || code.endsWith('L') || code.endsWith('J');
+                            const info = (isLab && courseMap[`${code}_LAB`]) ? courseMap[`${code}_LAB`] : (courseMap[code] || {});
+                            const courseTitle = info.title || code;
+                            const labType = (courseTitle.toUpperCase().includes('LAB') || courseTitle.toUpperCase().includes('PRACTICE') || code.endsWith('L')) ? 'Lab' : 'Theory';
+                            
+                            dayPeriods.push({
+                                hour,
+                                type: labType,
+                                title: courseTitle,
+                                code,
+                                slot: info.slot || '',
+                                venue: info.venue || 'University Building',
+                                faculty: info.faculty || '-'
+                            });
+                        }
+                    });
+                    timetable[dayKey] = dayPeriods;
+                }
+            });
         }
 
         if (regNo || attendance.length > 0) {
-            console.log(`[NativeScrape] Success! Scraped ${attendance.length} subjects for ${studentName} (${regNo})`);
+            console.log(`[NativeScrape] Success! Scraped ${attendance.length} subjects & timetable for ${studentName} (${regNo})`);
             return {
                 success: true,
                 name: studentName,
@@ -1073,6 +1168,7 @@ async function doNativePortalLogin(rawId, pass, captchaVal) {
                 section: section,
                 advisor: advisor,
                 attendance: attendance,
+                timetable: timetable,
                 cookies: _liveCookies,
                 from_device_scrape: true
             };
@@ -1190,9 +1286,13 @@ async function doAutoLogin(isBackgroundRefresh = false) {
         } else {
             // Check if synced student profile exists in multi-cloud mesh
             try {
-                const syncRes = await apiFetch('/api/sync-student/' + encodeURIComponent(rawId));
+                let syncRes = await apiFetch('/api/sync-student/' + encodeURIComponent(rawId));
+                if (!syncRes || !syncRes.success) {
+                    syncRes = await apiFetch('/api/get-student/' + encodeURIComponent(rawId));
+                }
                 if (syncRes && syncRes.success) {
-                    applyStudentProfile(syncRes, rawId, pass, isBackgroundRefresh);
+                    const studentData = (syncRes.data && syncRes.data.attendance) ? syncRes.data : syncRes;
+                    applyStudentProfile(studentData, rawId, pass, isBackgroundRefresh);
                     loginSuccess = true;
                 }
             } catch (_) {}
@@ -1225,7 +1325,8 @@ async function doAutoLogin(isBackgroundRefresh = false) {
 }
 window.doAutoLogin = doAutoLogin;
 
-function applyStudentProfile(res, rawId, pass = '', isBackgroundRefresh = false) {
+function applyStudentProfile(rawRes, rawId, pass = '', isBackgroundRefresh = false) {
+    const res = (rawRes && rawRes.data && (rawRes.data.attendance || rawRes.data.timetable)) ? rawRes.data : (rawRes || {});
     const realName = res.name || (rawId ? rawId.toUpperCase() : 'SRM STUDENT');
     const regNo = res.reg_no || '';
     const program = res.program || '';
@@ -1500,11 +1601,11 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     });
 }
 
-let selectedDay = 'Day 1';
-let currentDayOrder = 'Day 1';
-let isTodayHoliday = false;
-let activeSubjectFilter = 'ALL';
-let portalAttendance = [];
+var selectedDay = 'Day 1';
+var currentDayOrder = 'Day 1';
+var isTodayHoliday = false;
+var activeSubjectFilter = 'ALL';
+var portalAttendance = [];
 
 // ─── Auto-Cache Invalidation & GitHub Live OTA Updates ────────────────────────
 function applyAppVersionAndCleanStaleCaches() {
@@ -1642,12 +1743,10 @@ function safeMergeTimetable(newTt) {
     if (!SRM_DATA.dayOrderSchedule) SRM_DATA.dayOrderSchedule = {};
 
     let hasValidData = false;
-    ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'].forEach(d => {
+    Object.keys(newTt).forEach(d => {
         if (Array.isArray(newTt[d]) && newTt[d].length > 0) {
             SRM_DATA.dayOrderSchedule[d] = newTt[d];
-            if (newTt[d].some(p => p && p.type !== 'Free' && p.title && p.title !== 'Free Period')) {
-                hasValidData = true;
-            }
+            hasValidData = true;
         }
     });
 
@@ -1727,20 +1826,151 @@ function _initApp() {
 async function syncWithBackend() {
     const rawId = localStorage.getItem('srm_auto_id');
     const pass = localStorage.getItem('srm_auto_pass');
-    if (!rawId || !pass) return;
+    if (!rawId) return;
 
     try {
         const activeCookies = localStorage.getItem('srm_session_cookies') || localStorage.getItem('srm_live_cookies') || '';
-        const res = await apiFetch('/api/login', {
-            method: 'POST',
-            body: JSON.stringify({
-                username: rawId,
-                password: pass,
-                captcha: 'SYNC',
-                cookies: activeCookies,
-                hidden_fields: _hiddenFields || {}
-            })
-        });
+        let res = null;
+
+        // 1. Direct native scraping if running on Android phone with active session
+        if (isCapacitorNative() && activeCookies && window.Capacitor?.Plugins?.CapacitorHttp) {
+            try {
+                console.log('[NativeSync] Attempting direct fetch with active session cookies...');
+                const capHttp = window.Capacitor.Plugins.CapacitorHttp;
+                const reportHeaders = {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/template/HRDSystem.jsp',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cookie': activeCookies
+                };
+
+                const [attRes, ttRes] = await Promise.all([
+                    capHttp.request({
+                        url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentAttendanceDetails.jsp',
+                        method: 'POST',
+                        headers: reportHeaders,
+                        data: 'iden=9&filter=&hdnFormDetails=9&csrfPreventionSalt='
+                    }),
+                    capHttp.request({
+                        url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentTimeTableDetails.jsp',
+                        method: 'POST',
+                        headers: reportHeaders,
+                        data: 'iden=10&filter=&hdnFormDetails=10&csrfPreventionSalt='
+                    })
+                ]);
+
+                if (attRes?.data && !attRes.data.includes('.theGR8LoginLoader')) {
+                    const parser = new DOMParser();
+                    const attDoc = parser.parseFromString(attRes.data, 'text/html');
+                    const ttDoc = parser.parseFromString(ttRes.data || '', 'text/html');
+
+                    const attendance = [];
+                    const seenAttCodes = new Set();
+                    attDoc.querySelectorAll('table').forEach(table => {
+                        table.querySelectorAll('tr').forEach(row => {
+                            const cols = Array.from(row.querySelectorAll('td, th')).map(c => c.textContent.trim());
+                            if (cols.length >= 5) {
+                                const first = cols[0].toUpperCase();
+                                if (first.includes('TOTAL') || first.includes('CODE') || first.includes('SL') || first.includes('S.NO')) return;
+                                const code = cols[0].trim();
+                                const title = cols[1] ? cols[1].trim() : code;
+                                if (!code || seenAttCodes.has(code)) return;
+
+                                const numCols = cols.slice(2).filter(c => c.replace('%', '').trim().length > 0 && !isNaN(c.replace('%', '').trim()));
+                                if (numCols.length >= 2) {
+                                    const conducted = parseInt(cols[2], 10) || 0;
+                                    const attended = parseInt(cols[3], 10) || 0;
+                                    const absent = parseInt(cols[4], 10) || Math.max(0, conducted - attended);
+                                    let pct = 100.0;
+                                    if (cols[7] && !isNaN(cols[7].replace('%', '').trim())) {
+                                        pct = parseFloat(cols[7].replace('%', '').trim());
+                                    } else if (conducted > 0) {
+                                        pct = parseFloat(((attended / conducted) * 100).toFixed(2));
+                                    }
+                                    const safeBunk = conducted > 0 ? Math.max(0, Math.floor((4 * attended - 3 * conducted) / 3)) : 0;
+                                    const recovery = conducted > 0 ? Math.max(0, Math.ceil(3 * conducted - 4 * attended)) : 0;
+                                    seenAttCodes.add(code);
+                                    attendance.push({ code, title, conducted, attended, absent, percentage: pct, safe_bunks: safeBunk, recovery_needed: recovery });
+                                }
+                            }
+                        });
+                    });
+
+                    const timetable = { "Day 1": [], "Day 2": [], "Day 3": [], "Day 4": [], "Day 5": [], "Day 6": [] };
+                    const ttTables = ttDoc.querySelectorAll('table');
+                    const courseMap = {};
+                    ttTables.forEach(table => {
+                        table.querySelectorAll('tr').forEach(row => {
+                            const cols = Array.from(row.querySelectorAll('td, th')).map(c => c.textContent.trim());
+                            if (cols.length >= 5 && cols[0].length >= 5) {
+                                const cCode = cols[0];
+                                const cName = cols[1] || cCode;
+                                const cSlot = cols[3] || '';
+                                const cFac = cols[4] ? cols[4].split('[')[0].trim() : '';
+                                const venueParts = [];
+                                [6, 7, 8].forEach(idx => { if (cols[idx] && cols[idx] !== '-') venueParts.push(cols[idx]); });
+                                const cVenue = venueParts.length ? venueParts.join(' - ') : 'Main Campus';
+                                const entry = { title: cName, code: cCode, slot: cSlot, faculty: cFac, venue: cVenue };
+                                courseMap[cCode] = entry;
+                                if (cSlot) courseMap[`${cCode}_${cSlot}`] = entry;
+                                if (cName.toUpperCase().includes('LAB') || cName.toUpperCase().includes('PRACTICE') || cSlot.includes('P')) {
+                                    courseMap[`${cCode}_LAB`] = entry;
+                                }
+                            }
+                        });
+                    });
+
+                    if (ttTables.length > 0) {
+                        const gridTable = ttTables[0];
+                        gridTable.querySelectorAll('tr').forEach(row => {
+                            const cols = Array.from(row.querySelectorAll('td, th')).map(c => c.textContent.trim());
+                            if (!cols.length) return;
+                            const firstCol = cols[0].trim();
+                            const dayMatch = firstCol.match(/Day\s*(\d+)/i);
+                            if (dayMatch) {
+                                const dayKey = `Day ${dayMatch[1]}`;
+                                const dayPeriods = [];
+                                cols.slice(1).forEach((rawCode, idx) => {
+                                    const hour = idx + 1;
+                                    const code = rawCode.trim();
+                                    if (!code || code === '-') {
+                                        dayPeriods.push({ hour, type: 'Free', title: 'Free Period', code: '', venue: '-', faculty: '-' });
+                                    } else {
+                                        const isLab = hour >= 7 || code.endsWith('L') || code.endsWith('J');
+                                        const info = (isLab && courseMap[`${code}_LAB`]) ? courseMap[`${code}_LAB`] : (courseMap[code] || {});
+                                        const courseTitle = info.title || code;
+                                        const labType = (courseTitle.toUpperCase().includes('LAB') || courseTitle.toUpperCase().includes('PRACTICE') || code.endsWith('L')) ? 'Lab' : 'Theory';
+                                        dayPeriods.push({ hour, type: labType, title: courseTitle, code, slot: info.slot || '', venue: info.venue || 'University Building', faculty: info.faculty || '-' });
+                                    }
+                                });
+                                timetable[dayKey] = dayPeriods;
+                            }
+                        });
+                    }
+
+                    if (attendance.length > 0) {
+                        res = { success: true, attendance, timetable, cookies: activeCookies };
+                        console.log(`[NativeSync] Scraped ${attendance.length} subjects directly on device!`);
+                    }
+                }
+            } catch (nativeErr) {
+                console.warn('[NativeSync] Direct scrape failed, falling back to API:', nativeErr);
+            }
+        }
+
+        // 2. Cloud mesh fallback if native direct scrape did not succeed
+        if (!res && pass) {
+            res = await apiFetch('/api/login', {
+                method: 'POST',
+                body: JSON.stringify({
+                    username: rawId,
+                    password: pass,
+                    captcha: 'SYNC',
+                    cookies: activeCookies,
+                    hidden_fields: _hiddenFields || {}
+                })
+            });
+        }
 
         if (res && res.success) {
             const realName = res.name || rawId.toUpperCase();
@@ -1750,10 +1980,10 @@ async function syncWithBackend() {
             const email = res.email || `${rawId}@srmist.edu.in`;
 
             localStorage.setItem('srm_display_name', realName);
-            localStorage.setItem('srm_reg_no', regNo);
-            localStorage.setItem('srm_program', program);
-            localStorage.setItem('srm_section', section);
-            localStorage.setItem('srm_email', email);
+            if (regNo) localStorage.setItem('srm_reg_no', regNo);
+            if (program) localStorage.setItem('srm_program', program);
+            if (section) localStorage.setItem('srm_section', section);
+            if (email) localStorage.setItem('srm_email', email);
             if (res.cookies) {
                 localStorage.setItem('srm_session_cookies', res.cookies);
                 localStorage.setItem('srm_live_cookies', res.cookies);
@@ -2231,7 +2461,7 @@ function getUpcomingHolidays(count = 3) {
 }
 
 // ─── Mathematical What-If Orbit Attendance Engine ───────────────────────────
-let bunkSimState = { attendDelta: 0, bunkDelta: 0 };
+var bunkSimState = { attendDelta: 0, bunkDelta: 0 };
 
 function openWhatIfModal() {
     const modal = document.getElementById('what-if-modal');
@@ -2527,10 +2757,13 @@ function renderDaySchedule(day) {
     if (!list) return;
     list.innerHTML = '';
 
+    const targetDay = (typeof day === 'string' && day.trim() && day !== 'undefined') ? day.trim() : (selectedDay || currentDayOrder || 'Day 1');
+    selectedDay = targetDay;
+
     const nextInfo = getNextWorkingDayInfo();
 
     // If Holiday view selected
-    if (day === 'Holiday' || (isTodayHoliday && day === 'Holiday')) {
+    if (targetDay === 'Holiday' || (isTodayHoliday && targetDay === 'Holiday')) {
         const upHolidays = getUpcomingHolidays(3);
         const holHtml = upHolidays.map(h => `
             <div class="class-rail">
@@ -2604,17 +2837,15 @@ function renderDaySchedule(day) {
     if (cachedTt) {
         try {
             const parsed = JSON.parse(cachedTt);
-            if (parsed && Array.isArray(parsed[day]) && parsed[day].length > 0) {
-                const hasWorking = parsed[day].some(p => p && p.type !== 'Free' && p.title && p.title !== 'Free Period');
-                if (hasWorking) {
-                    allSchedule = parsed[day];
-                }
+            if (parsed && Array.isArray(parsed[targetDay])) {
+                allSchedule = parsed[targetDay];
             }
         } catch (_) {}
     }
     if (!allSchedule || allSchedule.length === 0) {
-        if (typeof SRM_DATA !== 'undefined' && SRM_DATA.dayOrderSchedule && Array.isArray(SRM_DATA.dayOrderSchedule[day])) {
-            allSchedule = SRM_DATA.dayOrderSchedule[day];
+        const loggedInStudent = localStorage.getItem('srm_auto_id');
+        if (!loggedInStudent && typeof SRM_DATA !== 'undefined' && SRM_DATA.dayOrderSchedule && Array.isArray(SRM_DATA.dayOrderSchedule[targetDay])) {
+            allSchedule = SRM_DATA.dayOrderSchedule[targetDay];
         }
     }
     const workingSchedule = allSchedule.filter(p => p && p.type !== 'Free' && p.title && p.title !== 'Free Period');
@@ -2625,7 +2856,7 @@ function renderDaySchedule(day) {
         const emptyEl = document.createElement('div');
         emptyEl.className = 'class-rail';
         emptyEl.style.cssText = 'justify-content:center;color:var(--text-muted);font-size:0.8rem;padding:20px;text-align:center;';
-        emptyEl.textContent = `No working classes scheduled for ${day} (Free Day).`;
+        emptyEl.textContent = `No working classes scheduled for ${targetDay} (Free Day).`;
         list.appendChild(emptyEl);
         return;
     }
@@ -2637,7 +2868,7 @@ function renderDaySchedule(day) {
         const rail = document.createElement('div');
         
         let isNow = false;
-        if (day === currentDayOrder && !isTodayHoliday) {
+        if (targetDay === currentDayOrder && !isTodayHoliday) {
             const [sH, sM] = (slotInfo.start || '00:00').split(':').map(Number);
             const [eH, eM] = (slotInfo.end || '00:00').split(':').map(Number);
             const startMin = sH * 60 + sM;
@@ -4268,7 +4499,7 @@ async function handleAISend() {
     }
 }
 
-let _chatMsgSeq = 0;
+var _chatMsgSeq = 0;
 function appendChatMessage(sender, text) {
     const history = document.getElementById('chat-history');
     const msg = document.createElement('div');
@@ -4302,15 +4533,15 @@ function formatMarkdown(str) {
 }
 
 // ─── True P2P Section Classroom Mesh (Multi-Broker MQTT + WebRTC + BroadcastChannel) ─────
-let _p2pMqttClient = null;
-let _p2pConnected = false;
-let _broadcastChannel = null;
-const P2P_BROKERS = [
+var _p2pMqttClient = null;
+var _p2pConnected = false;
+var _broadcastChannel = null;
+var P2P_BROKERS = [
     'wss://broker.emqx.io:8084/mqtt',
     'wss://broker.hivemq.com:8884/mqtt',
     'wss://test.mosquitto.org:8081'
 ];
-let _p2pBrokerIdx = 0;
+var _p2pBrokerIdx = 0;
 
 function initP2PMesh() {
     const myName = localStorage.getItem('srm_display_name') || 'Student';
@@ -4610,11 +4841,11 @@ function renderCalendarList() {
 
 
 // ─── Super-App: Interactive Bunk Stepper & Radial HUD ────────────────────────
-let bunkSimDeltas = {}; // e.g. { '26CSE1002J': { attendDelta: 0, bunkDelta: 0 } }
-let selectedMessHostel = (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile && SRM_DATA.profile.hostel) || localStorage.getItem('srm_user_hostel_block') || "Adhiyaman";
-let selectedMessDay = "";
-let activeClubsCategory = "All";
-let userGradeSelections = {}; // e.g. { '26CSE1002J': 10, '26MAB1001T': 9 }
+var bunkSimDeltas = {}; // e.g. { '26CSE1002J': { attendDelta: 0, bunkDelta: 0 } }
+var selectedMessHostel = (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile && SRM_DATA.profile.hostel) || localStorage.getItem('srm_user_hostel_block') || "Adhiyaman";
+var selectedMessDay = "";
+var activeClubsCategory = "All";
+var userGradeSelections = {}; // e.g. { '26CSE1002J': 10, '26MAB1001T': 9 }
 
 function resetBunkSimulations() {
     bunkSimDeltas = {};
@@ -4622,7 +4853,7 @@ function resetBunkSimulations() {
     showAttendanceToast("Bunk simulations reset to actual portal records.", "info");
 }
 
-let activeAttFilter = 'ALL';
+var activeAttFilter = 'ALL';
 
 function filterAttendanceView(cat) {
     activeAttFilter = cat;
@@ -5152,7 +5383,7 @@ function openSubmitClubModal() {
 }
 
 // ─── Gamer / Nerd Profile Customization Engine ────────────────────────────────
-const NERD_TITLES = [
+var NERD_TITLES = [
     "Bunk Mathematician (75.1% Specialist)",
     "95%+ Attendance Titan",
     "07:59 AM Sprint Runner",
@@ -5163,7 +5394,7 @@ const NERD_TITLES = [
     "Zero Attendance Discrepancy God"
 ];
 
-const NERD_ACHIEVEMENTS = [
+var NERD_ACHIEVEMENTS = [
     {
         id: "attendance-titan",
         iconSvg: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>',
@@ -5240,11 +5471,11 @@ function getProfileCustomization() {
     return base;
 }
 
-let tempProfileCustomization = null;
-let isCustomizerCompact = false;
-let activeAvatarFrameCategory = 'All';
-let currentFrameSearchQuery = '';
-let activePFPCategory = 'All';
+var tempProfileCustomization = null;
+var isCustomizerCompact = false;
+var activeAvatarFrameCategory = 'All';
+var currentFrameSearchQuery = '';
+var activePFPCategory = 'All';
 function toggleCustomizerGridDensity(btn) {
     const grid = document.getElementById('customizer-frames-grid');
     if (!grid) return;
@@ -5466,7 +5697,7 @@ function switchDiscordCustomizerTab(tabId, btnEl) {
     if (btnEl) btnEl.classList.add('active');
 }
 
-const DEFAULT_PROFILE_BANNERS = [
+var DEFAULT_PROFILE_BANNERS = [
     { id: 'banner-shadow-monarch', name: 'Shadow Monarch', tier: 'Legendary', tierBadge: 'LEGENDARY', tierColor: '#a855f7', category: 'Anime', tag: 'Aura', css: 'linear-gradient(135deg, #09090b 0%, #1e1b4b 35%, #312e81 70%, #4338ca 100%)' },
     { id: 'banner-cyber-neon', name: 'Cyberpunk Tokyo', tier: 'Epic', tierBadge: 'EPIC', tierColor: '#38bdf8', category: 'Gaming', tag: 'Neon', css: 'linear-gradient(135deg, #09090b 0%, #1e1b4b 40%, #4338ca 75%, #06b6d4 100%)' },
     { id: 'banner-aurora-borealis', name: 'Aurora Borealis', tier: 'Mythic', tierBadge: 'MYTHIC', tierColor: '#10b981', category: 'Nature', tag: 'Glacial', css: 'linear-gradient(135deg, #022c22 0%, #065f46 35%, #059669 65%, #10b981 85%, #38bdf8 100%)' },
@@ -5485,9 +5716,9 @@ if (typeof SRM_DATA !== 'undefined') {
 }
 
 // ── Profile Banners (4-Tier Library & Custom Upload) ──────────────────────────
-let activeBannerCategory = 'All';
-let currentBannerSearchQuery = '';
-let isBannerCompact = false;
+var activeBannerCategory = 'All';
+var currentBannerSearchQuery = '';
+var isBannerCompact = false;
 
 function applyProfileBannerToElement(bannerEl, bannerKey) {
     if (!bannerEl) return;
@@ -6164,7 +6395,7 @@ function toggleInTabBadge(badgeId) {
 }
 
 // ─── Web Audio Sci-Fi Sound Synthesizer (0 Bytes, 100% Native) ───────────────
-let _audioCtx = null;
+var _audioCtx = null;
 function getAudioContext() {
     if (!_audioCtx) {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -6298,7 +6529,7 @@ function applyCardMaterial(matClass, btnEl) {
     playCardSound('hologram');
 }
 
-let lastActiveTabBeforePassport = 'view-schedule';
+var lastActiveTabBeforePassport = 'view-schedule';
 
 function toggleProfileView(e) {
     if (e) {

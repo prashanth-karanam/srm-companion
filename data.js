@@ -8,7 +8,7 @@ if (typeof window !== 'undefined') {
     window.APP_BUILD_TIMESTAMP = APP_BUILD_TIMESTAMP;
 }
 
-const SRM_DATA = {
+var SRM_DATA = {
     profile: {
         "name": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_display_name')) || "SRM Student",
         "studentId": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_auto_id')) || "",

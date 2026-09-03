@@ -33,7 +33,7 @@ with open(local_props_path, "w", encoding="utf-8") as f:
 
 # 3. Synchronize Web Assets to www and Android public directory
 print("[1/3] Syncing latest web assets to Android build directories...")
-web_files = ["app.js", "index.html", "style.css", "data.js", "version.json", "manifest.json"]
+web_files = ["app.js", "index.html", "style.css", "data.js", "version.json", "manifest.json", "capacitor.js"]
 www_dir = os.path.join(PROJECT_DIR, "www")
 android_public_dir = os.path.join(ANDROID_DIR, "app", "src", "main", "assets", "public")
 os.makedirs(www_dir, exist_ok=True)
