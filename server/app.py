@@ -23,7 +23,7 @@ logger = logging.getLogger("srm_companion_api")
 app = FastAPI(
     title="SRM Companion API",
     description="High-Speed Academic & Portal Proxy for SRMIST Students",
-    version="2.5.0"
+    version="2.5.2"
 )
 
 # Enable CORS for Capacitor mobile apps and web clients
@@ -101,7 +101,7 @@ async def get_status():
         "status": "online",
         "cluster": "Alpha (Vercel Serverless Edge)",
         "service": "SRM Companion Production Gateway",
-        "version": "2.5.1",
+        "version": "2.5.2",
         "anti_spam_shield": "active",
         "timestamp": int(time.time()),
         "uptime": "100%"
@@ -161,7 +161,8 @@ async def serve_manifest_json():
 async def get_version():
     """OTA Instant Live Code Update Manifest."""
     return {
-        "version": "2.5.1",
+        "version": "2.5.2",
+        "build": 1044,
         "timestamp": int(time.time()),
         "hot_code_reload": True,
         "bundle_url": "https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/app.js",
@@ -195,7 +196,10 @@ async def get_captcha(request: Request):
             return {
                 "success": True,
                 "session_id": session_id,
-                "captchaImg": res["captchaImg"]
+                "captchaImg": res["captchaImg"],
+                "cookies": res.get("cookies", ""),
+                "sec_config": res.get("sec_config", {}),
+                "hidden_fields": res.get("hidden_fields", {})
             }
         raise HTTPException(status_code=502, detail="Failed to fetch CAPTCHA from SRM portal.")
     except Exception as e:

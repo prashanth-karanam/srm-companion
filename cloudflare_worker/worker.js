@@ -63,6 +63,10 @@ export default {
       }
       srmHeaders.set("Host", "sp.srmist.edu.in");
       srmHeaders.set("Origin", "https://sp.srmist.edu.in");
+      const ref = srmHeaders.get("Referer") || "";
+      if (!ref.includes("sp.srmist.edu.in")) {
+        srmHeaders.set("Referer", "https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp");
+      }
       if (!srmHeaders.has("User-Agent")) {
         srmHeaders.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
       }

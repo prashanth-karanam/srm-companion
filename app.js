@@ -1,3 +1,4 @@
+const APP_BUILD_VERSION = '2.5.2';
 var _liveCookies = '';
 var _secConfig = {};
 var _hiddenFields = {};
@@ -5,6 +6,51 @@ var _currentSessionId = '';
 var _isFetchingCaptcha = false;
 var _captchaLoadTime = 0;
 var _currentCaptchaCode = '';
+
+function extractCookiesFromHeaders(headers, existingCookies = '') {
+    if (!headers || typeof headers !== 'object') return existingCookies || '';
+    let rawSetCookies = [];
+    for (const [k, v] of Object.entries(headers)) {
+        if (k.toLowerCase() === 'set-cookie') {
+            if (Array.isArray(v)) {
+                rawSetCookies.push(...v);
+            } else if (typeof v === 'string') {
+                rawSetCookies.push(v);
+            }
+        }
+    }
+
+    const cookieMap = {};
+    if (existingCookies) {
+        existingCookies.split(';').forEach(c => {
+            const idx = c.indexOf('=');
+            if (idx > 0) {
+                const k = c.slice(0, idx).trim();
+                const val = c.slice(idx + 1).trim();
+                if (k && !['path', 'domain', 'expires', 'secure', 'httponly', 'samesite', 'max-age'].includes(k.toLowerCase())) {
+                    cookieMap[k] = val;
+                }
+            }
+        });
+    }
+
+    rawSetCookies.forEach(item => {
+        const parts = item.split(';');
+        if (parts.length > 0) {
+            const first = parts[0].trim();
+            const idx = first.indexOf('=');
+            if (idx > 0) {
+                const k = first.slice(0, idx).trim();
+                const val = first.slice(idx + 1).trim();
+                if (k && !['path', 'domain', 'expires', 'secure', 'httponly', 'samesite', 'max-age'].includes(k.toLowerCase())) {
+                    cookieMap[k] = val;
+                }
+            }
+        }
+    });
+
+    return Object.entries(cookieMap).map(([k, v]) => `${k}=${v}`).join('; ');
+}
 
 // ─── Token & Session Management ──────────────────────────────────────────────
 function getToken() {
@@ -646,51 +692,96 @@ async function fetchDirectSRMCaptchaNative() {
     if (!capHttp) return null;
 
     try {
+        console.log('[NativeCaptcha] Connecting directly to sp.srmist.edu.in from mobile device...');
         const loginUrl = 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp';
         const pageResp = await capHttp.request({
             url: loginUrl,
             method: 'GET',
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-            connectTimeout: 8000,
-            readTimeout: 8000
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Connection': 'keep-alive'
+            },
+            connectTimeout: 10000,
+            readTimeout: 10000
         });
 
-        if (!pageResp || pageResp.status !== 200) return null;
+        if (!pageResp || pageResp.status !== 200) {
+            console.warn('[NativeCaptcha] youLogin.jsp returned status:', pageResp ? pageResp.status : 'null');
+            return null;
+        }
 
-        const html = pageResp.data || '';
-        const cookieHdr = pageResp.headers['set-cookie'] || pageResp.headers['Set-Cookie'] || '';
+        const html = typeof pageResp.data === 'string' ? pageResp.data : JSON.stringify(pageResp.data || '');
+        _liveCookies = extractCookiesFromHeaders(pageResp.headers, '');
 
-        const nonceMatch = html.match(/name=['"]nonce['"]\s+value=['"]([^'"]+)['"]/i) || html.match(/value=['"]([a-f0-9\-]{20,})['"]\s+name=['"]nonce['"]/i);
+        // 1. Extract dynamic Java tokens
+        const nonceMatch = html.match(/nonce\s*:\s*['"]([^'"]+)['"]/i);
         const nonce = nonceMatch ? nonceMatch[1] : '';
 
-        const imgMatch = html.match(/id=['"]secure_captcha['"][^>]+data-src=['"]([^'"]+)['"]/i) || html.match(/data-src=['"]([^'"]+)['"][^>]+id=['"]secure_captcha['"]/i);
-        const dataSrc = imgMatch ? imgMatch[1] : '';
+        const dfMatch = html.match(/domainFieldName\s*=\s*['"]([^'"]+)['"]/i);
+        const domainFieldName = dfMatch ? dfMatch[1] : '';
 
+        const cfMatch = html.match(/captchaFieldName\s*=\s*['"]([^'"]+)['"]/i);
+        const captchaFieldName = cfMatch ? cfMatch[1] : '';
+
+        const rdMatch = html.match(/randomDelimiter\s*=\s*['"]([^'"]+)['"]/i);
+        const randomDelimiter = rdMatch ? rdMatch[1] : '';
+
+        // 2. Extract captcha URL from data-src
+        const imgMatch = html.match(/id=['"]secure_captcha['"][^>]+data-src=['"]([^'"]+)['"]/i) ||
+                         html.match(/data-src=['"]([^'"]+)['"][^>]+id=['"]secure_captcha['"]/i);
+        const dataSrc = imgMatch ? imgMatch[1].replace(/&amp;/g, '&') : '';
         const captchaUrl = dataSrc ? (dataSrc.startsWith('http') ? dataSrc : `https://sp.srmist.edu.in${dataSrc}`) : `https://sp.srmist.edu.in/srmiststudentportal/SCaptchaServlet?ts=${Date.now()}`;
-        const domainProof = btoa(`${nonce}:sp.srmist.edu.in`);
 
+        // 3. Extract honeypots / hidden inputs from form
+        const hiddenFields = {};
+        const inputRegex = /<input[^>]+name=['"]([^'"]+)['"][^>]*>/gi;
+        let match;
+        while ((match = inputRegex.exec(html)) !== null) {
+            const inputTag = match[0];
+            const name = match[1];
+            if (name && !['username', 'password', 'captcha'].includes(name)) {
+                const valMatch = inputTag.match(/value=['"]([^'"]*)['"]/i);
+                hiddenFields[name] = valMatch ? valMatch[1] : '';
+            }
+        }
+
+        _secConfig = {
+            nonce: nonce,
+            domainFieldName: domainFieldName,
+            captchaFieldName: captchaFieldName,
+            randomDelimiter: randomDelimiter
+        };
+        _hiddenFields = hiddenFields;
+
+        // 4. Fetch CAPTCHA image with mandatory X-Domain-Proof and device Cookies
+        const domainProof = btoa(`${nonce}:sp.srmist.edu.in`);
         const capImgResp = await capHttp.request({
             url: captchaUrl,
             method: 'GET',
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
                 'Referer': loginUrl,
                 'X-Domain-Proof': domainProof,
-                'Cookie': cookieHdr
+                'Cookie': _liveCookies,
+                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
             },
             responseType: 'base64',
-            connectTimeout: 8000,
-            readTimeout: 8000
+            connectTimeout: 10000,
+            readTimeout: 10000
         });
 
         if (capImgResp && capImgResp.status === 200 && capImgResp.data) {
-            const b64 = capImgResp.data.startsWith('data:') ? capImgResp.data : `data:image/jpeg;base64,${capImgResp.data}`;
+            _liveCookies = extractCookiesFromHeaders(capImgResp.headers, _liveCookies);
+            const b64 = String(capImgResp.data).startsWith('data:') ? capImgResp.data : `data:image/jpeg;base64,${capImgResp.data}`;
+            console.log('[NativeCaptcha] CAPTCHA image successfully fetched natively!');
             return {
                 success: true,
                 captchaImg: b64,
-                cookies: cookieHdr,
-                sec_config: { nonce: nonce },
-                hidden_fields: {}
+                cookies: _liveCookies,
+                sec_config: _secConfig,
+                hidden_fields: _hiddenFields
             };
         }
     } catch (e) {
@@ -712,15 +803,25 @@ async function fetchLiveCaptcha(force = false) {
     box.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:42px;width:140px;background:var(--card-elevated);border-radius:6px;font-size:0.75rem;color:var(--accent);border:1px solid var(--card-border);"><span style="animation:pulse 1s infinite;">⏳ Fetching CAPTCHA...</span></div>';
 
     try {
-        // 1. Try active gateway API
-        let res = await apiFetch('/api/captcha', { timeout: 6000 });
+        let res = null;
 
-        // 2. If gateway failed, try direct native mobile fetch
+        // 1. On Android/Capacitor native app: Always prioritize direct native device fetch!
+        const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+        if (isNative) {
+            console.log('[Captcha] Running on native mobile device - fetching directly from SRM...');
+            res = await fetchDirectSRMCaptchaNative();
+        }
+
+        // 2. If not on native app or if native fetch failed, use gateway API
+        if (!res || !res.success || !res.captchaImg) {
+            res = await apiFetch('/api/captcha', { timeout: 8000 });
+        }
+
         if (res && res.success && res.captchaImg) {
-            _liveCookies = res.cookies || '';
-            _secConfig = res.sec_config || {};
-            _hiddenFields = res.hidden_fields || {};
-            _currentSessionId = res.session_id || '';
+            if (res.cookies) _liveCookies = res.cookies;
+            if (res.sec_config) _secConfig = res.sec_config;
+            if (res.hidden_fields) _hiddenFields = res.hidden_fields;
+            if (res.session_id) _currentSessionId = res.session_id;
 
             box.innerHTML = '';
             const img = document.createElement('img');
@@ -774,8 +875,8 @@ async function doNativePortalLogin(rawId, pass, captchaVal) {
             screenWidth: window.screen ? window.screen.width : 1080,
             screenHeight: window.screen ? window.screen.height : 2400,
             colorDepth: 24,
-            platform: "Android",
-            userAgent: navigator.userAgent || "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/128.0.0.0 Mobile Safari/537.36",
+            platform: "Win32",
+            userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
             mouseClicks: 3,
             mouseMovements: 25,
             keystrokeCount: 18,
@@ -808,68 +909,75 @@ async function doNativePortalLogin(rawId, pass, captchaVal) {
 
         // Submit directly to SRM LoginServlet from phone's Indian IP
         const formBody = Object.keys(postData).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(postData[k])).join('&');
+        console.log('[NativeLogin] Submitting credentials directly from mobile device with session cookies...');
+        
         const loginRes = await capHttp.request({
             url: 'https://sp.srmist.edu.in/srmiststudentportal/LoginServlet',
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp',
-                'Origin': 'https://sp.srmist.edu.in'
+                'Origin': 'https://sp.srmist.edu.in',
+                'User-Agent': telemetry.userAgent,
+                'Cookie': _liveCookies,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Connection': 'keep-alive'
             },
             data: formBody
         });
 
-        const html = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
+        // Update cookies from login response
+        _liveCookies = extractCookiesFromHeaders(loginRes.headers, _liveCookies);
+
+        const html = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data || '');
         if (html.includes('AlertInvalid credentials') || html.includes('Invalid User Name or Password')) {
             return { success: false, error: 'Invalid NetID or Password. Please double-check your credentials.' };
         }
-        if (html.includes('AlertInvalid Captcha') || html.includes('Invalid Captcha Code')) {
+        if (html.includes('AlertInvalid captcha') || html.includes('AlertInvalid Captcha') || html.includes('Invalid Captcha Code')) {
             return { success: false, error: 'Invalid CAPTCHA entered. Please tap reload and try again.' };
         }
 
         // Follow loader if needed
         if (html.includes('.theGR8LoginLoader')) {
-            await capHttp.request({
+            const loaderRes = await capHttp.request({
                 url: 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp',
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/LoginServlet'
+                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/LoginServlet',
+                    'Cookie': _liveCookies
                 },
                 data: ''
             });
+            _liveCookies = extractCookiesFromHeaders(loaderRes.headers, _liveCookies);
         }
 
-        // Fetch report tabs
+        // Fetch report tabs with active authenticated session cookies
+        const reportHeaders = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/template/HRDSystem.jsp',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Cookie': _liveCookies,
+            'User-Agent': telemetry.userAgent
+        };
+
         const [profRes, attRes, ttRes] = await Promise.all([
             capHttp.request({
                 url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentProfile.jsp',
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/template/HRDSystem.jsp',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
+                headers: reportHeaders,
                 data: 'iden=1&filter=&hdnFormDetails=1&csrfPreventionSalt='
             }),
             capHttp.request({
                 url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentAttendance.jsp',
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/template/HRDSystem.jsp',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
+                headers: reportHeaders,
                 data: 'iden=2&filter=&hdnFormDetails=2&csrfPreventionSalt='
             }),
             capHttp.request({
                 url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentTimetable.jsp',
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/template/HRDSystem.jsp',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
+                headers: reportHeaders,
                 data: 'iden=3&filter=&hdnFormDetails=3&csrfPreventionSalt='
             })
         ]);
@@ -882,6 +990,7 @@ async function doNativePortalLogin(rawId, pass, captchaVal) {
         let regNo = '';
         let program = '';
         let section = '';
+        let advisor = '';
 
         profDoc.querySelectorAll('td').forEach(td => {
             const txt = td.textContent.trim();
@@ -891,6 +1000,7 @@ async function doNativePortalLogin(rawId, pass, captchaVal) {
             else if (txt.includes('Register No')) regNo = nxt;
             else if (txt.includes('Program')) program = nxt;
             else if (txt.includes('Section')) section = nxt;
+            else if (txt.includes('Faculty Advisor')) advisor = nxt;
         });
 
         const attendance = [];
@@ -929,7 +1039,9 @@ async function doNativePortalLogin(rawId, pass, captchaVal) {
                 student_id: rawId,
                 program: program,
                 section: section,
+                advisor: advisor,
                 attendance: attendance,
+                cookies: _liveCookies,
                 from_device_scrape: true
             };
         }

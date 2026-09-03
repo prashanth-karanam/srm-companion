@@ -1,21 +1,19 @@
 {
-  "version": "2.5.1",
-  "build": 1043,
+  "version": "2.5.2",
+  "build": 1044,
   "releaseDate": "2026-09-03",
   "minAppVersion": "1.0.0",
   "hotReload": true,
   "bundleUrl": "https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/app.js",
   "gateways": [
     { "name": "Cluster Alpha (Vercel Production Edge)", "url": "https://srmbackend.vercel.app" },
-    { "name": "Cluster Cloudflare (Global Edge Shield)", "url": "https://srm-edge-gateway.srm-companion.workers.dev" },
-    { "name": "Cluster Beta (Render Cloud Microservice)", "url": "https://srm-companion-backend.onrender.com" },
-    { "name": "Cluster Gamma (Railway Gateway)", "url": "https://srm-companion-backend.up.railway.app" }
+    { "name": "Cluster Cloudflare (Global Edge Shield)", "url": "https://srm-edge-gateway.srm-companion.workers.dev" }
   ],
   "features": [
-    "Dynamic Remote Gateway Auto-Discovery (0 APK Update)",
-    "Deterministic Student Hash Load Balancing",
-    "Cloudflare Global Edge Shield with Sub-15ms Chennai Caching",
-    "Enterprise Anti-Spam Shield & Concurrency Mutex",
-    "Dynamic New Course Code Scraper & Timetable Engine"
+    "100% Reliable Native SRM Login & Bi-Directional Session Cookies",
+    "On-Device Direct Scraper Bypassing Datacenter WAF Blocks",
+    "Over-The-Air (OTA) Instant Live Code Reload from GitHub",
+    "Dynamic Timetable & Attendance Safe Bunk Matrix",
+    "Offline Persistent Storage & Multi-Cloud Mesh Sync"
   ]
 }

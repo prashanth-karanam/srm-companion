@@ -31,15 +31,30 @@ escaped_sdk = SDK_ROOT.replace("\\", "\\\\").replace(":", "\\:")
 with open(local_props_path, "w", encoding="utf-8") as f:
     f.write(f"sdk.dir={escaped_sdk}\n")
 
-# 3. Environment
+# 3. Synchronize Web Assets to www and Android public directory
+print("[1/3] Syncing latest web assets to Android build directories...")
+web_files = ["app.js", "index.html", "style.css", "data.js", "version.json", "manifest.json"]
+www_dir = os.path.join(PROJECT_DIR, "www")
+android_public_dir = os.path.join(ANDROID_DIR, "app", "src", "main", "assets", "public")
+os.makedirs(www_dir, exist_ok=True)
+os.makedirs(android_public_dir, exist_ok=True)
+
+for f in web_files:
+    src_f = os.path.join(PROJECT_DIR, f)
+    if os.path.exists(src_f):
+        shutil.copyfile(src_f, os.path.join(www_dir, f))
+        shutil.copyfile(src_f, os.path.join(android_public_dir, f))
+print(f"      Synced {len(web_files)} files to www/ and assets/public/")
+
+# 4. Environment
 env = os.environ.copy()
 env["JAVA_HOME"] = JDK_DIR
 env["PATH"] = os.path.join(JDK_DIR, "bin") + os.pathsep + env.get("PATH", "")
 env["ANDROID_HOME"] = SDK_ROOT
 env["ANDROID_SDK_ROOT"] = SDK_ROOT
 
-# 4. Run gradlew assembleDebug
-print("[1/2] Compiling Android APK with Gradle & JDK 21...")
+# 5. Run gradlew assembleDebug
+print("[2/3] Compiling Android APK with Gradle & JDK 21...")
 proc = subprocess.run(
     ["cmd.exe", "/c", "gradlew.bat", "assembleDebug", "--no-daemon"],
     cwd=ANDROID_DIR,
