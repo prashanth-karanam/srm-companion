@@ -76,3 +76,5 @@ android/local.properties
 
 SRM_Companion_v2.5.1.apk
 *.apk
+.vercel
+.env*
