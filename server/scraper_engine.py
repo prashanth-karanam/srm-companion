@@ -80,7 +80,7 @@ async def fetch_portal_captcha() -> Dict[str, Any]:
         b64_img = base64.b64encode(cap_res.content).decode('utf-8')
 
         # Extract session cookies
-        cookies_str = "; ".join([f"{k}={v}" for k, v in client.cookies.items()])
+        cookies_str = "; ".join([f"{c.name}={c.value}" for c in client.cookies.jar])
         sec_config = {
             "nonce": nonce,
             "domainFieldName": domainFieldName,
@@ -190,19 +190,27 @@ async def login_and_scrape_all(
         r_login = await client.post(SERVLET_URL, data=login_payload)
         login_html = r_login.text
 
+        logger.info(f"LOGIN ATTEMPT for {clean_username}: HTTP {r_login.status_code}, response length={len(login_html)}")
+        logger.info(f"LOGIN RESPONSE PREVIEW: {login_html[:800]}")
+
         # Validate Authentication Response
         soup_login = BeautifulSoup(login_html, 'html.parser')
         alert_el = soup_login.find(class_=re.compile(r'alert', re.I))
         if alert_el:
             err_msg = alert_el.get_text(strip=True)
+            logger.warning(f"LOGIN ALERT DETECTED: '{err_msg}'")
             if any(k in err_msg.lower() for k in ['invalid', 'incorrect', 'remaining', 'fail', 'mismatch']):
                 return {"success": False, "error": err_msg}
 
         if "Invalid User Name or Password" in login_html or "No of tries remaining" in login_html:
+            logger.warning("LOGIN FAILED: 'Invalid User Name or Password' or 'No of tries remaining' in response")
             return {"success": False, "error": "Invalid NetID or Password. Please double-check your credentials."}
 
         if "Invalid Captcha Code" in login_html:
+            logger.warning("LOGIN FAILED: 'Invalid Captcha Code' in response")
             return {"success": False, "error": "Invalid CAPTCHA entered. Please tap reload and try again."}
+
+        logger.info("LOGIN SUCCESS! Proceeding to fetch student report tabs...")
 
         # 3. Concurrent Scraping of All Student Data Tabs
         report_headers = {
@@ -265,7 +273,7 @@ async def login_and_scrape_all(
             "attendance": attendance_list,
             "timetable": timetable_schedule,
             "scraped_at": int(time.time()),
-            "cookies": "; ".join([f"{k}={v}" for k, v in client.cookies.items()])
+            "cookies": "; ".join([f"{c.name}={c.value}" for c in client.cookies.jar])
         }
 
 
