@@ -1,6 +1,6 @@
 {
-    "name": "SRM Companion",
-    "short_name": "SRM",
+    "name": "OneSRM",
+    "short_name": "OneSRM",
     "description": "Your personal SRM portal dashboard — attendance, schedule, holidays",
     "start_url": "/",
     "display": "standalone",

@@ -1865,7 +1865,7 @@ function showAttendanceToast(input, type = 'info') {
 
         toast.className = 'srm-toast show ' + type;
         toast.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#18181b;border:1px solid ${borderColor};color:#f4f4f5;padding:10px 18px;border-radius:12px;box-shadow:0 4px 12px #000000;border:1px solid var(--card-border-strong);z-index:999999;font-size:0.85rem;line-height:1.4;animation:fadeIn 0.25s ease;max-width:90%;`;
-        toast.innerHTML = `<b style="color:${textColor};">SRM Companion</b><div>${input}</div>`;
+        toast.innerHTML = `<b style="color:${textColor};">OneSRM</b><div>${input}</div>`;
         document.body.appendChild(toast);
         setTimeout(() => { if (toast.parentNode) toast.remove(); }, 4000);
         return;
@@ -3712,7 +3712,7 @@ async function openWALinkedDeviceModal() {
             <div class="class-modal-header">
                 <div>
                     <span class="wa-privacy-badge"> WhatsApp Multi-Device Companion</span>
-                    <h3 style="font-size:1.15rem;font-weight:800;color:var(--text-main);margin-top:6px;">Link WhatsApp to SRM Companion</h3>
+                    <h3 style="font-size:1.15rem;font-weight:800;color:var(--text-main);margin-top:6px;">Link WhatsApp to OneSRM</h3>
                 </div>
                 <button class="class-modal-close" onclick="document.getElementById('wa-pair-modal')?.remove()"></button>
             </div>
@@ -3724,7 +3724,7 @@ async function openWALinkedDeviceModal() {
                 <!-- Fast Mobile Ingest Alternative -->
                 <div style="background:var(--card-elevated);border:1.5px dashed var(--accent);border-radius:12px;padding:12px 14px;text-align:center;width:100%;margin-top:8px;">
                     <div style="font-weight:800;font-size:0.85rem;color:var(--accent);margin-bottom:4px;">⚡ 100% Mobile Standalone Mode (No Server Needed)</div>
-                    <div style="font-size:0.75rem;color:var(--text-sub);margin-bottom:10px;">Export any class WhatsApp chat as .txt without media and import it directly into SRM Companion:</div>
+                    <div style="font-size:0.75rem;color:var(--text-sub);margin-bottom:10px;">Export any class WhatsApp chat as .txt without media and import it directly into OneSRM:</div>
                     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
                         <input type="file" id="wa-chat-standalone-input" accept=".txt,text/plain" style="display:none;" onchange="handleWAChatFileUpload(event)">
                         <button type="button" class="pill-btn" style="background:var(--accent);color:var(--text-inverse);font-weight:800;padding:8px 14px;font-size:0.78rem;" onclick="document.getElementById('wa-chat-standalone-input')?.click()">

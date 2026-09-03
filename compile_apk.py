@@ -75,11 +75,15 @@ print(proc.stdout[-800:] if len(proc.stdout) > 800 else proc.stdout)
 # 5. Copy generated APK
 apk_build_path = os.path.join(ANDROID_DIR, "app", "build", "outputs", "apk", "debug", "app-debug.apk")
 if os.path.exists(apk_build_path):
-    dest1 = os.path.join(PROJECT_DIR, "SRM_Companion.apk")
-    dest2 = os.path.join(DOWNLOADS_DIR, "SRM_Companion.apk")
+    dest1 = os.path.join(PROJECT_DIR, "OneSRM.apk")
+    dest2 = os.path.join(DOWNLOADS_DIR, "OneSRM.apk")
+    legacy1 = os.path.join(PROJECT_DIR, "SRM_Companion.apk")
+    legacy2 = os.path.join(DOWNLOADS_DIR, "SRM_Companion.apk")
     
     shutil.copyfile(apk_build_path, dest1)
     shutil.copyfile(apk_build_path, dest2)
+    shutil.copyfile(apk_build_path, legacy1)
+    shutil.copyfile(apk_build_path, legacy2)
     
     size_mb = os.path.getsize(dest2) / (1024 * 1024)
     print("\n" + "=" * 60)
