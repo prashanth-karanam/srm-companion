@@ -69,9 +69,18 @@ class NoticeRequest(BaseModel):
     section: Optional[str] = "ALL"
     sender: Optional[str] = "Class Representative"
 
+import os
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+# ─── Static Directory Resolution ─────────────────────────────────────────────
+# Locate static web assets (either at root or current dir)
+STATIC_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if not os.path.exists(os.path.join(STATIC_DIR, "index.html")):
+    STATIC_DIR = os.getcwd()
+
 # ─── Endpoints ───────────────────────────────────────────────────────────────
 
-@app.get("/")
 @app.get("/api/status")
 async def get_status():
     """Health check and latency benchmark endpoint."""
@@ -79,18 +88,67 @@ async def get_status():
         "status": "online",
         "cluster": "Alpha (Vercel Serverless Edge)",
         "service": "SRM Companion Production Gateway",
-        "version": "2.5.0",
+        "version": "2.5.1",
         "anti_spam_shield": "active",
         "timestamp": int(time.time()),
         "uptime": "100%"
     }
 
 
+@app.get("/")
+async def get_root():
+    """Serves the interactive SRM Student Companion Web App UI."""
+    index_file = os.path.join(STATIC_DIR, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file, media_type="text/html")
+    return await get_status()
+
+
+@app.get("/app.js")
+async def serve_app_js():
+    p = os.path.join(STATIC_DIR, "app.js")
+    if os.path.exists(p):
+        return FileResponse(p, media_type="application/javascript")
+    raise HTTPException(status_code=404, detail="app.js not found")
+
+
+@app.get("/style.css")
+async def serve_style_css():
+    p = os.path.join(STATIC_DIR, "style.css")
+    if os.path.exists(p):
+        return FileResponse(p, media_type="text/css")
+    raise HTTPException(status_code=404, detail="style.css not found")
+
+
+@app.get("/data.js")
+async def serve_data_js():
+    p = os.path.join(STATIC_DIR, "data.js")
+    if os.path.exists(p):
+        return FileResponse(p, media_type="application/javascript")
+    raise HTTPException(status_code=404, detail="data.js not found")
+
+
+@app.get("/version.json")
+async def serve_version_json():
+    p = os.path.join(STATIC_DIR, "version.json")
+    if os.path.exists(p):
+        return FileResponse(p, media_type="application/json")
+    raise HTTPException(status_code=404, detail="version.json not found")
+
+
+@app.get("/manifest.json")
+async def serve_manifest_json():
+    p = os.path.join(STATIC_DIR, "manifest.json")
+    if os.path.exists(p):
+        return FileResponse(p, media_type="application/json")
+    raise HTTPException(status_code=404, detail="manifest.json not found")
+
+
 @app.get("/api/version")
 async def get_version():
     """OTA Instant Live Code Update Manifest."""
     return {
-        "version": "2.5.0",
+        "version": "2.5.1",
         "timestamp": int(time.time()),
         "hot_code_reload": True,
         "bundle_url": "https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/app.js",
