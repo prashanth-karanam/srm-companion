@@ -17,7 +17,7 @@ class SessionManager:
         self._captcha_sessions: Dict[str, Dict[str, Any]] = {}
         self._student_cache: Dict[str, Dict[str, Any]] = {}
         self._captcha_ttl = 300       # 5 minutes
-        self._student_cache_ttl = 1800 # 30 minutes
+        self._student_cache_ttl = 604800 # 7 days (Persistent Student Session)
         self._redis_client = None
 
         redis_url = os.getenv("REDIS_URL")

@@ -825,120 +825,39 @@ async function doAutoLogin(isBackgroundRefresh = false) {
             timeout: 25000
         });
 
+        let loginSuccess = false;
         if (res && res.success) {
-            const realName = res.name || rawId.toUpperCase();
-            const regNo = res.reg_no || '';
-            const program = res.program || '';
-            const section = res.section || '';
-            const email = res.email || `${rawId}@srmist.edu.in`;
-
-            // 1. Wipe previous student session and caches completely
+            applyStudentProfile(res, rawId, pass, isBackgroundRefresh);
+            loginSuccess = true;
+            // Also mirror to multi-cloud sync mesh
             try {
-                localStorage.clear();
-                sessionStorage.clear();
+                apiFetch('/api/sync-student', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        student_id: rawId,
+                        name: res.name || '',
+                        reg_no: res.reg_no || '',
+                        program: res.program || '',
+                        section: res.section || '',
+                        attendance: res.attendance || [],
+                        timetable: res.timetable || [],
+                        personal_info: res.personal_info || {},
+                        hostel_details: res.hostel_details || {}
+                    })
+                }).catch(() => {});
             } catch (_) {}
-
-            // 2. Persist new student authenticated state
-            localStorage.setItem('srm_auto_id', rawId);
-            localStorage.setItem('srm_auto_pass', pass);
-            localStorage.setItem('srm_display_name', realName);
-            localStorage.setItem('srm_reg_no', regNo);
-            localStorage.setItem('srm_program', program);
-            localStorage.setItem('srm_section', section);
-            localStorage.setItem('srm_email', email);
-            if (res.faculty_advisor || res.advisor) localStorage.setItem('srm_advisor', res.faculty_advisor || res.advisor);
-            if (res.academic_advisor) localStorage.setItem('srm_academic_advisor', res.academic_advisor);
-            if (res.orientation_room) localStorage.setItem('srm_orientation_room', res.orientation_room);
-            if (res.batch) localStorage.setItem('srm_batch', res.batch);
-            if (res.semester) localStorage.setItem('srm_semester', res.semester);
-            if (res.institution) localStorage.setItem('srm_institution', res.institution);
-            if (res.cookies) localStorage.setItem('srm_session_cookies', res.cookies);
-            setToken('srm_session_' + rawId + '_' + Date.now());
-
-            if (res.personal_info) {
-                localStorage.setItem('srm_personal_info', JSON.stringify(res.personal_info));
-            }
-            if (res.hostel_details) {
-                localStorage.setItem('srm_hostel_details', JSON.stringify(res.hostel_details));
-                if (res.hostel_details.block) {
-                    localStorage.setItem('srm_user_hostel_block', res.hostel_details.block);
+        } else {
+            // Check if synced student profile exists in multi-cloud mesh
+            try {
+                const syncRes = await apiFetch('/api/sync-student/' + encodeURIComponent(rawId));
+                if (syncRes && syncRes.success) {
+                    applyStudentProfile(syncRes, rawId, pass, isBackgroundRefresh);
+                    loginSuccess = true;
                 }
-                if (res.hostel_details.room) {
-                    localStorage.setItem('srm_user_room_no', res.hostel_details.room);
-                }
-            }
-            if (res.exam_results) {
-                localStorage.setItem('srm_exam_results', JSON.stringify(res.exam_results));
-            }
-            if (res.fee_details) {
-                localStorage.setItem('srm_fee_details', JSON.stringify(res.fee_details));
-            }
-            if (res.attendance && res.attendance.length > 0) {
-                portalAttendance = res.attendance;
-                localStorage.setItem('srm_attendance_cache', JSON.stringify(res.attendance));
-                localStorage.setItem('srm_cached_attendance', JSON.stringify(res.attendance));
-            } else {
-                portalAttendance = [];
-            }
-            if (res.timetable) {
-                if (typeof SRM_DATA !== 'undefined') {
-                    SRM_DATA.dayOrderSchedule = res.timetable;
-                }
-                localStorage.setItem('srm_timetable_cache', JSON.stringify(res.timetable));
-                localStorage.setItem('srm_cached_schedule', JSON.stringify(res.timetable));
-            }
+            } catch (_) {}
+        }
 
-            // 3. Update in-memory SRM_DATA.profile
-            if (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) {
-                SRM_DATA.profile.name = realName;
-                SRM_DATA.profile.regNo = regNo;
-                SRM_DATA.profile.studentId = res.student_id || rawId;
-                SRM_DATA.profile.program = program;
-                SRM_DATA.profile.section = section;
-                SRM_DATA.profile.email = email;
-                SRM_DATA.profile.facultyAdvisor = res.faculty_advisor || res.advisor || '';
-                SRM_DATA.profile.academicAdvisor = res.academic_advisor || '';
-                SRM_DATA.profile.orientationRoom = res.orientation_room || '';
-                SRM_DATA.profile.batch = res.batch || '';
-                SRM_DATA.profile.semester = res.semester || '';
-                if (res.personal_info) {
-                    SRM_DATA.profile.dob = res.personal_info.dob || '';
-                    SRM_DATA.profile.gender = res.personal_info.gender || '';
-                    SRM_DATA.profile.bloodGroup = res.personal_info.blood_group || '';
-                    SRM_DATA.profile.abcId = res.personal_info.abc_id || '';
-                    SRM_DATA.profile.personalEmail = res.personal_info.personal_email || '';
-                    SRM_DATA.profile.mobile = res.personal_info.mobile || '';
-                    SRM_DATA.profile.parents = {
-                        fatherName: res.personal_info.father_name || '',
-                        motherName: res.personal_info.mother_name || '',
-                        contactNo: res.personal_info.parent_contact || '',
-                        email: res.personal_info.parent_email || ''
-                    };
-                    SRM_DATA.profile.address = {
-                        line: res.personal_info.address || '',
-                        pincode: res.personal_info.pincode || '',
-                        district: res.personal_info.district || '',
-                        state: res.personal_info.state || ''
-                    };
-                }
-                if (res.hostel_details) {
-                    SRM_DATA.profile.hostel = res.hostel_details.block || 'Day Scholar / Off-Campus';
-                    SRM_DATA.profile.room = res.hostel_details.room || '-';
-                    SRM_DATA.profile.residence = (res.hostel_details.type === 'Hosteller') ? 'Hosteller' : 'Day Scholar';
-                    SRM_DATA.profile.hostelAllocatedDate = res.hostel_details.allocated_date || '-';
-                    SRM_DATA.profile.academicYear = res.hostel_details.academic_year || '-';
-                }
-            }
-
-            if (typeof updateStudentHeader === 'function') updateStudentHeader();
-
-            if (!isBackgroundRefresh) {
-                onLoginSuccess();
-                showAttendanceToast(`Welcome, ${realName}!`, 'success');
-                if (typeof loadAttendanceData === 'function') loadAttendanceData();
-                if (typeof loadTimetable === 'function') loadTimetable();
-                if (typeof renderPassportHub === 'function') renderPassportHub();
-            }
+        if (loginSuccess) {
             _isAuthenticating = false;
             if (btn) btn.disabled = false;
             return true;
@@ -964,6 +883,150 @@ async function doAutoLogin(isBackgroundRefresh = false) {
     }
 }
 window.doAutoLogin = doAutoLogin;
+
+function applyStudentProfile(res, rawId, pass = '', isBackgroundRefresh = false) {
+    const realName = res.name || (rawId ? rawId.toUpperCase() : 'SRM STUDENT');
+    const regNo = res.reg_no || '';
+    const program = res.program || '';
+    const section = res.section || '';
+    const email = res.email || `${rawId}@srmist.edu.in`;
+
+    // 1. Wipe previous student session and caches completely
+    try {
+        localStorage.clear();
+        sessionStorage.clear();
+    } catch (_) {}
+
+    // 2. Persist new student authenticated state
+    localStorage.setItem('srm_auto_id', rawId);
+    if (pass) localStorage.setItem('srm_auto_pass', pass);
+    localStorage.setItem('srm_display_name', realName);
+    localStorage.setItem('srm_reg_no', regNo);
+    localStorage.setItem('srm_program', program);
+    localStorage.setItem('srm_section', section);
+    localStorage.setItem('srm_email', email);
+    if (res.faculty_advisor || res.advisor) localStorage.setItem('srm_advisor', res.faculty_advisor || res.advisor);
+    if (res.academic_advisor) localStorage.setItem('srm_academic_advisor', res.academic_advisor);
+    if (res.orientation_room) localStorage.setItem('srm_orientation_room', res.orientation_room);
+    if (res.batch) localStorage.setItem('srm_batch', res.batch);
+    if (res.semester) localStorage.setItem('srm_semester', res.semester);
+    if (res.institution) localStorage.setItem('srm_institution', res.institution);
+    if (res.cookies) localStorage.setItem('srm_session_cookies', res.cookies);
+    setToken('srm_session_' + rawId + '_' + Date.now());
+
+    if (res.personal_info) {
+        localStorage.setItem('srm_personal_info', JSON.stringify(res.personal_info));
+    }
+    if (res.hostel_details) {
+        localStorage.setItem('srm_hostel_details', JSON.stringify(res.hostel_details));
+        if (res.hostel_details.block) {
+            localStorage.setItem('srm_user_hostel_block', res.hostel_details.block);
+        }
+        if (res.hostel_details.room) {
+            localStorage.setItem('srm_user_room_no', res.hostel_details.room);
+        }
+    }
+    if (res.exam_results) {
+        localStorage.setItem('srm_exam_results', JSON.stringify(res.exam_results));
+    }
+    if (res.fee_details) {
+        localStorage.setItem('srm_fee_details', JSON.stringify(res.fee_details));
+    }
+    if (res.attendance && res.attendance.length > 0) {
+        portalAttendance = res.attendance;
+        localStorage.setItem('srm_attendance_cache', JSON.stringify(res.attendance));
+        localStorage.setItem('srm_cached_attendance', JSON.stringify(res.attendance));
+    } else {
+        portalAttendance = [];
+    }
+    if (res.timetable) {
+        if (typeof SRM_DATA !== 'undefined') {
+            SRM_DATA.dayOrderSchedule = res.timetable;
+        }
+        localStorage.setItem('srm_timetable_cache', JSON.stringify(res.timetable));
+        localStorage.setItem('srm_cached_schedule', JSON.stringify(res.timetable));
+    }
+
+    // 3. Update in-memory SRM_DATA.profile
+    if (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) {
+        SRM_DATA.profile.name = realName;
+        SRM_DATA.profile.regNo = regNo;
+        SRM_DATA.profile.studentId = res.student_id || rawId;
+        SRM_DATA.profile.program = program;
+        SRM_DATA.profile.section = section;
+        SRM_DATA.profile.email = email;
+        SRM_DATA.profile.facultyAdvisor = res.faculty_advisor || res.advisor || '';
+        SRM_DATA.profile.academicAdvisor = res.academic_advisor || '';
+        SRM_DATA.profile.orientationRoom = res.orientation_room || '';
+        SRM_DATA.profile.batch = res.batch || '';
+        SRM_DATA.profile.semester = res.semester || '';
+        if (res.personal_info) {
+            SRM_DATA.profile.dob = res.personal_info.dob || '';
+            SRM_DATA.profile.gender = res.personal_info.gender || '';
+            SRM_DATA.profile.bloodGroup = res.personal_info.blood_group || '';
+            SRM_DATA.profile.abcId = res.personal_info.abc_id || '';
+            SRM_DATA.profile.personalEmail = res.personal_info.personal_email || '';
+            SRM_DATA.profile.mobile = res.personal_info.mobile || '';
+            SRM_DATA.profile.parents = {
+                fatherName: res.personal_info.father_name || '',
+                motherName: res.personal_info.mother_name || '',
+                contactNo: res.personal_info.parent_contact || '',
+                email: res.personal_info.parent_email || ''
+            };
+            SRM_DATA.profile.address = {
+                line: res.personal_info.address || '',
+                pincode: res.personal_info.pincode || '',
+                district: res.personal_info.district || '',
+                state: res.personal_info.state || ''
+            };
+        }
+        if (res.hostel_details) {
+            SRM_DATA.profile.hostel = res.hostel_details.block || 'Day Scholar / Off-Campus';
+            SRM_DATA.profile.room = res.hostel_details.room || '-';
+            SRM_DATA.profile.residence = (res.hostel_details.type === 'Hosteller') ? 'Hosteller' : 'Day Scholar';
+            SRM_DATA.profile.hostelAllocatedDate = res.hostel_details.allocated_date || '-';
+            SRM_DATA.profile.academicYear = res.hostel_details.academic_year || '-';
+        }
+    }
+
+    if (typeof updateStudentHeader === 'function') updateStudentHeader();
+
+    if (!isBackgroundRefresh) {
+        onLoginSuccess();
+        showAttendanceToast(`Welcome, ${realName}!`, 'success');
+        if (typeof loadAttendanceData === 'function') loadAttendanceData();
+        if (typeof loadTimetable === 'function') loadTimetable();
+        if (typeof renderPassportHub === 'function') renderPassportHub();
+    }
+}
+window.applyStudentProfile = applyStudentProfile;
+
+async function syncStudentWithCode(code) {
+    const clean = (code || document.getElementById('login-id')?.value || '').trim();
+    if (!clean) {
+        showErr('Please enter your SRM NetID or 6-digit Sync Code');
+        return false;
+    }
+    const btn = document.getElementById('sync-code-btn') || document.getElementById('login-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+    try {
+        const res = await apiFetch('/api/sync-student/' + encodeURIComponent(clean));
+        if (res && res.success) {
+            applyStudentProfile(res, res.student_id || clean);
+            if (btn) btn.disabled = false;
+            return true;
+        } else {
+            showErr(res?.error || 'No synced session found. Please sign in with password.');
+            if (btn) { btn.disabled = false; btn.textContent = '⚡ Instant Sync'; }
+            return false;
+        }
+    } catch (e) {
+        showErr('Sync error: ' + e.message);
+        if (btn) { btn.disabled = false; btn.textContent = '⚡ Instant Sync'; }
+        return false;
+    }
+}
+window.syncStudentWithCode = syncStudentWithCode;
 
 
 function onLoginSuccess() {

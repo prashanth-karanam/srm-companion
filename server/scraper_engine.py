@@ -23,9 +23,10 @@ HEADERS = {
     'Accept-Language': 'en-US,en;q=0.9',
 }
 
-LOGIN_URL = 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp'
-SERVLET_URL = 'https://sp.srmist.edu.in/srmiststudentportal/LoginServlet'
-BASE_REPORT = 'https://sp.srmist.edu.in/srmiststudentportal/students/report/'
+PORTAL_BASE = 'https://sp.srmist.edu.in'
+LOGIN_URL = f'{PORTAL_BASE}/srmiststudentportal/students/loginManager/youLogin.jsp'
+SERVLET_URL = f'{PORTAL_BASE}/srmiststudentportal/LoginServlet'
+BASE_REPORT = f'{PORTAL_BASE}/srmiststudentportal/students/report/'
 
 
 async def fetch_portal_captcha() -> Dict[str, Any]:
@@ -55,10 +56,10 @@ async def fetch_portal_captcha() -> Dict[str, Any]:
         data_src = img.get('data-src') if img else None
 
         if data_src:
-            captcha_url = f"https://sp.srmist.edu.in{data_src}" if data_src.startswith('/') else data_src
+            captcha_url = f"{PORTAL_BASE}{data_src}" if data_src.startswith('/') else data_src
         else:
             ts = int(time.time() * 1000)
-            captcha_url = f"https://sp.srmist.edu.in/srmiststudentportal/SCaptchaServlet?ts={ts}"
+            captcha_url = f"{PORTAL_BASE}/srmiststudentportal/SCaptchaServlet?ts={ts}"
 
         # 3. Extract hidden inputs & honeypots
         form = soup.find('form')
@@ -73,7 +74,7 @@ async def fetch_portal_captcha() -> Dict[str, Any]:
         domain_proof = base64.b64encode(f"{nonce}:sp.srmist.edu.in".encode('utf-8')).decode('utf-8')
         cap_headers = {
             'X-Domain-Proof': domain_proof,
-            'Referer': LOGIN_URL
+            'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp'
         }
 
         cap_res = await client.get(captcha_url, headers=cap_headers)
@@ -183,7 +184,7 @@ async def login_and_scrape_all(
         }
         login_payload['telemetryPayload'] = base64.b64encode(json.dumps(telemetry).encode('utf-8')).decode('utf-8')
 
-        client.headers['Referer'] = LOGIN_URL
+        client.headers['Referer'] = 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp'
         client.headers['Origin'] = 'https://sp.srmist.edu.in'
 
         # 2. Submit Login
