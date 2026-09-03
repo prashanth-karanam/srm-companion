@@ -270,6 +270,29 @@ const MULTI_CLOUD_GATEWAYS = [
     { name: 'Cluster Gamma (Railway Gateway)', url: 'https://srm-companion-backend.up.railway.app' }
 ];
 
+function getActiveGateways() {
+    try {
+        const remote = localStorage.getItem('srm_remote_gateways');
+        if (remote) {
+            const parsed = JSON.parse(remote);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+    } catch (_) {}
+    return MULTI_CLOUD_GATEWAYS;
+}
+
+function getAssignedGatewayForStudent(studentId) {
+    const list = getActiveGateways();
+    if (!studentId || list.length <= 1) return list[0].url;
+    let hash = 0;
+    const clean = String(studentId).toLowerCase().trim();
+    for (let i = 0; i < clean.length; i++) {
+        hash = (hash * 31 + clean.charCodeAt(i)) >>> 0;
+    }
+    const assigned = list[hash % list.length];
+    return assigned.url;
+}
+
 var _activeGatewayUrl = '';
 var _isGatewayProbing = false;
 var _isAuthenticating = false;
@@ -283,15 +306,21 @@ function getApiBase() {
         const saved = localStorage.getItem('srm_api_base');
         if (saved && saved.trim()) return saved.trim().replace(/\/$/, '');
 
+        const currentStudent = localStorage.getItem('srm_auto_id') || localStorage.getItem('srm_reg_no');
+        if (currentStudent) {
+            return getAssignedGatewayForStudent(currentStudent);
+        }
+
         if (typeof window !== 'undefined' && window.location) {
             const host = window.location.hostname || '';
-            if (host.includes('vercel.app') || host.includes('onrender.com') || host.includes('railway.app')) {
+            if (host.includes('vercel.app') || host.includes('onrender.com') || host.includes('railway.app') || host.includes('workers.dev')) {
                 return window.location.origin;
             }
         }
     } catch (_) {}
 
-    return _activeGatewayUrl || MULTI_CLOUD_GATEWAYS[0].url;
+    const list = getActiveGateways();
+    return _activeGatewayUrl || list[0].url;
 }
 
 // Universal HTTP Fetch Helper for Capacitor Mobile + Web Browsers
@@ -1134,6 +1163,11 @@ async function checkGitHubOTAUpdate(isManual = false) {
         if (!meta || !meta.version) {
             if (isManual) showAttendanceToast('✅ App is up to date!', 'success');
             return;
+        }
+
+        if (Array.isArray(meta.gateways) && meta.gateways.length > 0) {
+            localStorage.setItem('srm_remote_gateways', JSON.stringify(meta.gateways));
+            console.log('[Remote Gateways] Synced', meta.gateways.length, 'cluster endpoints from cloud.');
         }
 
         const localVer = (typeof APP_BUILD_VERSION !== 'undefined') ? APP_BUILD_VERSION : (localStorage.getItem('srm_installed_build_version') || '2.5.0');

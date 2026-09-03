@@ -1,15 +1,21 @@
 {
-  "version": "2.5.0",
-  "build": 1042,
+  "version": "2.5.1",
+  "build": 1043,
   "releaseDate": "2026-09-03",
   "minAppVersion": "1.0.0",
   "hotReload": true,
   "bundleUrl": "https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/app.js",
+  "gateways": [
+    { "name": "Cluster Alpha (Vercel Production Edge)", "url": "https://srmbackend.vercel.app" },
+    { "name": "Cluster Cloudflare (Global Edge Shield)", "url": "https://srm-edge-gateway.srm-companion.workers.dev" },
+    { "name": "Cluster Beta (Render Cloud Microservice)", "url": "https://srm-companion-backend.onrender.com" },
+    { "name": "Cluster Gamma (Railway Gateway)", "url": "https://srm-companion-backend.up.railway.app" }
+  ],
   "features": [
-    "Cluster Alpha / Beta / Gamma Multi-Cloud Failover",
-    "Instant In-App Live Code Hot-Reload (Zero APK Download)",
-    "Enterprise Anti-Spam Shield & Concurrency Deduplication",
-    "Dynamic New Course Code Scraper & Timetable Engine",
-    "Official 01.07.2026 SRM Hostel Mess Menu (M-Block & Sannasi)"
+    "Dynamic Remote Gateway Auto-Discovery (0 APK Update)",
+    "Deterministic Student Hash Load Balancing",
+    "Cloudflare Global Edge Shield with Sub-15ms Chennai Caching",
+    "Enterprise Anti-Spam Shield & Concurrency Mutex",
+    "Dynamic New Course Code Scraper & Timetable Engine"
   ]
 }
