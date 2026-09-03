@@ -760,6 +760,187 @@ function refreshCaptcha() {
 window.refreshCaptcha = refreshCaptcha;
 window.fetchLiveCaptcha = fetchLiveCaptcha;
 
+// ─── Native On-Device Direct Scraper for Android / Mobile Devices ───────────
+async function doNativePortalLogin(rawId, pass, captchaVal) {
+    const capHttp = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) || window.CapacitorHttp;
+    if (!capHttp) return null;
+
+    try {
+        const now = Date.now();
+        const telemetry = {
+            startTime: now - 3500,
+            currentDomain: "sp.srmist.edu.in",
+            timezoneOffset: -330,
+            screenWidth: window.screen ? window.screen.width : 1080,
+            screenHeight: window.screen ? window.screen.height : 2400,
+            colorDepth: 24,
+            platform: "Android",
+            userAgent: navigator.userAgent || "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/128.0.0.0 Mobile Safari/537.36",
+            mouseClicks: 3,
+            mouseMovements: 25,
+            keystrokeCount: 18,
+            typingSpeedMs: 210,
+            canvasHash: "c4d812a",
+            submitTime: now,
+            timeOnPageMs: 3500
+        };
+
+        const postData = {
+            username: rawId,
+            password: pass,
+            captcha: captchaVal
+        };
+
+        if (_hiddenFields && typeof _hiddenFields === 'object') {
+            Object.assign(postData, _hiddenFields);
+        }
+
+        if (_secConfig && typeof _secConfig === 'object') {
+            if (_secConfig.domainFieldName) {
+                postData[_secConfig.domainFieldName] = btoa("sp.srmist.edu.in".split('').reverse().join(''));
+            }
+            if (_secConfig.captchaFieldName) {
+                const rd = _secConfig.randomDelimiter || '';
+                postData[_secConfig.captchaFieldName] = btoa(`4${rd}18`);
+            }
+        }
+        postData.telemetryPayload = btoa(JSON.stringify(telemetry));
+
+        // Submit directly to SRM LoginServlet from phone's Indian IP
+        const formBody = Object.keys(postData).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(postData[k])).join('&');
+        const loginRes = await capHttp.request({
+            url: 'https://sp.srmist.edu.in/srmiststudentportal/LoginServlet',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp',
+                'Origin': 'https://sp.srmist.edu.in'
+            },
+            data: formBody
+        });
+
+        const html = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data);
+        if (html.includes('AlertInvalid credentials') || html.includes('Invalid User Name or Password')) {
+            return { success: false, error: 'Invalid NetID or Password. Please double-check your credentials.' };
+        }
+        if (html.includes('AlertInvalid Captcha') || html.includes('Invalid Captcha Code')) {
+            return { success: false, error: 'Invalid CAPTCHA entered. Please tap reload and try again.' };
+        }
+
+        // Follow loader if needed
+        if (html.includes('.theGR8LoginLoader')) {
+            await capHttp.request({
+                url: 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/LoginServlet'
+                },
+                data: ''
+            });
+        }
+
+        // Fetch report tabs
+        const [profRes, attRes, ttRes] = await Promise.all([
+            capHttp.request({
+                url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentProfile.jsp',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/template/HRDSystem.jsp',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                data: 'iden=1&filter=&hdnFormDetails=1&csrfPreventionSalt='
+            }),
+            capHttp.request({
+                url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentAttendance.jsp',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/template/HRDSystem.jsp',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                data: 'iden=2&filter=&hdnFormDetails=2&csrfPreventionSalt='
+            }),
+            capHttp.request({
+                url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentTimetable.jsp',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/template/HRDSystem.jsp',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                data: 'iden=3&filter=&hdnFormDetails=3&csrfPreventionSalt='
+            })
+        ]);
+
+        const parser = new DOMParser();
+        const profDoc = parser.parseFromString(profRes.data || '', 'text/html');
+        const attDoc = parser.parseFromString(attRes.data || '', 'text/html');
+
+        let studentName = rawId.toUpperCase();
+        let regNo = '';
+        let program = '';
+        let section = '';
+
+        profDoc.querySelectorAll('td').forEach(td => {
+            const txt = td.textContent.trim();
+            const nxt = td.nextElementSibling?.textContent?.trim() || '';
+            if (!nxt) return;
+            if (txt.includes('Student Name')) studentName = nxt;
+            else if (txt.includes('Register No')) regNo = nxt;
+            else if (txt.includes('Program')) program = nxt;
+            else if (txt.includes('Section')) section = nxt;
+        });
+
+        const attendance = [];
+        const attTable = attDoc.querySelector('table');
+        if (attTable) {
+            const rows = attTable.querySelectorAll('tr');
+            for (let i = 1; i < rows.length; i++) {
+                const cols = Array.from(rows[i].querySelectorAll('td, th')).map(c => c.textContent.trim());
+                if (cols.length >= 8 && cols[0] && cols[0] !== 'Code' && cols[0] !== 'Total') {
+                    const conducted = parseInt(cols[2], 10) || 0;
+                    const attended = parseInt(cols[3], 10) || 0;
+                    const absent = parseInt(cols[4], 10) || 0;
+                    const pct = parseFloat(cols[7].replace('%', '')) || 0.0;
+                    const safeBunk = conducted > 0 ? Math.max(0, Math.floor((4 * attended - 3 * conducted) / 3)) : 0;
+                    const recovery = conducted > 0 ? Math.max(0, Math.ceil(3 * conducted - 4 * attended)) : 0;
+                    attendance.push({
+                        code: cols[0],
+                        title: cols[1],
+                        conducted,
+                        attended,
+                        absent,
+                        percentage: pct,
+                        safe_bunks: safeBunk,
+                        recovery_needed: recovery
+                    });
+                }
+            }
+        }
+
+        if (regNo || attendance.length > 0) {
+            console.log(`[NativeScrape] Success! Scraped ${attendance.length} subjects for ${studentName} (${regNo})`);
+            return {
+                success: true,
+                name: studentName,
+                reg_no: regNo,
+                student_id: rawId,
+                program: program,
+                section: section,
+                attendance: attendance,
+                from_device_scrape: true
+            };
+        }
+        return null;
+    } catch (err) {
+        console.warn('[doNativePortalLogin] Exception:', err);
+        return null;
+    }
+}
+window.doNativePortalLogin = doNativePortalLogin;
+
 // ─── Real Cloud Portal Authentication & Scraping Pipeline ───────────────────────
 async function doAutoLogin(isBackgroundRefresh = false) {
     const rawId = isBackgroundRefresh ? localStorage.getItem('srm_auto_id') : document.getElementById('login-id')?.value.trim().toLowerCase().replace('@srmist.edu.in', '');
@@ -809,21 +990,37 @@ async function doAutoLogin(isBackgroundRefresh = false) {
     }
 
     try {
-        const payload = {
-            username: rawId,
-            password: pass,
-            captcha: captchaVal || 'AUTO',
-            session_id: _currentSessionId || '',
-            cookies: _liveCookies || '',
-            sec_config: _secConfig || {},
-            hidden_fields: _hiddenFields || {}
-        };
+        let res = null;
 
-        const res = await apiFetch('/api/login', {
-            method: 'POST',
-            body: JSON.stringify(payload),
-            timeout: 25000
-        });
+        // 1. If running inside Android/iOS Native App, scrape DIRECTLY on the device!
+        // This uses the student's Indian ISP / mobile SIM IP, completely bypassing cloud datacenter filters!
+        const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+        if (isNative) {
+            console.log('[Auth] Attempting direct native on-device scraping...');
+            const nativeRes = await doNativePortalLogin(rawId, pass, captchaVal);
+            if (nativeRes && nativeRes.success) {
+                res = nativeRes;
+            }
+        }
+
+        // 2. Fallback to Cloud Gateway API if native scraper was skipped or didn't succeed
+        if (!res) {
+            const payload = {
+                username: rawId,
+                password: pass,
+                captcha: captchaVal || 'AUTO',
+                session_id: _currentSessionId || '',
+                cookies: _liveCookies || '',
+                sec_config: _secConfig || {},
+                hidden_fields: _hiddenFields || {}
+            };
+
+            res = await apiFetch('/api/login', {
+                method: 'POST',
+                body: JSON.stringify(payload),
+                timeout: 25000
+            });
+        }
 
         let loginSuccess = false;
         if (res && res.success) {
