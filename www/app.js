@@ -560,8 +560,8 @@ function showDashboard() {
 
     if (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) {
         const prof = SRM_DATA.profile;
-        const displayName = localStorage.getItem('srm_display_name') || prof.name || 'KARANAM SAI PRASANTH';
-        const regNo = localStorage.getItem('srm_reg_no') || prof.regNo || 'RA2411003010283';
+        const displayName = localStorage.getItem('srm_display_name') || prof.name || 'SRM Student';
+        const regNo = localStorage.getItem('srm_reg_no') || prof.regNo || '';
         prof.name = displayName;
         prof.regNo = regNo;
         const prog = localStorage.getItem('srm_program');

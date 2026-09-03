@@ -380,33 +380,6 @@ async def get_synced_student(identifier: str):
         return {"success": True, **data}
     return {"success": False, "error": f"No synced session found for '{identifier}'. Please log in via the mobile app first or enter your credentials."}
 
-# Seed verified student session
-_SEED_STUDENT = {
-    "success": True,
-    "name": "KARANAM SAI PRASANTH",
-    "student_id": "sk1325",
-    "reg_no": "RA2611026010283",
-    "program": "B.Tech.-Computer Science and Engineering with specialization in Artificial Intelligence and Machine Learning[UG - FT - ACADEMIC]",
-    "section": "P1",
-    "email": "sk1325@srmist.edu.in",
-    "batch": "Batch 1 (2026 Batch)",
-    "semester": "I SEMESTER",
-    "attendance": [
-        {"code": "26BTB1001T", "title": "INTRODUCTION TO COMPUTATIONAL BIOLOGY", "conducted": 6, "attended": 6, "absent": 0, "percentage": 100.0, "safe_bunks": 2, "recovery_needed": 0},
-        {"code": "26MEE1001L", "title": "WORKSHOP PRACTICE", "conducted": 8, "attended": 4, "absent": 4, "percentage": 50.0, "safe_bunks": 0, "recovery_needed": 8},
-        {"code": "26CYB1002J", "title": "CHEMISTRY FOR COMPUTER SCIENCE", "conducted": 11, "attended": 11, "absent": 0, "percentage": 100.0, "safe_bunks": 3, "recovery_needed": 0},
-        {"code": "26CSE1002J", "title": "PROGRAMMING FOR PROBLEM SOLVING", "conducted": 12, "attended": 12, "absent": 0, "percentage": 100.0, "safe_bunks": 4, "recovery_needed": 0},
-        {"code": "26MAB1001T", "title": "CALCULUS AND LINEAR ALGEBRA", "conducted": 8, "attended": 8, "absent": 0, "percentage": 100.0, "safe_bunks": 2, "recovery_needed": 0}
-    ],
-    "synced_at": int(time.time()),
-    "from_sync": True
-}
-session_manager.save_student_data("sk1325", _SEED_STUDENT)
-session_manager.save_student_data("734184", _SEED_STUDENT)
-_sync_code_map["734184"] = "sk1325"
-_sync_code_map["RA2611026010283"] = "sk1325"
-_sync_code_map["SK1325"] = "sk1325"
-
 
 @app.post("/api/chat")
 async def ai_chat(req: ChatRequest):

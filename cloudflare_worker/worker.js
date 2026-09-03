@@ -75,7 +75,17 @@ export default {
           redirect: "follow",
         });
 
-        const outHeaders = new Headers(srmRes.headers);
+        const outHeaders = new Headers();
+        for (const [k, v] of srmRes.headers.entries()) {
+          if (k.toLowerCase() !== "set-cookie") {
+            outHeaders.set(k, v);
+          }
+        }
+        if (typeof srmRes.headers.getSetCookie === "function") {
+          for (const c of srmRes.headers.getSetCookie()) {
+            outHeaders.append("Set-Cookie", c);
+          }
+        }
         for (const [key, value] of Object.entries(CORS_HEADERS)) {
           outHeaders.set(key, value);
         }
