@@ -13,6 +13,7 @@ backend_server.log
 start_detached_server.py
 cloudflared.exe
 ping_all_servers.py
+srm.exe
 
 # Keep essential config JSON files
 *.json
