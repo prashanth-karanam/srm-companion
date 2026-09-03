@@ -1,9 +1,13 @@
 {
   "version": "2.5.0",
-  "build": 2026090201,
-  "updatedAt": "2026-09-02T21:30:00+05:30",
-  "releaseNotes": "Omni-User Dynamic SRM Scraper, Real Multi-Student Attendance & Timetable Matrix, 360° AI Copilot, and Decoupled Free-Tier Microservice Architecture",
-  "githubRepo": "saiprasanthkaranam/srm_companion",
-  "apkDownloadUrl": "https://github.com/saiprasanthkaranam/srm_companion/releases/latest/download/SRM_Companion.apk",
-  "minSupportedVersion": "2.0.0"
+  "build": 1042,
+  "releaseDate": "2026-09-03",
+  "minAppVersion": "1.0.0",
+  "features": [
+    "100% Pure Cloud Serverless & Native Scraper",
+    "Official 01.07.2026 SRM Hostel Mess Menu",
+    "Inception Labs AI Core",
+    "Native C++ Ultra-CLI (srm.exe)"
+  ],
+  "downloadUrl": "https://github.com/prashanth-karanam/srm-companion/releases/latest"
 }
