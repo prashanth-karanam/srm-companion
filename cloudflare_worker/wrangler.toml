@@ -3,3 +3,8 @@ main = "worker.js"
 compatibility_date = "2024-09-01"
 account_id = "603ec6a31e477ce9e84a525cd4711378"
 workers_dev = true
+
+[[kv_namespaces]]
+binding = "SRM_STUDENTS"
+id = "fd0e5085bf9e4e5292a2b973988b88e8"
+

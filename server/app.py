@@ -8,6 +8,7 @@ import time
 import logging
 import asyncio
 import re
+import httpx
 from typing import Optional, Dict, Any, List
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -338,7 +339,7 @@ _sync_code_map: Dict[str, str] = {}
 async def sync_student(payload: StudentSyncPayload):
     """
     Receives authenticated student data directly from mobile app (or client in India)
-    and stores it in the multi-cloud mesh (Alpha, Beta, Gamma) with a 7-day TTL.
+    and stores it in the multi-cloud mesh (Alpha, Beta, Gamma) and Cloudflare KV.
     """
     clean_id = re.sub(r'(?i)@srmist\.edu\.in$', '', payload.student_id.strip()).strip().lower()
     if not clean_id:
@@ -367,6 +368,17 @@ async def sync_student(payload: StudentSyncPayload):
         _sync_code_map[payload.reg_no.strip().upper()] = clean_id
 
     session_manager.save_student_data(clean_id, data)
+
+    # Persist to Global Edge KV (Cloudflare) so data survives all Vercel cold starts
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            await client.post(
+                "https://srm-edge-gateway.srm-companion.workers.dev/api/sync-student",
+                json=data
+            )
+    except Exception as e:
+        logger.warning(f"Failed to push sync data to Edge KV: {e}")
+
     logger.info(f"Student data synced for {clean_id} (Sync Code: {code})")
     return {"success": True, "sync_code": code, "student_id": clean_id, "synced_at": data["synced_at"]}
 
@@ -375,13 +387,32 @@ async def sync_student(payload: StudentSyncPayload):
 async def get_synced_student(identifier: str):
     """
     Fetches synced student data by NetID, Register Number, or 6-digit Sync Code.
-    Allows web dashboard to seamlessly pair with phone data in 0ms.
+    First checks in-memory RAM, then falls back to persistent Cloudflare KV.
     """
     clean = identifier.strip()
     target_id = _sync_code_map.get(clean.upper()) or _sync_code_map.get(clean) or clean.lower()
     data = session_manager.get_student_data(target_id, max_age_seconds=86400 * 7)
     if data:
         return {"success": True, **data}
+
+    # Query persistent Global Edge KV if RAM was flushed on container cold start
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            if clean.isdigit() and len(clean) == 6:
+                kv_url = f"https://srm-edge-gateway.srm-companion.workers.dev/api/restore-code/{clean}"
+            else:
+                kv_url = f"https://srm-edge-gateway.srm-companion.workers.dev/api/get-student/{clean}"
+
+            resp = await client.get(kv_url)
+            if resp.status_code == 200:
+                kv_res = resp.json()
+                if kv_res.get("success") and kv_res.get("data"):
+                    sdata = kv_res["data"]
+                    session_manager.save_student_data(sdata.get("student_id") or clean.lower(), sdata)
+                    return {"success": True, **sdata}
+    except Exception as e:
+        logger.warning(f"Edge KV restore check failed: {e}")
+
     return {"success": False, "error": f"No synced session found for '{identifier}'. Please log in via the mobile app first or enter your credentials."}
 
 

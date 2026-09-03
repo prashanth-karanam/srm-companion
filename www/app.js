@@ -3644,8 +3644,9 @@ function showWAGroupSummaryModal(data) {
 
 // ─── WhatsApp Multi-Device QR Bridge Connector (Live Scraper) ─────────────────
 function getWABridgeUrl(path) {
-    const base = localStorage.getItem('srm_wa_bridge_url') || 'https://srm-companion-wa.up.railway.app';
-    return base.replace(/\/$/, '') + path;
+    const custom = localStorage.getItem('srm_wa_bridge_url');
+    if (custom) return custom.replace(/\/$/, '') + path;
+    return 'http://127.0.0.1:8001' + path;
 }
 
 async function waBridgeFetch(path, opts = {}) {
@@ -3653,21 +3654,42 @@ async function waBridgeFetch(path, opts = {}) {
     const separator = path.includes('?') ? '&' : '?';
     const pathWithUser = `${path}${separator}userId=${encodeURIComponent(userId)}`;
 
-    // 1. Try local / custom bridge daemon first
+    // 1. Try local daemon on port 8001 first
     try {
-        const url = getWABridgeUrl(pathWithUser);
-        const res = await fetch(url, {
+        const localUrl = `http://127.0.0.1:8001${pathWithUser}`;
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 2500);
+        const res = await fetch(localUrl, {
             ...opts,
+            signal: ctrl.signal,
             headers: { 
                 'Content-Type': 'application/json',
                 'X-User-Id': userId,
                 ...(opts.headers || {}) 
             }
         });
+        clearTimeout(tid);
         if (res.ok) return await res.json();
     } catch (_) {}
+
+    // 2. Try configured custom bridge url
+    try {
+        const customBase = localStorage.getItem('srm_wa_bridge_url');
+        if (customBase) {
+            const url = customBase.replace(/\/$/, '') + pathWithUser;
+            const res = await fetch(url, {
+                ...opts,
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-User-Id': userId,
+                    ...(opts.headers || {}) 
+                }
+            });
+            if (res.ok) return await res.json();
+        }
+    } catch (_) {}
     
-    // 2. Fallback to serverless API route if proxied
+    // 3. Fallback to serverless API route if proxied
     try {
         return await apiFetch(pathWithUser, {
             ...opts,

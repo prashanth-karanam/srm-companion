@@ -47,6 +47,107 @@ export default {
       );
     }
 
+    // 2.5. Persistent Multi-User Student Storage (Cloudflare KV)
+    if (url.pathname === "/api/sync-student" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const rawId = (body.student_id || body.srm_id || body.username || body.reg_no || "").trim().toLowerCase();
+        if (!rawId) {
+          return new Response(JSON.stringify({ success: false, error: "student_id or username required" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+          });
+        }
+
+        const cleanData = {
+          ...body,
+          synced_at: Math.floor(Date.now() / 1000),
+          edge_colo: request.cf?.colo || "Edge"
+        };
+        await env.SRM_STUDENTS.put(`student:${rawId}`, JSON.stringify(cleanData));
+
+        const regNo = (body.reg_no || "").trim().toUpperCase();
+        if (regNo) {
+          await env.SRM_STUDENTS.put(`reg:${regNo}`, rawId);
+        }
+
+        const syncCode = Math.floor(100000 + Math.random() * 900000).toString();
+        await env.SRM_STUDENTS.put(`code:${syncCode}`, rawId, { expirationTtl: 86400 * 30 });
+
+        return new Response(JSON.stringify({
+          success: true,
+          message: "Student profile securely persisted across all edge nodes",
+          student_id: rawId,
+          sync_code: syncCode,
+          synced_at: cleanData.synced_at
+        }), {
+          headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+        });
+      }
+    }
+
+    if (url.pathname.startsWith("/api/get-student/")) {
+      const targetId = decodeURIComponent(url.pathname.replace(/^\/api\/get-student\//, "")).trim().toLowerCase();
+      try {
+        let studentStr = await env.SRM_STUDENTS.get(`student:${targetId}`);
+        if (!studentStr) {
+          const alias = await env.SRM_STUDENTS.get(`reg:${targetId.toUpperCase()}`);
+          if (alias) {
+            studentStr = await env.SRM_STUDENTS.get(`student:${alias}`);
+          }
+        }
+
+        if (studentStr) {
+          const data = JSON.parse(studentStr);
+          return new Response(JSON.stringify({ success: true, data: data }), {
+            headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+          });
+        }
+        return new Response(JSON.stringify({ success: false, error: "Student not found in edge database" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+        });
+      }
+    }
+
+    if (url.pathname.startsWith("/api/restore-code/")) {
+      const code = url.pathname.replace(/^\/api\/restore-code\//, "").trim();
+      try {
+        const studentId = await env.SRM_STUDENTS.get(`code:${code}`);
+        if (!studentId) {
+          return new Response(JSON.stringify({ success: false, error: "Invalid or expired 6-digit sync code" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+          });
+        }
+        const studentStr = await env.SRM_STUDENTS.get(`student:${studentId}`);
+        if (studentStr) {
+          return new Response(JSON.stringify({ success: true, student_id: studentId, data: JSON.parse(studentStr) }), {
+            headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+          });
+        }
+        return new Response(JSON.stringify({ success: false, error: "Student profile not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+        });
+      }
+    }
+
     // 3. Indian Edge Tunnel to SRMIST Portal (sp.srmist.edu.in)
     // Routes outbound portal scraping through Cloudflare's Indian edge nodes (Chennai/Mumbai)
     // Completely bypasses foreign cloud IP restrictions for all clusters (Alpha, Beta, Gamma)
