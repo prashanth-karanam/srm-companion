@@ -22,6 +22,21 @@
     <!-- Zero-Cost Realtime P2P WebRTC Device-to-Device Mesh -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <script src="https://unpkg.com/mqtt@5.3.5/dist/mqtt.min.js"></script>
+    <!-- Instant In-App Live OTA Code Hot-Reload Engine (Zero APK Download) -->
+    <script>
+    (function() {
+        try {
+            var hotCode = localStorage.getItem('srm_ota_hot_code');
+            if (hotCode && hotCode.length > 5000) {
+                var s = document.createElement('script');
+                s.text = hotCode;
+                document.head.appendChild(s);
+                window._srm_hot_loaded = true;
+                console.log('[OTA Engine] Running latest live hot code bundle.');
+            }
+        } catch(e) {}
+    })();
+    </script>
 </head>
 
 <body>

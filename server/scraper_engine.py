@@ -376,28 +376,82 @@ def _parse_timetable(html: str) -> Dict[str, list]:
         return schedule
 
     soup = BeautifulSoup(html, 'html.parser')
-    table = soup.find('table')
-    if not table:
+    tables = soup.find_all('table')
+    if not tables:
         return schedule
 
-    rows = table.find_all('tr')
-    for row in rows:
-        tds = row.find_all(['td', 'th'])
-        if not tds:
+    # 1. Parse Course Registration Details Table (tables[1] if exists)
+    course_map = {}
+    if len(tables) >= 2:
+        for row in tables[1].find_all('tr')[1:]:
+            cols = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
+            if len(cols) >= 5:
+                c_code = cols[0]
+                c_name = cols[1]
+                c_slot = cols[3]
+                c_fac = cols[4].split('[')[0].strip() if cols[4] else ""
+
+                venue_parts = []
+                if len(cols) > 6 and cols[6] and cols[6] != '-':
+                    venue_parts.append(cols[6])
+                if len(cols) > 7 and cols[7] and cols[7] != '-':
+                    venue_parts.append(cols[7])
+                if len(cols) > 8 and cols[8] and cols[8] != '-':
+                    venue_parts.append(cols[8])
+
+                c_venue = " - ".join(venue_parts) if venue_parts else "Main Campus"
+
+                entry = {
+                    "title": c_name,
+                    "code": c_code,
+                    "slot": c_slot,
+                    "faculty": c_fac,
+                    "venue": c_venue
+                }
+
+                course_map[f"{c_code}_{c_slot}"] = entry
+                course_map[c_code] = entry
+                if any(k in c_name.upper() for k in ['LAB', 'PRACTICE']) or any(s.strip().startswith('P') for s in c_slot.split(',')):
+                    course_map[f"{c_code}_LAB"] = entry
+
+    # 2. Parse Day Order Matrix Grid (tables[0])
+    for row in tables[0].find_all('tr'):
+        cols = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
+        if not cols:
             continue
-        first_col = tds[0].get_text(strip=True)
+        first_col = cols[0].strip()
         for day_num in range(1, 6):
             day_key = f"Day {day_num}"
             if day_key.lower() in first_col.lower():
-                slots = []
-                for idx, col in enumerate(tds[1:], start=1):
-                    val = col.get_text(" ", strip=True)
-                    if val and val != '-':
-                        slots.append({
-                            "slot": f"Period {idx}",
-                            "course": val
+                day_periods = []
+                for hour_idx, raw_code in enumerate(cols[1:], start=1):
+                    code_clean = raw_code.strip()
+                    if not code_clean or code_clean == '-':
+                        day_periods.append({
+                            "hour": hour_idx,
+                            "type": "Free",
+                            "title": "Free Period",
+                            "code": "",
+                            "venue": "-",
+                            "faculty": "-"
                         })
-                schedule[day_key] = slots
+                    else:
+                        is_lab_period = hour_idx in [7, 8, 9, 10] or code_clean.endswith('L')
+                        info = course_map.get(f"{code_clean}_LAB") if (is_lab_period and f"{code_clean}_LAB" in course_map) else course_map.get(code_clean, {})
+                        
+                        course_title = info.get("title") or code_clean
+                        is_lab = 'LAB' in course_title.upper() or 'PRACTICE' in course_title.upper() or code_clean.endswith('L')
+                        
+                        day_periods.append({
+                            "hour": hour_idx,
+                            "type": "Lab" if is_lab else "Lecture",
+                            "title": course_title,
+                            "code": code_clean,
+                            "venue": info.get("venue") or "University Building",
+                            "faculty": info.get("faculty") or "-"
+                        })
+                schedule[day_key] = day_periods
+                break
     return schedule
 
 

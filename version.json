@@ -3,11 +3,13 @@
   "build": 1042,
   "releaseDate": "2026-09-03",
   "minAppVersion": "1.0.0",
+  "hotReload": true,
+  "bundleUrl": "https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/app.js",
   "features": [
-    "100% Pure Cloud Serverless & Native Scraper",
-    "Official 01.07.2026 SRM Hostel Mess Menu",
-    "Inception Labs AI Core",
-    "Native C++ Ultra-CLI (srm.exe)"
-  ],
-  "downloadUrl": "https://github.com/prashanth-karanam/srm-companion/releases/latest"
+    "Cluster Alpha / Beta / Gamma Multi-Cloud Failover",
+    "Instant In-App Live Code Hot-Reload (Zero APK Download)",
+    "Enterprise Anti-Spam Shield & Concurrency Deduplication",
+    "Dynamic New Course Code Scraper & Timetable Engine",
+    "Official 01.07.2026 SRM Hostel Mess Menu (M-Block & Sannasi)"
+  ]
 }

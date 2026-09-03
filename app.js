@@ -261,17 +261,18 @@ window.openStudentHelpModal = openStudentHelpModal;
 window.closeStudentHelpModal = closeStudentHelpModal;
 
 // ==========================================================================
-//  100% PURE CLOUD SERVERLESS & NATIVE ENGINE ($0-Forever Architecture)
+//  100% PURE CLOUD SERVERLESS & NATIVE ENGINE (Tri-Cluster Architecture)
 // ==========================================================================
 const MULTI_CLOUD_GATEWAYS = [
-    { name: 'Vercel Serverless Gateway', url: 'https://srm-backend.vercel.app' },
-    { name: 'Vercel Production', url: 'https://srmbackend.vercel.app' },
-    { name: 'Render Cloud Microservice', url: 'https://srm-companion-backend.onrender.com' },
-    { name: 'Railway Gateway', url: 'https://srm-companion-backend.up.railway.app' }
+    { name: 'Cluster Alpha (Vercel Production Edge)', url: 'https://srmbackend.vercel.app' },
+    { name: 'Cluster Beta (Render Cloud Microservice)', url: 'https://srm-companion-backend.onrender.com' },
+    { name: 'Cluster Gamma (Railway Gateway)', url: 'https://srm-companion-backend.up.railway.app' }
 ];
 
 var _activeGatewayUrl = '';
 var _isGatewayProbing = false;
+var _isAuthenticating = false;
+var _lastAuthClickTime = 0;
 
 function getApiBase() {
     try {
@@ -736,17 +737,38 @@ async function doAutoLogin(isBackgroundRefresh = false) {
     const captchaVal = document.getElementById('login-captcha')?.value.trim();
     const btn   = document.getElementById('login-btn');
 
+    const now = Date.now();
+    if (!isBackgroundRefresh) {
+        if (_isAuthenticating) {
+            console.warn('[Anti-Spam] Authentication already in-flight. Ignoring spam clicks.');
+            return false;
+        }
+        if (now - _lastAuthClickTime < 2000) {
+            console.warn('[Anti-Spam] Rapid click debounce active.');
+            return false;
+        }
+        _lastAuthClickTime = now;
+        _isAuthenticating = true;
+    }
+
     if (!rawId) { 
-        if (!isBackgroundRefresh) showErr('Please enter your SRM NetID'); 
+        if (!isBackgroundRefresh) {
+            showErr('Please enter your SRM NetID');
+            _isAuthenticating = false;
+        }
         return false; 
     }
     if (!pass) {
-        if (!isBackgroundRefresh) showErr('Please enter your portal password');
+        if (!isBackgroundRefresh) {
+            showErr('Please enter your portal password');
+            _isAuthenticating = false;
+        }
         return false; 
     }
     if (!isBackgroundRefresh && (!captchaVal || captchaVal.length < 3)) {
         showErr('Please enter the 6-character Captcha shown in the image.');
         document.getElementById('login-captcha')?.focus();
+        _isAuthenticating = false;
         return false;
     }
 
@@ -887,8 +909,11 @@ async function doAutoLogin(isBackgroundRefresh = false) {
                 if (typeof loadTimetable === 'function') loadTimetable();
                 if (typeof renderPassportHub === 'function') renderPassportHub();
             }
+            _isAuthenticating = false;
+            if (btn) btn.disabled = false;
             return true;
         } else {
+            _isAuthenticating = false;
             const errorMsg = (res && res.error) ? res.error : 'Authentication failed. Please check your credentials and CAPTCHA.';
             if (!isBackgroundRefresh) {
                 showErr(errorMsg);
@@ -898,6 +923,7 @@ async function doAutoLogin(isBackgroundRefresh = false) {
             return false;
         }
     } catch (e) {
+        _isAuthenticating = false;
         console.warn('[Login] Exception:', e);
         if (!isBackgroundRefresh) {
             showErr('❌ Gateway connection error. Please tap Refresh Captcha and try again.');
@@ -1061,11 +1087,35 @@ function applyAppVersionAndCleanStaleCaches() {
     }
 }
 
+async function triggerInstantLiveOTAUpdate(bundleUrl, newVersion) {
+    showAttendanceToast('⚡ Downloading live update from GitHub...', 'info');
+    const targetUrl = bundleUrl || 'https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/app.js';
+    try {
+        const r = await fetch(targetUrl + '?t=' + Date.now(), { cache: 'no-store' });
+        if (r.ok) {
+            const newCode = await r.text();
+            if (newCode && newCode.length > 5000) {
+                localStorage.setItem('srm_ota_hot_code', newCode);
+                localStorage.setItem('srm_installed_build_version', newVersion || '2.5.1');
+                showAttendanceToast('🎉 Updated! Reloading app in 1s...', 'success');
+                setTimeout(() => window.location.reload(true), 1200);
+                return true;
+            }
+        }
+        showAttendanceToast('❌ Live code fetch failed. Please download full APK.', 'error');
+    } catch (e) {
+        showAttendanceToast('❌ Update connection error.', 'error');
+    }
+    return false;
+}
+window.triggerInstantLiveOTAUpdate = triggerInstantLiveOTAUpdate;
+
 async function checkGitHubOTAUpdate(isManual = false) {
     try {
         const endpoints = [
-            'https://raw.githubusercontent.com/saiprasanthkaranam/srm_companion/main/version.json?t=' + Date.now(),
+            'https://srmbackend.vercel.app/api/version',
             'https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/version.json?t=' + Date.now(),
+            'https://raw.githubusercontent.com/saiprasanthkaranam/srm_companion/main/version.json?t=' + Date.now(),
             '/version.json?t=' + Date.now()
         ];
 
@@ -1100,8 +1150,8 @@ function showAppUpdatePrompt(meta) {
     const existing = document.getElementById('ota-update-banner');
     if (existing) existing.remove();
 
-    const isApp = typeof window.Capacitor !== 'undefined';
-    const apkUrl = meta.apkDownloadUrl || 'https://github.com/saiprasanthkaranam/srm_companion/releases/latest/download/SRM_Companion.apk';
+    const apkUrl = meta.apkDownloadUrl || meta.downloadUrl || 'https://github.com/prashanth-karanam/srm-companion/releases/latest';
+    const bundleUrl = meta.bundle_url || meta.bundleUrl || 'https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/app.js';
 
     const banner = document.createElement('div');
     banner.id = 'ota-update-banner';
@@ -1131,18 +1181,14 @@ function showAppUpdatePrompt(meta) {
                 <span style="font-size:1.3rem;">🚀</span>
                 <div>
                     <div style="font-size:0.88rem;font-weight:800;color:var(--text-main);">Update Available: v${escapeHtml(meta.version)}</div>
-                    <div style="font-size:0.72rem;color:var(--text-muted);">${escapeHtml(meta.releaseNotes || 'New features & bug fixes available.')}</div>
+                    <div style="font-size:0.72rem;color:var(--text-muted);">${escapeHtml(meta.releaseNotes || 'New features & cloud optimizations live.')}</div>
                 </div>
             </div>
             <button onclick="document.getElementById('ota-update-banner')?.remove()" style="background:transparent;border:none;color:var(--text-muted);font-size:1.1rem;cursor:pointer;padding:4px;">✕</button>
         </div>
         <div style="display:flex;gap:8px;margin-top:2px;">
-            ${isApp ? `
-                <a href="${apkUrl}" target="_blank" style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;text-align:center;padding:8px 12px;border-radius:10px;font-size:0.78rem;font-weight:700;text-decoration:none;display:inline-block;">📲 Download New APK</a>
-            ` : `
-                <button onclick="localStorage.setItem('srm_installed_build_version','${meta.version}');window.location.reload(true);" style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;padding:8px 12px;border-radius:10px;font-size:0.78rem;font-weight:700;cursor:pointer;">🔄 Instant Refresh</button>
-                <a href="${apkUrl}" target="_blank" style="background:rgba(255,255,255,0.08);color:var(--text-main);padding:8px 12px;border-radius:10px;font-size:0.78rem;font-weight:700;text-decoration:none;display:inline-block;">📲 APK</a>
-            `}
+            <button onclick="triggerInstantLiveOTAUpdate('${escapeHtml(bundleUrl)}', '${escapeHtml(meta.version)}')" style="flex:1.2;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;padding:9px 12px;border-radius:10px;font-size:0.78rem;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(16,185,129,0.3);">⚡ Instant Live Update (0 Download)</button>
+            <a href="${apkUrl}" target="_blank" style="background:rgba(255,255,255,0.08);color:var(--text-main);padding:9px 12px;border-radius:10px;font-size:0.75rem;font-weight:700;text-decoration:none;display:inline-block;text-align:center;">📲 Full APK</a>
         </div>
     `;
 
