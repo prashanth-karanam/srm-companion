@@ -1,1 +1,0 @@
-import os`nprint("Python ready")

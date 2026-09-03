@@ -1,6 +1,7 @@
 var _liveCookies = '';
 var _secConfig = {};
 var _hiddenFields = {};
+var _currentSessionId = '';
 var _isFetchingCaptcha = false;
 var _captchaLoadTime = 0;
 var _currentCaptchaCode = '';
@@ -684,18 +685,11 @@ async function fetchLiveCaptcha(force = false) {
         let res = await apiFetch('/api/captcha', { timeout: 6000 });
 
         // 2. If gateway failed, try direct native mobile fetch
-        if (!res || !res.success || !res.captchaImg) {
-            console.log('[Captcha] Gateway unavailable, attempting direct native mobile scrape...');
-            const nativeRes = await fetchDirectSRMCaptchaNative();
-            if (nativeRes && nativeRes.success) {
-                res = nativeRes;
-            }
-        }
-
         if (res && res.success && res.captchaImg) {
             _liveCookies = res.cookies || '';
             _secConfig = res.sec_config || {};
             _hiddenFields = res.hidden_fields || {};
+            _currentSessionId = res.session_id || '';
 
             box.innerHTML = '';
             const img = document.createElement('img');
@@ -748,7 +742,7 @@ async function doAutoLogin(isBackgroundRefresh = false) {
     }
     if (!pass) {
         if (!isBackgroundRefresh) showErr('Please enter your portal password');
-        return false;
+        return false; 
     }
     if (!isBackgroundRefresh && (!captchaVal || captchaVal.length < 3)) {
         showErr('Please enter the 6-character Captcha shown in the image.');
@@ -767,6 +761,7 @@ async function doAutoLogin(isBackgroundRefresh = false) {
             username: rawId,
             password: pass,
             captcha: captchaVal || 'AUTO',
+            session_id: _currentSessionId || '',
             cookies: _liveCookies || '',
             sec_config: _secConfig || {},
             hidden_fields: _hiddenFields || {}
