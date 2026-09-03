@@ -265,6 +265,7 @@ window.closeStudentHelpModal = closeStudentHelpModal;
 // ==========================================================================
 const MULTI_CLOUD_GATEWAYS = [
     { name: 'Cluster Alpha (Vercel Production Edge)', url: 'https://srmbackend.vercel.app' },
+    { name: 'Cluster Cloudflare (Global Edge Shield)', url: 'https://srm-edge-gateway.srm-companion.workers.dev' },
     { name: 'Cluster Beta (Render Cloud Microservice)', url: 'https://srm-companion-backend.onrender.com' },
     { name: 'Cluster Gamma (Railway Gateway)', url: 'https://srm-companion-backend.up.railway.app' }
 ];

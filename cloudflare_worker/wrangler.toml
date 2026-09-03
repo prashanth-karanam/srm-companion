@@ -1,0 +1,5 @@
+name = "srm-edge-gateway"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+account_id = "603ec6a31e477ce9e84a525cd4711378"
+workers_dev = true
