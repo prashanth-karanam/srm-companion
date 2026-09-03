@@ -81,19 +81,28 @@ async def fetch_portal_captcha() -> Dict[str, Any]:
 
         # Extract session cookies
         cookies_str = "; ".join([f"{k}={v}" for k, v in client.cookies.items()])
-        session_id = uuid.uuid4().hex
+        sec_config = {
+            "nonce": nonce,
+            "domainFieldName": domainFieldName,
+            "captchaFieldName": captchaFieldName,
+            "randomDelimiter": randomDelimiter
+        }
+
+        # Stateless self-contained token for 100% serverless multi-container persistence
+        stateless_payload = {
+            "cookies": cookies_str,
+            "sec_config": sec_config,
+            "hidden_fields": hidden_fields,
+            "created_at": time.time()
+        }
+        session_id = base64.urlsafe_b64encode(json.dumps(stateless_payload).encode('utf-8')).decode('utf-8')
 
         return {
             "success": True,
             "session_id": session_id,
             "captchaImg": f"data:image/jpeg;base64,{b64_img}",
             "cookies": cookies_str,
-            "sec_config": {
-                "nonce": nonce,
-                "domainFieldName": domainFieldName,
-                "captchaFieldName": captchaFieldName,
-                "randomDelimiter": randomDelimiter
-            },
+            "sec_config": sec_config,
             "hidden_fields": hidden_fields
         }
 
@@ -108,7 +117,7 @@ async def login_and_scrape_all(
     Authenticates with SRM portal and scrapes Profile, Attendance, Timetable,
     Personal details, and Hostel concurrently.
     """
-    clean_username = username.strip().lower().replace('@srmist.edu.in', '').strip()
+    clean_username = re.sub(r'(?i)@srmist\.edu\.in$', '', username.strip()).strip()
     clean_password = password.strip()
     clean_captcha = captcha.strip()
 

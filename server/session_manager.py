@@ -65,6 +65,18 @@ class SessionManager:
                 return session
             else:
                 self._captcha_sessions.pop(session_id, None)
+
+        # 3. Stateless Token Decoding (Serverless Multi-Container Resilient)
+        try:
+            import base64
+            raw_bytes = base64.urlsafe_b64decode(session_id.encode('utf-8'))
+            data = json.loads(raw_bytes.decode('utf-8'))
+            if isinstance(data, dict) and "cookies" in data:
+                if time.time() - data.get("created_at", 0) < self._captcha_ttl:
+                    return data
+        except Exception:
+            pass
+
         return None
 
     def delete_captcha_session(self, session_id: str):

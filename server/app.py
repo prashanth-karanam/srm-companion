@@ -206,7 +206,7 @@ async def login(req: LoginRequest, request: Request):
             "error": "Anti-spam shield: Multiple authentication attempts detected. Please wait 15 seconds."
         }
 
-    username = req.username.strip().lower().replace("@srmist.edu.in", "")
+    username = re.sub(r'(?i)@srmist\.edu\.in$', '', req.username.strip()).strip()
     password = req.password.strip()
     captcha = req.captcha.strip()
 
@@ -235,18 +235,10 @@ async def login(req: LoginRequest, request: Request):
         # 3. Validate CAPTCHA session
         session_data = session_manager.get_captcha_session(req.session_id) if req.session_id else None
         if not session_data:
-            fresh_cap = await fetch_portal_captcha()
-            if fresh_cap.get("success"):
-                session_data = {
-                    "cookies": fresh_cap.get("cookies", ""),
-                    "sec_config": fresh_cap.get("sec_config", {}),
-                    "hidden_fields": fresh_cap.get("hidden_fields", {})
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": "CAPTCHA session expired. Please tap the image to reload a fresh CAPTCHA."
-                }
+            return {
+                "success": False,
+                "error": "CAPTCHA session expired or invalid. Please tap the CAPTCHA image to refresh and enter the new code."
+            }
 
         # 4. Authenticate and Scrape Live Portal
         try:
