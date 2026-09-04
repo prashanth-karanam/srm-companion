@@ -47,7 +47,7 @@ export default {
       );
     }
 
-    // 2.2. Native Edge AI Copilot (Powered by Meta LLaMA 3.1 on Cloudflare Edge)
+    // 2.2. Reverse-Engineered Inception AI Copilot (Mercury Engine)
     if (url.pathname === "/api/chat" && request.method === "POST") {
       try {
         const reqClone = request.clone();
@@ -71,75 +71,91 @@ export default {
           });
         }
 
-        if (env.AI) {
-          const systemInstruction = `You are the official SRM Academic Copilot for SRMIST students (OneSRM).
-You are an intelligent, empathetic, and highly capable academic companion.
-When answering:
-- Address the user's exact question accurately, thoroughly, and directly.
-- If asking about timetable, attendance, or bunks, incorporate their student context if provided.
-- If asking about coding, calculus, science, or exams, give clear, clean explanations with code or LaTeX formulas.
-- Maintain a friendly, supportive, and crisp tone. Do NOT repeat generic greetings or canned menus unless asked.
-${studentCtx ? "\n[Student Academic Context]:\n" + (typeof studentCtx === "string" ? studentCtx : JSON.stringify(studentCtx)) : ""}`;
+        const sessionHeaders = {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          "Accept": "application/json, text/plain, */*",
+          "Referer": "https://chat.inceptionlabs.ai/"
+        };
 
-          const candidateModels = [
-            "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-            "@cf/meta/llama-3.2-3b-instruct",
-            "@cf/meta/llama-3.2-1b-instruct",
-            "@cf/meta/llama-3-8b-instruct",
-            "@cf/google/gemma-2-9b-it",
-            "@cf/mistral/mistral-7b-instruct-v0.2"
-          ];
+        const sessRes = await fetch("https://chat.inceptionlabs.ai/api/session", { headers: sessionHeaders });
+        if (!sessRes.ok) {
+          const errBody = await sessRes.text();
+          throw new Error(`Inception session fetch failed (HTTP ${sessRes.status}): ${errBody.slice(0, 150)}`);
+        }
+        const sessData = await sessRes.json();
+        const token = sessData.token;
 
-          let replyText = "";
-          let usedModel = "";
-          let lastErr = null;
+        const chatHeaders = {
+          "Content-Type": "application/json",
+          "Accept": "text/event-stream",
+          "x-session-token": token,
+          "Referer": "https://chat.inceptionlabs.ai/",
+          "Origin": "https://chat.inceptionlabs.ai",
+          "User-Agent": sessionHeaders["User-Agent"]
+        };
 
-          for (const model of candidateModels) {
+        const messages = [];
+        if (studentCtx) {
+          messages.push({
+            id: "ctx-" + Date.now(),
+            role: "system",
+            parts: [{ type: "text", text: `You are the official SRM Academic Copilot for SRMIST students (OneSRM).\n${typeof studentCtx === "string" ? studentCtx : JSON.stringify(studentCtx)}` }]
+          });
+        }
+        messages.push({
+          id: "msg-" + Date.now(),
+          role: "user",
+          parts: [{ type: "text", text: userMsg }]
+        });
+
+        const chatRes = await fetch("https://chat.inceptionlabs.ai/api/chat", {
+          method: "POST",
+          headers: chatHeaders,
+          body: JSON.stringify({
+            messages,
+            reasoningEffort: "medium",
+            webSearchEnabled: false,
+            voiceMode: false,
+            timezone: "Asia/Kolkata"
+          })
+        });
+
+        if (!chatRes.ok) {
+          const chatErr = await chatRes.text();
+          throw new Error(`Inception chat fetch failed (HTTP ${chatRes.status}): ${chatErr.slice(0, 150)}`);
+        }
+
+        const streamText = await chatRes.text();
+        let reply = "";
+        for (const line of streamText.split("\n")) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("data:")) {
+            const raw = trimmed.slice(5).trim();
+            if (raw === "[DONE]") break;
             try {
-              const aiRes = await env.AI.run(model, {
-                messages: [
-                  { role: "system", content: systemInstruction },
-                  { role: "user", content: userMsg }
-                ],
-                max_tokens: 1024,
-                temperature: 0.5
-              });
-
-              const text = (aiRes && (aiRes.response || aiRes.text || (typeof aiRes === "string" ? aiRes : ""))) || "";
-              if (text.trim()) {
-                replyText = text.trim();
-                usedModel = model;
-                break;
+              const ev = JSON.parse(raw);
+              if (ev.type === "text-delta" && ev.delta) {
+                reply += ev.delta;
               }
-            } catch (err) {
-              lastErr = err;
-              continue;
-            }
+            } catch (_) {}
           }
+        }
 
-          if (replyText) {
-            return new Response(JSON.stringify({
-              success: true,
-              reply: replyText,
-              provider: `Cloudflare Edge AI (${usedModel.replace('@cf/', '')})`,
-              timestamp: Math.floor(Date.now() / 1000)
-            }), {
-              headers: { "Content-Type": "application/json", ...CORS_HEADERS }
-            });
-          }
-
-          throw lastErr || new Error("All edge AI candidate models failed");
-        } else {
-          return new Response(JSON.stringify({ success: false, error: "env.AI binding missing" }), {
-            status: 500,
+        if (reply.trim()) {
+          return new Response(JSON.stringify({
+            success: true,
+            reply: reply.trim(),
+            provider: "Inception AI (Mercury Deep-Reasoning)",
+            timestamp: Math.floor(Date.now() / 1000)
+          }), {
             headers: { "Content-Type": "application/json", ...CORS_HEADERS }
           });
         }
-      } catch (aiErr) {
+        throw new Error("No text received from Inception AI stream");
+      } catch (err) {
         return new Response(JSON.stringify({
           success: false,
-          error: "Workers AI Error: " + (aiErr.message || String(aiErr)),
-          stack: aiErr.stack
+          error: "Inception AI Error: " + (err.message || String(err))
         }), {
           status: 500,
           headers: { "Content-Type": "application/json", ...CORS_HEADERS }

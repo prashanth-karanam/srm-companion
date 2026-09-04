@@ -4634,6 +4634,76 @@ ${noticesText || 'No notices active.'}
 4. When asked about coursework, provide high-yield explanations, full working code, or math derivations with formulas.`;
 }
 
+// Native Reverse-Engineered Inception AI Client (Mercury Protocol)
+async function queryInceptionAI(prompt, systemContext = '') {
+    try {
+        const sessRes = await nativeHttp('https://chat.inceptionlabs.ai/api/session', {
+            headers: {
+                'Accept': 'application/json, text/plain, */*',
+                'Referer': 'https://chat.inceptionlabs.ai/'
+            },
+            timeout: 6000
+        });
+        if (!sessRes || !sessRes.ok) return null;
+        const sessData = await sessRes.json();
+        const token = sessData && sessData.token;
+        if (!token) return null;
+
+        const messages = [];
+        if (systemContext) {
+            messages.push({
+                id: 'ctx-' + Date.now(),
+                role: 'system',
+                parts: [{ type: 'text', text: `You are the official SRM Academic Copilot for SRMIST students (OneSRM). Be direct, accurate, and concise.\n${systemContext}` }]
+            });
+        }
+        messages.push({
+            id: 'usr-' + Date.now(),
+            role: 'user',
+            parts: [{ type: 'text', text: prompt }]
+        });
+
+        const chatRes = await nativeHttp('https://chat.inceptionlabs.ai/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'text/event-stream',
+                'x-session-token': token,
+                'Referer': 'https://chat.inceptionlabs.ai/',
+                'Origin': 'https://chat.inceptionlabs.ai'
+            },
+            body: JSON.stringify({
+                messages,
+                reasoningEffort: 'medium',
+                webSearchEnabled: false,
+                voiceMode: false,
+                timezone: 'Asia/Kolkata'
+            }),
+            timeout: 20000
+        });
+
+        if (!chatRes || !chatRes.ok) return null;
+        const text = await chatRes.text();
+        let reply = '';
+        for (const line of text.split('\n')) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('data:')) {
+                const raw = trimmed.slice(5).trim();
+                if (raw === '[DONE]') break;
+                try {
+                    const ev = JSON.parse(raw);
+                    if (ev.type === 'text-delta' && ev.delta) {
+                        reply += ev.delta;
+                    }
+                } catch (_) {}
+            }
+        }
+        return reply.trim() || null;
+    } catch (_) {
+        return null;
+    }
+}
+
 async function askAcademicAI(userPrompt) {
     const q = (userPrompt || '').toLowerCase().trim();
 
@@ -4649,33 +4719,32 @@ async function askAcademicAI(userPrompt) {
         }
     }
 
-    // 2. Query High-Intelligence Edge Copilot (Meta LLaMA 3.3 70B on Cloudflare & Vercel)
     const systemPrompt = getAcademicContextForAI();
-    const chatEndpoints = [
-        'https://srm-edge-gateway.srm-companion.workers.dev/api/chat',
-        'https://srmbackend.vercel.app/api/chat'
-    ];
 
-    for (const ep of chatEndpoints) {
-        try {
-            const res = await nativeHttp(ep, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: userPrompt, context: systemPrompt }),
-                timeout: 16000
-            });
-            if (res && res.ok) {
-                const data = await res.json();
-                const reply = (data && data.reply && typeof data.reply === 'string') ? data.reply.trim() : '';
-                // Reject obsolete canned greetings if any
-                if (reply && !reply.includes('I am your **SRM Academic Copilot**. I can help you with:')) {
-                    return reply;
-                }
-            }
-        } catch (_) {}
+    // 2. Direct Reverse-Engineered Inception AI (Mercury Engine)
+    const directReply = await queryInceptionAI(userPrompt, systemPrompt);
+    if (directReply) {
+        return directReply;
     }
 
-    // 3. Fallback to sovereign offline solvers if completely offline
+    // 3. Fallback to Serverless Inception Gateway (/api/chat)
+    try {
+        const res = await nativeHttp('https://srmbackend.vercel.app/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: userPrompt, context: systemPrompt }),
+            timeout: 16000
+        });
+        if (res && res.ok) {
+            const data = await res.json();
+            const reply = (data && data.reply && typeof data.reply === 'string') ? data.reply.trim() : '';
+            if (reply && !reply.includes('I am your **SRM Academic Copilot**. I can help you with:')) {
+                return reply;
+            }
+        }
+    } catch (_) {}
+
+    // 4. Fallback to sovereign offline solvers if completely offline
     return getOfflineAIResponse(userPrompt);
 }
 

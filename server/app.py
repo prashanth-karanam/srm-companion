@@ -9,6 +9,7 @@ import logging
 import asyncio
 import re
 import json
+import uuid
 import httpx
 from typing import Optional, Dict, Any, List
 
@@ -428,6 +429,80 @@ def make_ai_reply(reply_text: str, provider: str = "OneSRM Academic Copilot"):
         "provider": provider,
         "timestamp": int(time.time())
     }
+# ─── Reverse-Engineered Inception AI Engine (Mercury Protocol) ───────────────
+class InceptionAIClient:
+    def __init__(self):
+        self._token = None
+        self._token_time = 0
+        self._ttl = 900.0  # 15 min token rotation
+
+    async def _get_token(self, client: httpx.AsyncClient) -> str:
+        now = time.time()
+        if self._token and (now - self._token_time < self._ttl):
+            return self._token
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Referer": "https://chat.inceptionlabs.ai/"
+        }
+        res = await client.get("https://chat.inceptionlabs.ai/api/session", headers=headers, timeout=10.0)
+        if res.status_code == 200:
+            data = res.json()
+            self._token = data.get("token")
+            self._token_time = now
+            return self._token
+        raise ConnectionError("Failed to acquire Inception AI session token")
+
+    async def query(self, prompt: str, context: str = "") -> Optional[str]:
+        async with httpx.AsyncClient(timeout=25.0) as client:
+            token = await self._get_token(client)
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "text/event-stream",
+                "x-session-token": token,
+                "Referer": "https://chat.inceptionlabs.ai/",
+                "Origin": "https://chat.inceptionlabs.ai",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            }
+            messages = []
+            if context:
+                messages.append({
+                    "id": str(uuid.uuid4()),
+                    "role": "system",
+                    "parts": [{"type": "text", "text": f"You are the official SRM Academic Copilot for SRMIST students (OneSRM). Be direct, accurate, and concise.\n{context}"}]
+                })
+            messages.append({
+                "id": str(uuid.uuid4()),
+                "role": "user",
+                "parts": [{"type": "text", "text": prompt}]
+            })
+            payload = {
+                "messages": messages,
+                "reasoningEffort": "medium",
+                "webSearchEnabled": False,
+                "voiceMode": False,
+                "timezone": "Asia/Kolkata"
+            }
+            res = await client.post("https://chat.inceptionlabs.ai/api/chat", headers=headers, json=payload)
+            if res.status_code == 200:
+                reply = ""
+                for line in res.text.split("\n"):
+                    line = line.strip()
+                    if line.startswith("data:"):
+                        raw = line[5:].strip()
+                        if raw == "[DONE]":
+                            break
+                        try:
+                            ev = json.loads(raw)
+                            if ev.get("type") == "text-delta":
+                                reply += ev.get("delta", "")
+                        except Exception:
+                            pass
+                if reply.strip():
+                    return reply.strip()
+        return None
+
+inception_ai = InceptionAIClient()
 
 @app.post("/api/chat")
 async def ai_chat(req: ChatRequest):
@@ -451,53 +526,50 @@ async def ai_chat(req: ChatRequest):
         if sdata:
             ctx = f"Student Profile: {sdata.get('name')}, NetID: {sid}, Section: {sdata.get('section')}, Timetable: {json.dumps(sdata.get('timetable'))}, Attendance: {json.dumps(sdata.get('attendance'))}"
 
-    # ─── 1. External LLM Integration (Cloudflare LLaMA 3.3 / Groq / Gemini / OpenAI) ─
+    # ─── 1. Reverse-Engineered Inception AI Protocol Emulation ───────────────
+    try:
+        reply = await inception_ai.query(msg, ctx)
+        if reply:
+            return make_ai_reply(reply, "Inception AI (Mercury Deep-Reasoning)")
+    except Exception as e:
+        logger.warning(f"Inception AI query failed, trying external providers: {e}")
+
+    # Fallback to external keys if configured
     groq_key = os.environ.get("GROQ_API_KEY")
     gemini_key = os.environ.get("GEMINI_API_KEY")
-    openai_key = os.environ.get("OPENAI_API_KEY")
-
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            if groq_key:
-                llm_res = await client.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
-                    json={
-                        "model": "llama-3.1-8b-instant",
-                        "messages": [
-                            {"role": "system", "content": f"You are the official SRM Academic Copilot. Use this student context when answering:\n{ctx}"},
-                            {"role": "user", "content": msg}
-                        ],
-                        "temperature": 0.3
-                    }
-                )
-                if llm_res.status_code == 200:
-                    reply = llm_res.json()["choices"][0]["message"]["content"]
-                    return make_ai_reply(reply, "Groq LLaMA-3.1")
-            elif gemini_key:
-                gem_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
-                gem_res = await client.post(
-                    gem_url,
-                    headers={"Content-Type": "application/json"},
-                    json={
-                        "contents": [{"parts": [{"text": f"System Context: {ctx}\n\nStudent Query: {msg}"}]}]
-                    }
-                )
-                if gem_res.status_code == 200:
-                    reply = gem_res.json()["candidates"][0]["content"]["parts"][0]["text"]
-                    return make_ai_reply(reply, "Google Gemini 1.5 Flash")
-            else:
-                # Direct Cloudflare Edge AI (Meta LLaMA 3.3 70B Serverless Edge)
-                cf_res = await client.post(
-                    "https://srm-edge-gateway.srm-companion.workers.dev/api/chat",
-                    json={"message": msg, "context": ctx}
-                )
-                if cf_res.status_code == 200:
-                    cf_data = cf_res.json()
-                    if cf_data.get("success") and cf_data.get("reply"):
-                        return make_ai_reply(cf_data["reply"], cf_data.get("provider", "OneSRM Edge AI"))
-    except Exception as e:
-        logger.warning(f"External LLM call failed, falling back to sovereign academic solver: {e}")
+    if groq_key or gemini_key:
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                if groq_key:
+                    llm_res = await client.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                        json={
+                            "model": "llama-3.1-8b-instant",
+                            "messages": [
+                                {"role": "system", "content": f"You are the official SRM Academic Copilot.\n{ctx}"},
+                                {"role": "user", "content": msg}
+                            ],
+                            "temperature": 0.3
+                        }
+                    )
+                    if llm_res.status_code == 200:
+                        reply = llm_res.json()["choices"][0]["message"]["content"]
+                        return make_ai_reply(reply, "Groq Cloud AI")
+                elif gemini_key:
+                    gem_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+                    gem_res = await client.post(
+                        gem_url,
+                        headers={"Content-Type": "application/json"},
+                        json={
+                            "contents": [{"parts": [{"text": f"System Context: {ctx}\n\nStudent Query: {msg}"}]}]
+                        }
+                    )
+                    if gem_res.status_code == 200:
+                        reply = gem_res.json()["candidates"][0]["content"]["parts"][0]["text"]
+                        return make_ai_reply(reply, "Google Gemini 1.5 Flash")
+        except Exception as e:
+            logger.warning(f"External key failed: {e}")
 
     # ─── 2. Sovereign Academic Reasoning & Telemetry Solver ──────────────────
     # A. Timetable, Schedule & Today / Tomorrow Queries
