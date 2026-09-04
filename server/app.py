@@ -528,7 +528,7 @@ async def ai_chat(req: ChatRequest):
 
     # ─── 1. OneSRM Sovereign Autonomous Edge AI ──────────────────────────────
     try:
-        async with httpx.AsyncClient(timeout=14.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             edge_res = await client.post(
                 "https://srm-edge-gateway.srm-companion.workers.dev/api/chat",
                 headers={

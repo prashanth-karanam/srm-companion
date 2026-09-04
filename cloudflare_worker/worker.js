@@ -83,10 +83,10 @@ When answering:
 ${studentCtx ? "\n[Student Profile & Telemetry Context]:\n" + (typeof studentCtx === "string" ? studentCtx : JSON.stringify(studentCtx)) : ""}`;
 
           const candidateModels = [
-            "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
             "@cf/mistral/mistral-7b-instruct-v0.2",
+            "@cf/qwen/qwen1.5-7b-chat",
             "@cf/qwen/qwen1.5-14b-chat-awq",
-            "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+            "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"
           ];
 
           let replyText = "";
@@ -97,8 +97,8 @@ ${studentCtx ? "\n[Student Profile & Telemetry Context]:\n" + (typeof studentCtx
                   { role: "system", content: systemInstruction },
                   { role: "user", content: userMsg }
                 ],
-                max_tokens: 1200,
-                temperature: 0.4
+                max_tokens: 600,
+                temperature: 0.3
               });
 
               const text = (aiRes && (aiRes.response || aiRes.text || (typeof aiRes === "string" ? aiRes : ""))) || "";

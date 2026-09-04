@@ -4727,7 +4727,7 @@ async function askAcademicAI(userPrompt) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: userPrompt, context: systemPrompt }),
-            timeout: 15000
+            timeout: 35000
         });
         if (edgeRes && edgeRes.ok) {
             const edgeData = await edgeRes.json();
@@ -4740,19 +4740,13 @@ async function askAcademicAI(userPrompt) {
         }
     } catch (_) {}
 
-    // 3. Fallback to Direct Reverse-Engineered Inception AI
-    const directReply = await queryInceptionAI(userPrompt, systemPrompt);
-    if (directReply) {
-        return directReply;
-    }
-
-    // 4. Fallback to Serverless Backend Gateway (/api/chat)
+    // 3. Fallback to Serverless Backend Gateway (/api/chat)
     try {
         const res = await nativeHttp('https://srmbackend.vercel.app/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: userPrompt, context: systemPrompt }),
-            timeout: 16000
+            timeout: 30000
         });
         if (res && res.ok) {
             const data = await res.json();
@@ -4763,7 +4757,7 @@ async function askAcademicAI(userPrompt) {
         }
     } catch (_) {}
 
-    // 5. Fallback to sovereign offline solvers if completely offline
+    // 4. Fallback to sovereign offline solvers if completely offline
     return getOfflineAIResponse(userPrompt);
 }
 
@@ -5032,13 +5026,20 @@ async function handleAISend() {
 
     input.value = '';
     appendChatMessage('user', prompt);
-    const loadingId = appendChatMessage('ai', 'Thinking…');
+    const loadingId = appendChatMessage('ai', '<span style="opacity:0.7;font-style:italic;">Thinking…</span>');
 
     try {
         const reply = await askAcademicAI(prompt);
-        updateChatMessage(loadingId, formatMarkdown(reply));
+        if (reply && typeof reply === 'string' && reply.trim()) {
+            updateChatMessage(loadingId, formatMarkdown(reply));
+        } else {
+            const fallback = getOfflineAIResponse(prompt);
+            updateChatMessage(loadingId, formatMarkdown(fallback || 'I am processing your query. Please ask again in a moment.'));
+        }
     } catch (err) {
-        updateChatMessage(loadingId, formatMarkdown(getOfflineAIResponse(prompt)));
+        console.error('[handleAISend] AI query exception:', err);
+        const fallback = getOfflineAIResponse(prompt);
+        updateChatMessage(loadingId, formatMarkdown(fallback || 'Network connection issue. Please verify your connection.'));
     }
 }
 
@@ -5067,6 +5068,7 @@ function updateChatMessage(msgId, formattedHtml) {
 }
 
 function formatMarkdown(str) {
+    if (!str || typeof str !== 'string') return '';
     return str
         .replace(/```([a-z]*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
         .replace(/`([^`]+)`/g, '<code style="background:var(--card-elevated);padding:2px 5px;border-radius:4px;font-family:var(--font-mono);font-size:0.82em;">$1</code>')
