@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src https: wss: http://localhost:* ws://localhost:*; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; font-src 'self' https: data:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src * https: http: wss: ws: data: blob:; img-src * 'self' data: blob: https: http:; media-src * 'self' data: blob: https: http:; font-src * 'self' https: data:;">
     <title>OneSRM</title>
     <link rel="stylesheet" href="style.css?v=5.7.2">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -85,6 +85,10 @@
                 <span style="font-size:0.7rem;color:var(--text-muted);font-weight:700;letter-spacing:0.04em;">OR QUICK ACCESS</span>
                 <div style="flex:1;height:1px;background:var(--card-border);"></div>
             </div>
+
+            <button type="button" class="portal-open-btn" style="background:var(--blue-subtle, rgba(59,130,246,0.1));border-color:var(--blue);color:var(--blue);margin-bottom:6px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="openAccountSwitcherModal()">
+                <span>👥 Switch to Saved Account</span>
+            </button>
 
             <button type="button" id="sync-code-btn" class="portal-open-btn" style="background:var(--accent-subtle);border-color:var(--accent-border);color:var(--accent-text);margin-bottom:6px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="syncStudentWithCode()">
                 <span>☁️ Instant Cloud Sync / Restore</span>
@@ -473,10 +477,32 @@
             </div>
         </button>
 
+        <!-- 6. Switch / Manage Multi-User Accounts -->
+        <button type="button" class="vertical-menu-item" onclick="closeVerticalSideMenu(); openAccountSwitcherModal();">
+            <div class="vertical-menu-item-icon" style="color:var(--blue);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:0.82rem;font-weight:800;color:var(--text-main);">Switch / Manage Accounts</div>
+                <div style="font-size:0.68rem;color:var(--text-muted);">Multi-user fast switching</div>
+            </div>
+        </button>
+
+        <!-- 7. Instant QR Sync / Export -->
+        <button type="button" class="vertical-menu-item" onclick="closeVerticalSideMenu(); openSyncQRCodeModal();">
+            <div class="vertical-menu-item-icon" style="color:var(--purple);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:0.82rem;font-weight:800;color:var(--text-main);">Instant QR Sync & Transfer</div>
+                <div style="font-size:0.68rem;color:var(--text-muted);">Pair & restore profile between devices</div>
+            </div>
+        </button>
+
         <!-- Spacer -->
         <div style="flex:1;min-height:16px;"></div>
 
-        <!-- 6. Sign Out Option at Bottom -->
+        <!-- 8. Sign Out Option at Bottom -->
         <button type="button" class="apex-btn" style="width:100%;padding:13px;background:var(--red);border-color:var(--red);color:#ffffff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:0.84rem;font-weight:800;margin-top:10px;" onclick="closeVerticalSideMenu(); doLogout();">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:16px;height:16px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
             <span>Sign Out</span>
@@ -750,8 +776,8 @@
                 <span style="opacity:0.3;">|</span>
                 <span id="live-clock">--:--</span>
             </div>
-            <button class="theme-toggle-btn" onclick="openVerticalSideMenu()" title="Campus Quick Menu & Options" style="display:flex;align-items:center;justify-content:center;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px;"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+            <button class="theme-toggle-btn" onclick="openVerticalSideMenu()" title="Campus Quick Menu & Options" style="display:flex;align-items:center;justify-content:center;min-width:42px;min-height:42px;touch-action:manipulation;cursor:pointer;z-index:100;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
             </button>
         </div>
 
@@ -1162,11 +1188,21 @@
                     <div class="clearance-badge"><span class="status-dot-sm" style="background:var(--accent);"></span> <span>Lab: Clear</span></div>
                 </div>
 
-                <!-- Sign Out / Switch Account Action Card -->
-                <div style="margin-top:14px;">
+                <!-- Multi-User Switcher & Sync Actions -->
+                <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <button type="button" class="apex-btn" style="width:100%;padding:11px;background:var(--card-elevated);border:1px solid var(--card-border);color:var(--text-main);display:flex;align-items:center;justify-content:center;gap:6px;font-size:0.80rem;font-weight:800;border-radius:var(--radius-md);" onclick="openSyncQRCodeModal()">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                        <span>📱 My Sync QR</span>
+                    </button>
+                    <button type="button" class="apex-btn" style="width:100%;padding:11px;background:var(--card-elevated);border:1px solid var(--card-border);color:var(--text-main);display:flex;align-items:center;justify-content:center;gap:6px;font-size:0.80rem;font-weight:800;border-radius:var(--radius-md);" onclick="openAccountSwitcherModal()">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                        <span>👥 Switch User</span>
+                    </button>
+                </div>
+                <div style="margin-top:8px;">
                     <button type="button" class="apex-btn" style="width:100%;padding:12px;background:var(--red);border-color:var(--red);color:#ffffff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:0.84rem;font-weight:800;border-radius:var(--radius-md);" onclick="doLogout()">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                        <span>Sign Out / Switch Account</span>
+                        <span>Sign Out</span>
                     </button>
                 </div>
             </div>

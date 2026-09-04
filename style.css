@@ -1082,11 +1082,18 @@ body {
 }
 
 .mobile-wrapper {
-    max-width: 420px;
+    max-width: 540px;
     width: 100%;
     margin: 0 auto;
     padding: 12px 14px 120px;
     box-sizing: border-box;
+}
+
+@media (max-width: 540px) {
+    .mobile-wrapper {
+        max-width: 100%;
+        padding: 8px 12px 120px;
+    }
 }
 
 /* --------------------------------------------------------------------------
@@ -1175,8 +1182,10 @@ body {
 }
 
 .theme-toggle-btn {
-    width: 34px;
-    height: 34px;
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    min-height: 42px;
     border-radius: var(--radius-md);
     background: var(--card);
     border: var(--border-width) solid var(--card-border);
@@ -1187,6 +1196,9 @@ body {
     cursor: pointer;
     flex-shrink: 0;
     padding: 0;
+    position: relative;
+    z-index: 100;
+    touch-action: manipulation;
     transition: border-color 0.15s ease, background 0.15s ease;
 }
 

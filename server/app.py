@@ -62,7 +62,8 @@ class LoginRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    context: Optional[str] = None
+    context: Optional[Any] = None
+    student_id: Optional[str] = None
 
 class NoticeRequest(BaseModel):
     title: str
@@ -417,6 +418,16 @@ async def get_synced_student(identifier: str):
     return {"success": False, "error": f"No synced session found for '{identifier}'. Please log in via the mobile app first or enter your credentials."}
 
 
+def make_ai_reply(reply_text: str, provider: str = "OneSRM Academic Copilot"):
+    return {
+        "success": True,
+        "reply": reply_text,
+        "response": reply_text,
+        "model": provider,
+        "provider": provider,
+        "timestamp": int(time.time())
+    }
+
 @app.post("/api/chat")
 async def ai_chat(req: ChatRequest):
     """
@@ -427,6 +438,17 @@ async def ai_chat(req: ChatRequest):
     msg = (req.message or "").strip()
     q = msg.lower()
     ctx = req.context or ""
+    if isinstance(ctx, dict):
+        ctx = json.dumps(ctx, indent=2)
+    elif not isinstance(ctx, str):
+        ctx = str(ctx)
+
+    # Auto-enrich context from local stored student session if empty
+    if not ctx.strip():
+        sid = (req.student_id or "sk1325").lower()
+        sdata = session_manager.get_student_data(sid)
+        if sdata:
+            ctx = f"Student Profile: {sdata.get('name')}, NetID: {sid}, Section: {sdata.get('section')}, Timetable: {json.dumps(sdata.get('timetable'))}, Attendance: {json.dumps(sdata.get('attendance'))}"
 
     # ─── 1. Optional External LLM Integration (Groq / Gemini / OpenAI) ───────
     groq_key = os.environ.get("GROQ_API_KEY")
@@ -451,7 +473,7 @@ async def ai_chat(req: ChatRequest):
                     )
                     if llm_res.status_code == 200:
                         reply = llm_res.json()["choices"][0]["message"]["content"]
-                        return {"success": True, "reply": reply, "provider": "Groq LLaMA-3.1", "timestamp": int(time.time())}
+                        return make_ai_reply(reply, "Groq LLaMA-3.1")
                 elif gemini_key:
                     gem_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
                     gem_res = await client.post(
@@ -463,7 +485,7 @@ async def ai_chat(req: ChatRequest):
                     )
                     if gem_res.status_code == 200:
                         reply = gem_res.json()["candidates"][0]["content"]["parts"][0]["text"]
-                        return {"success": True, "reply": reply, "provider": "Google Gemini 1.5 Flash", "timestamp": int(time.time())}
+                        return make_ai_reply(reply, "Google Gemini 1.5 Flash")
         except Exception as e:
             logger.warning(f"External LLM call failed, falling back to sovereign academic solver: {e}")
 
@@ -526,7 +548,7 @@ async def ai_chat(req: ChatRequest):
                 "| **3** | 09:45 - 10:35 | `26LCA1005J` | Japanese | **UB 609** | Rekhaa P R |\n"
                 "| **5** | 11:35 - 12:25 | `26CYB1002J` | Chemistry for CS | **PGA101 Lab 4** | Dr. John Bosco A |\n"
             )
-        return {"success": True, "reply": reply, "provider": "SRM Timetable Copilot", "timestamp": int(time.time())}
+        return make_ai_reply(reply, "SRM Timetable Copilot")
 
     # B. Attendance, Safe Bunks & Absence Queries
     if any(k in q for k in ["bunk", "attendance", "absent", "safe", "percentage", "margin", "shortage", "detained", "recovery"]):
@@ -536,11 +558,19 @@ async def ai_chat(req: ChatRequest):
                 "- **Current Attendance:** **50.0%** (4 / 8 hours attended, 4 hours absent)\n"
                 "- **Safe Bunks Allowed:** **0 bunks** (Currently in Red Shortage Zone!)\n"
                 "- **Action Required:** You need to attend the next **8 consecutive class hours** without missing to cross the mandatory 75% cutoff: $$\\frac{4 + 8}{8 + 8} = \\frac{12}{16} = 75.0\\%$$\n"
-                "- **Faculty Instructor:** Dr. Manoj Samson R • BEL101 Sheet Metal Lab"
+                "- **Upcoming Slots:** Friday Day 1 & Wednesday Day 4 (Shop Floor 2).\n\n"
+                "Do not miss any more Workshop Practice hours."
+            )
+        elif any(k in q for k in ["pps", "programming", "cse1002j"]):
+            reply = (
+                "### 📘 Attendance Summary: Programming for Problem Solving (26CSE1002J)\n\n"
+                "- **Faculty:** Sheeba Rachel S\n"
+                "- **Attended:** **12 / 12 hours (100.0%)**\n"
+                "- **Safe Bunk Margin:** **+3 hours** safely bunkable while maintaining $\\ge 75\\%$ (Attendance will be $75.0\\%$ after 3 bunks: $12/16$).\n"
+                "- **Next Class:** Monday 09:45 AM (TP Lab 310)."
             )
         elif any(k in q for k in ["chemistry", "cyb1002j"]):
             reply = (
-                "### 📊 Attendance: Chemistry for Computer Science (26CYB1002J)\n\n"
                 "- **Current Attendance:** **100.0%** (11 / 11 hours attended)\n"
                 "- **Safe Bunk Margin:** **+3 safe bunks** allowed before dropping below 75%.\n"
                 "- **Calculation:** If you miss 3 classes: $$\\frac{11}{11 + 3} = \\frac{11}{14} = 78.57\\% \\ge 75\\%$$\n"
@@ -589,7 +619,7 @@ async def ai_chat(req: ChatRequest):
                 "| `26LCA1005J` | Japanese | 4 / 4 | **100%** | `+1 Safe Bunk` |\n\n"
                 "**Total Campus Buffer:** **+11 safe hours** overall across safe courses. Keep Workshop Practice above 75% to avoid exam condonation fees."
             )
-        return {"success": True, "reply": reply, "provider": "SRM Attendance Copilot", "timestamp": int(time.time())}
+        return make_ai_reply(reply, "SRM Attendance Copilot")
 
     # C. C Programming & PPS Technical Solvers (26CSE1002J)
     if any(k in q for k in ["binary search", "bubble sort", "sort", "pointer", "recursion", "c program", "c code", "array", "linked list", "string", "struct", "file", "prime"]):
@@ -697,7 +727,7 @@ async def ai_chat(req: ChatRequest):
                 "```\n\n"
                 "Ask me about any C topic: **pointers, file I/O, recursion, structures, sorting, or searching algorithms!**"
             )
-        return {"success": True, "reply": reply, "provider": "SRM PPS Copilot", "timestamp": int(time.time())}
+        return make_ai_reply(reply, "SRM PPS Copilot")
 
     # D. Calculus & Linear Algebra Technical Solvers (26MAB1001T)
     if any(k in q for k in ["eigen", "matrix", "calculus", "cayley", "hamilton", "derivative", "integral", "taylor", "mab1001t"]):
@@ -716,7 +746,7 @@ async def ai_chat(req: ChatRequest):
             "**Computing High Matrix Powers ($A^k$):**\n"
             "Divide $\\lambda^k$ by the characteristic polynomial $P(\\lambda)$ using polynomial division: $\\lambda^k = Q(\\lambda)P(\\lambda) + R(\\lambda)$. Since $P(A) = 0$, $A^k = R(A)$."
         )
-        return {"success": True, "reply": reply, "provider": "SRM Mathematics Copilot", "timestamp": int(time.time())}
+        return make_ai_reply(reply, "SRM Mathematics Copilot")
 
     # E. Computational Biology & Bioinformatics (26BTB1001T)
     if any(k in q for k in ["bio", "biology", "computational", "alignment", "blast", "needleman", "fasta", "pam", "blosum"]):
@@ -732,7 +762,7 @@ async def ai_chat(req: ChatRequest):
             "**3. BLAST (Basic Local Alignment Search Tool):**\n"
             "Heuristic search algorithm that identifies short, high-scoring segment pairs (HSPs) with seed words to query biological databases rapidly."
         )
-        return {"success": True, "reply": reply, "provider": "SRM Bio Copilot", "timestamp": int(time.time())}
+        return make_ai_reply(reply, "SRM Bio Copilot")
 
     # F. Chemistry for Computer Science (26CYB1002J)
     if any(k in q for k in ["chemistry", "polymer", "battery", "corrosion", "spectroscopy", "titration", "water", "hardness"]):
@@ -748,7 +778,7 @@ async def ai_chat(req: ChatRequest):
             "- **Sacrificial Anodic Protection:** Galvanizing iron with more electropositive Zinc ($E^\\circ_{\\text{Zn}^{2+}/\\text{Zn}} = -0.76\\text{ V}$ vs $E^\\circ_{\\text{Fe}^{2+}/\\text{Fe}} = -0.44\\text{ V}$).\n"
             "- **Cathodic Protection:** Impressed current from DC source."
         )
-        return {"success": True, "reply": reply, "provider": "SRM Chemistry Copilot", "timestamp": int(time.time())}
+        return make_ai_reply(reply, "SRM Chemistry Copilot")
 
     # G. Hostel Mess & Dining Schedule
     if any(k in q for k in ["mess", "food", "breakfast", "lunch", "dinner", "snacks", "menu"]):
@@ -759,7 +789,7 @@ async def ai_chat(req: ChatRequest):
             "- **Evening Snacks (04:30 PM - 05:45 PM):** Murukku, Mint Lemon Juice, Filter Coffee, Tea\n"
             "- **Dinner (07:30 PM - 09:30 PM):** Pasta (Bechamel/Arrabiata) / Veg Schezwan Fried Rice, Manchurian, Chapathi, Chicken Gravy (Non-Veg)"
         )
-        return {"success": True, "reply": reply, "provider": "SRM Dining Copilot", "timestamp": int(time.time())}
+        return make_ai_reply(reply, "SRM Dining Copilot")
 
     # H. General Academic Guidance & Help
     reply = (
@@ -772,7 +802,7 @@ async def ai_chat(req: ChatRequest):
         f"5. **Computational Biology (26BTB1001T):** `Explain Needleman-Wunsch algorithm`\n"
         f"6. **Campus & Mess:** `What's on the mess menu today?` or `Where is UB 601?`"
     )
-    return {"success": True, "reply": reply, "provider": "OneSRM Academic Copilot", "timestamp": int(time.time())}
+    return make_ai_reply(reply, "OneSRM Academic Copilot")
 
 
 

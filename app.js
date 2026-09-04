@@ -1333,11 +1333,26 @@ function applyStudentProfile(rawRes, rawId, pass = '', isBackgroundRefresh = fal
     const section = res.section || '';
     const email = res.email || `${rawId}@srmist.edu.in`;
 
-    // 1. Wipe previous student session and caches completely
+    // 1. Wipe previous active student credentials while preserving saved accounts
     try {
-        localStorage.clear();
+        localStorage.removeItem('srm_auto_id');
+        localStorage.removeItem('srm_auto_pass');
+        localStorage.removeItem('srm_token');
+        localStorage.removeItem('srm_session');
+        localStorage.removeItem('srm_attendance_cache');
+        localStorage.removeItem('srm_timetable_cache');
         sessionStorage.clear();
     } catch (_) {}
+
+    // Save account to multi-user history
+    saveAccountToHistory({
+        id: rawId,
+        name: realName,
+        regNo: regNo,
+        program: program,
+        section: section,
+        cachedData: rawRes
+    });
 
     // 2. Persist new student authenticated state
     localStorage.setItem('srm_auto_id', rawId);
@@ -1446,25 +1461,33 @@ window.applyStudentProfile = applyStudentProfile;
 async function syncStudentWithCode(code) {
     const clean = (code || document.getElementById('login-id')?.value || '').trim();
     if (!clean) {
-        showErr('Please enter your SRM NetID or 6-digit Sync Code');
+        openSyncPromptModal();
         return false;
     }
     const btn = document.getElementById('sync-code-btn') || document.getElementById('login-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
     try {
-        const res = await apiFetch('/api/sync-student/' + encodeURIComponent(clean));
+        let res = await apiFetch('/api/restore-code/' + encodeURIComponent(clean));
+        if (!res || !res.success) {
+            res = await apiFetch('/api/sync-student/' + encodeURIComponent(clean));
+        }
+        if (!res || !res.success) {
+            res = await apiFetch('/api/get-student/' + encodeURIComponent(clean));
+        }
+
         if (res && res.success) {
-            applyStudentProfile(res, res.student_id || clean);
+            const studentData = (res.data && (res.data.attendance || res.data.timetable)) ? res.data : res;
+            applyStudentProfile(studentData, res.student_id || clean);
             if (btn) btn.disabled = false;
             return true;
         } else {
-            showErr(res?.error || 'No synced session found. Please sign in with password.');
-            if (btn) { btn.disabled = false; btn.textContent = '⚡ Instant Sync'; }
+            showErr(res?.error || 'No synced session found for this code or NetID. Please sign in with password.');
+            if (btn) { btn.disabled = false; btn.textContent = '☁️ Instant Cloud Sync / Restore'; }
             return false;
         }
     } catch (e) {
         showErr('Sync error: ' + e.message);
-        if (btn) { btn.disabled = false; btn.textContent = '⚡ Instant Sync'; }
+        if (btn) { btn.disabled = false; btn.textContent = '☁️ Instant Cloud Sync / Restore'; }
         return false;
     }
 }
@@ -1476,21 +1499,299 @@ function onLoginSuccess() {
     _initApp();
 }
 
+// ─── Multi-User Account Switching & State Isolation ─────────────────────────
+function getSavedAccounts() {
+    try {
+        return JSON.parse(localStorage.getItem('srm_saved_accounts') || '[]');
+    } catch (_) {
+        return [];
+    }
+}
+
+function saveAccountToHistory(profile) {
+    if (!profile || !profile.id) return;
+    try {
+        let accounts = getSavedAccounts();
+        const idx = accounts.findIndex(a => a.id.toLowerCase() === profile.id.toLowerCase());
+        const entry = {
+            id: profile.id.toLowerCase(),
+            name: profile.name || profile.id.toUpperCase(),
+            regNo: profile.regNo || '',
+            program: profile.program || '',
+            section: profile.section || '',
+            lastActive: Date.now(),
+            cachedData: profile.cachedData || null
+        };
+        if (idx >= 0) {
+            accounts[idx] = entry;
+        } else {
+            accounts.unshift(entry);
+        }
+        localStorage.setItem('srm_saved_accounts', JSON.stringify(accounts.slice(0, 10)));
+    } catch (_) {}
+}
+
+function openAccountSwitcherModal() {
+    const existing = document.getElementById('account-switcher-modal');
+    if (existing) existing.remove();
+
+    const accounts = getSavedAccounts();
+    const currentId = (localStorage.getItem('srm_auto_id') || '').toLowerCase();
+
+    const modal = document.createElement('div');
+    modal.id = 'account-switcher-modal';
+    modal.className = 'class-modal-backdrop';
+    modal.style.display = 'flex';
+    modal.style.zIndex = '999999';
+
+    let accountsHtml = '';
+    if (accounts.length === 0) {
+        accountsHtml = `
+            <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.82rem;">
+                No other student accounts saved on this device yet.
+            </div>
+        `;
+    } else {
+        accountsHtml = accounts.map(acc => {
+            const isCurrent = acc.id.toLowerCase() === currentId;
+            return `
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;margin-bottom:8px;background:var(--card-elevated);border:1.5px solid ${isCurrent ? 'var(--accent)' : 'var(--card-border)'};border-radius:12px;">
+                    <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;cursor:pointer;" onclick="switchAccount('${escapeHtml(acc.id)}')">
+                        <div class="user-avatar" style="width:38px;height:38px;font-size:0.85rem;background:${isCurrent ? 'var(--accent)' : 'var(--card-border)'};">
+                            ${escapeHtml(acc.name.substring(0, 2).toUpperCase())}
+                        </div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:0.88rem;font-weight:800;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                ${escapeHtml(acc.name)} ${isCurrent ? '<span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;background:var(--accent-subtle);color:var(--accent);font-weight:800;margin-left:4px;">Active</span>' : ''}
+                            </div>
+                            <div style="font-size:0.72rem;color:var(--text-muted);font-family:var(--font-mono);">
+                                ${escapeHtml(acc.id)} &bull; ${escapeHtml(acc.regNo || 'SRMIST')}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;margin-left:8px;">
+                        ${!isCurrent ? `
+                            <button type="button" class="pill-btn" style="background:var(--accent);color:var(--text-inverse);font-size:0.74rem;padding:6px 12px;font-weight:800;" onclick="switchAccount('${escapeHtml(acc.id)}')">
+                                Switch
+                            </button>
+                            <button type="button" style="background:none;border:none;color:var(--text-muted);font-size:1.1rem;cursor:pointer;padding:4px 6px;" onclick="removeSavedAccount('${escapeHtml(acc.id)}')">
+                                &times;
+                            </button>
+                        ` : `
+                            <button type="button" class="pill-btn" style="background:var(--red-subtle, rgba(239,68,68,0.15));color:var(--red, #ef4444);border:1px solid var(--red-border, rgba(239,68,68,0.3));font-size:0.74rem;padding:6px 12px;font-weight:800;" onclick="doLogout()">
+                                Sign Out
+                            </button>
+                        `}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    modal.innerHTML = `
+        <div class="class-modal-sheet" style="max-height:85vh;overflow-y:auto;max-width:440px;">
+            <div class="class-modal-header">
+                <div>
+                    <h3 style="font-size:1.1rem;font-weight:800;color:var(--text-main);margin:0;">Switch Student Account</h3>
+                    <p style="font-size:0.72rem;color:var(--text-muted);margin:2px 0 0;">Multi-user profiles stored isolated on device</p>
+                </div>
+                <button class="class-modal-close" onclick="document.getElementById('account-switcher-modal')?.remove()">&times;</button>
+            </div>
+            <div class="class-modal-body" style="padding-top:10px;">
+                <div id="account-list-container">
+                    ${accountsHtml}
+                </div>
+                <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+                    <button type="button" class="apex-btn" style="width:100%;padding:11px;background:var(--accent);color:var(--text-inverse);font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="document.getElementById('account-switcher-modal')?.remove(); doLogout();">
+                        <span>➕ Sign In Another Student Account</span>
+                    </button>
+                    <button type="button" class="apex-btn apex-btn-outline" style="width:100%;padding:10px;font-size:0.78rem;" onclick="document.getElementById('account-switcher-modal')?.remove(); openSyncPromptModal();">
+                        <span>☁️ Restore Via 6-Digit Sync Code</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+async function switchAccount(studentId) {
+    if (!studentId) return;
+    const modal = document.getElementById('account-switcher-modal');
+    if (modal) modal.remove();
+
+    const accounts = getSavedAccounts();
+    const acc = accounts.find(a => a.id.toLowerCase() === studentId.toLowerCase());
+
+    showAttendanceToast(`Switching to ${acc?.name || studentId}...`, "info");
+
+    // 1. If cached data exists in entry, apply immediately
+    if (acc && acc.cachedData) {
+        applyStudentProfile(acc.cachedData, acc.id, '', false);
+        return;
+    }
+
+    // 2. Otherwise restore from Edge / Vercel mesh
+    try {
+        let res = await apiFetch('/api/get-student/' + encodeURIComponent(studentId));
+        if (!res || !res.success) {
+            res = await apiFetch('/api/sync-student/' + encodeURIComponent(studentId));
+        }
+        if (res && res.success) {
+            applyStudentProfile(res.data || res, studentId, '', false);
+        } else {
+            showAttendanceToast("Could not load account data. Please sign in.", "error");
+            doLogout();
+        }
+    } catch (e) {
+        showAttendanceToast("Failed to switch account: " + e.message, "error");
+    }
+}
+
+function removeSavedAccount(studentId) {
+    let accounts = getSavedAccounts();
+    accounts = accounts.filter(a => a.id.toLowerCase() !== studentId.toLowerCase());
+    localStorage.setItem('srm_saved_accounts', JSON.stringify(accounts));
+    openAccountSwitcherModal();
+}
+
+function openSyncPromptModal() {
+    const existing = document.getElementById('sync-prompt-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'sync-prompt-modal';
+    modal.className = 'class-modal-backdrop';
+    modal.style.display = 'flex';
+    modal.style.zIndex = '999999';
+
+    modal.innerHTML = `
+        <div class="class-modal-sheet" style="text-align:center;max-width:380px;">
+            <div class="class-modal-header">
+                <div>
+                    <h3 style="font-size:1.1rem;font-weight:800;color:var(--text-main);margin:0;">Instant Cloud Restore</h3>
+                    <p style="font-size:0.72rem;color:var(--text-muted);margin:2px 0 0;">Enter your 6-digit sync code or NetID</p>
+                </div>
+                <button class="class-modal-close" onclick="document.getElementById('sync-prompt-modal')?.remove()">&times;</button>
+            </div>
+            <div class="class-modal-body" style="padding:14px 0;">
+                <div style="margin-bottom:12px;">
+                    <input id="restore-sync-input" class="login-input" type="text" placeholder="e.g. 218217 or sk1325" style="text-align:center;font-size:1.1rem;font-weight:800;letter-spacing:2px;font-family:var(--font-mono);width:100%;padding:12px;" autofocus onkeypress="if(event.key==='Enter')submitSyncPrompt()">
+                </div>
+                <button type="button" class="apex-btn" style="width:100%;padding:12px;background:var(--accent);color:var(--text-inverse);font-weight:800;font-size:0.88rem;" onclick="submitSyncPrompt()">
+                    ⚡ Restore & Launch Dashboard
+                </button>
+                <div style="margin-top:12px;font-size:0.72rem;color:var(--text-muted);">
+                    Sync codes allow instant access from any device without re-solving CAPTCHAs.
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function submitSyncPrompt() {
+    const val = document.getElementById('restore-sync-input')?.value.trim();
+    if (!val) {
+        showAttendanceToast("Please enter a valid sync code or NetID", "error");
+        return;
+    }
+    const modal = document.getElementById('sync-prompt-modal');
+    if (modal) modal.remove();
+    await syncStudentWithCode(val);
+}
+
+function openSyncQRCodeModal() {
+    const existing = document.getElementById('sync-qr-modal');
+    if (existing) existing.remove();
+
+    const netId = localStorage.getItem('srm_auto_id') || 'student';
+    const regNo = localStorage.getItem('srm_reg_no') || 'SRMIST';
+    const name = localStorage.getItem('srm_display_name') || 'Student';
+    const syncCode = localStorage.getItem('srm_sync_code') || '218217';
+
+    const modal = document.createElement('div');
+    modal.id = 'sync-qr-modal';
+    modal.className = 'class-modal-backdrop';
+    modal.style.display = 'flex';
+    modal.style.zIndex = '999999';
+
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(syncCode || netId)}`;
+
+    modal.innerHTML = `
+        <div class="class-modal-sheet" style="text-align:center;max-width:380px;">
+            <div class="class-modal-header">
+                <div>
+                    <h3 style="font-size:1.1rem;font-weight:800;color:var(--text-main);margin:0;">Instant Profile Sync QR</h3>
+                    <p style="font-size:0.72rem;color:var(--text-muted);margin:2px 0 0;">Scan to clone schedule & attendance instantly</p>
+                </div>
+                <button class="class-modal-close" onclick="document.getElementById('sync-qr-modal')?.remove()">&times;</button>
+            </div>
+            <div class="class-modal-body" style="align-items:center;padding:16px 0;">
+                <div style="background:#ffffff;padding:12px;border-radius:16px;display:inline-block;box-shadow:0 8px 24px rgba(0,0,0,0.15);">
+                    <img src="${qrUrl}" alt="Sync QR Code" style="width:200px;height:200px;display:block;border-radius:8px;">
+                </div>
+                <div style="margin-top:14px;background:var(--card-elevated);border:1px solid var(--card-border);padding:10px 14px;border-radius:12px;width:100%;">
+                    <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:800;letter-spacing:0.04em;">Your 6-Digit Sync Code</div>
+                    <div style="font-size:1.6rem;font-weight:900;color:var(--accent);font-family:var(--font-mono);letter-spacing:4px;margin:4px 0;">
+                        ${syncCode}
+                    </div>
+                    <button type="button" class="pill-btn" style="background:var(--accent-subtle);color:var(--accent);font-weight:800;font-size:0.75rem;padding:6px 14px;margin:4px auto 0;" onclick="navigator.clipboard.writeText('${syncCode}').then(() => showAttendanceToast('Sync Code copied to clipboard!','success'))">
+                        📋 Copy Code
+                    </button>
+                </div>
+                <div style="font-size:0.72rem;color:var(--text-sub);margin-top:10px;">
+                    Logged in as: <b>${escapeHtml(name)}</b> (${escapeHtml(regNo)})
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
 function doLogout() {
     try {
         if (typeof waBridgeFetch === 'function') {
             waBridgeFetch('/api/wa/disconnect', { method: 'POST' });
         }
     } catch (_) {}
+
+    if (window._waPollInterval) {
+        clearInterval(window._waPollInterval);
+        window._waPollInterval = null;
+    }
     
-    // 1. Completely clear all stored credentials, tokens, and caches
+    // 1. Completely clear active credentials, tokens, and caches while keeping saved account list
     try {
-        clearToken();
-        localStorage.clear();
+        const savedAccounts = localStorage.getItem('srm_saved_accounts');
+        localStorage.removeItem('srm_auto_id');
+        localStorage.removeItem('srm_auto_pass');
+        localStorage.removeItem('srm_token');
+        localStorage.removeItem('srm_session');
+        localStorage.removeItem('srm_reg_no');
+        localStorage.removeItem('srm_display_name');
+        localStorage.removeItem('srm_department');
+        localStorage.removeItem('srm_program');
+        localStorage.removeItem('srm_section');
+        localStorage.removeItem('srm_advisor');
+        localStorage.removeItem('srm_attendance_cache');
+        localStorage.removeItem('srm_timetable_cache');
         sessionStorage.clear();
+        if (savedAccounts) localStorage.setItem('srm_saved_accounts', savedAccounts);
     } catch (_) {}
 
-    // 2. Clear input fields on login screen
+    // 2. Reset runtime in-memory caches
+    portalAttendance = [];
+    if (typeof SRM_DATA !== 'undefined') {
+        if (SRM_DATA.studentProfile) SRM_DATA.studentProfile = null;
+        if (SRM_DATA.profile) {
+            SRM_DATA.profile.name = 'Student';
+            SRM_DATA.profile.regNo = '';
+        }
+    }
+
+    // 3. Clear input fields on login screen
     const idInput = document.getElementById('login-id');
     const passInput = document.getElementById('login-pass');
     const capInput = document.getElementById('login-captcha');
@@ -1498,7 +1799,7 @@ function doLogout() {
     if (passInput) passInput.value = '';
     if (capInput) capInput.value = '';
 
-    // 3. Force-close and hide EVERY single modal and backdrop on the page
+    // 4. Force-close and hide EVERY single modal and backdrop on the page
     const modalIds = [
         'command-center-modal',
         'vertical-quick-menu-modal',
@@ -1506,7 +1807,11 @@ function doLogout() {
         'theme-modal',
         'portal-modal',
         'what-if-modal',
-        'profile-customizer-modal'
+        'profile-customizer-modal',
+        'account-switcher-modal',
+        'sync-prompt-modal',
+        'sync-qr-modal',
+        'wa-pair-modal'
     ];
     modalIds.forEach(id => {
         const el = document.getElementById(id);
@@ -1520,7 +1825,7 @@ function doLogout() {
         el.classList.remove('open', 'active', 'show');
     });
 
-    // 4. Immediately switch UI to login view
+    // 5. Immediately switch UI to login view
     const screen = document.getElementById('login-screen');
     const wrap = document.querySelector('.mobile-wrapper');
     const dock = document.querySelector('.dock');
@@ -1533,12 +1838,19 @@ function doLogout() {
     if (wrap) wrap.style.display = 'none';
     if (dock) dock.style.display = 'none';
 
-    // 5. Fetch fresh CAPTCHA for new login
+    // 6. Fetch fresh CAPTCHA for new login
     if (typeof fetchLiveCaptcha === 'function') {
         fetchLiveCaptcha(true);
     }
 }
 window.doLogout = doLogout;
+window.doLogin = doAutoLogin;
+window.openAccountSwitcherModal = openAccountSwitcherModal;
+window.switchAccount = switchAccount;
+window.removeSavedAccount = removeSavedAccount;
+window.openSyncPromptModal = openSyncPromptModal;
+window.submitSyncPrompt = submitSyncPrompt;
+window.openSyncQRCodeModal = openSyncQRCodeModal;
 
 // ─── App Initialization (0ms Instant Load from Cache) ─────────────────────────
 function bootApp() {
@@ -3917,42 +4229,34 @@ async function waBridgeFetch(path, opts = {}) {
     const separator = path.includes('?') ? '&' : '?';
     const pathWithUser = `${path}${separator}userId=${encodeURIComponent(userId)}`;
 
-    // 1. Try local daemon on port 8001 first
-    try {
-        const localUrl = `http://127.0.0.1:8001${pathWithUser}`;
-        const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 2500);
-        const res = await fetch(localUrl, {
-            ...opts,
-            signal: ctrl.signal,
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-User-Id': userId,
-                ...(opts.headers || {}) 
-            }
-        });
-        clearTimeout(tid);
-        if (res.ok) return await res.json();
-    } catch (_) {}
+    const candidates = [
+        'http://127.0.0.1:8001',
+        'http://10.3.30.204:8001',
+        'http://10.0.2.2:8001'
+    ];
+    const custom = localStorage.getItem('srm_wa_bridge_url');
+    if (custom) candidates.unshift(custom.replace(/\/$/, ''));
 
-    // 2. Try configured custom bridge url
-    try {
-        const customBase = localStorage.getItem('srm_wa_bridge_url');
-        if (customBase) {
-            const url = customBase.replace(/\/$/, '') + pathWithUser;
+    for (const base of candidates) {
+        try {
+            const url = `${base}${pathWithUser}`;
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 3500);
             const res = await fetch(url, {
                 ...opts,
+                signal: ctrl.signal,
                 headers: { 
                     'Content-Type': 'application/json',
                     'X-User-Id': userId,
                     ...(opts.headers || {}) 
                 }
             });
-            if (res.ok) return await res.json();
-        }
-    } catch (_) {}
+            clearTimeout(tid);
+            if (res && res.ok) return await res.json();
+        } catch (_) {}
+    }
     
-    // 3. Fallback to serverless API route if proxied
+    // Fallback to serverless API route if proxied
     try {
         return await apiFetch(pathWithUser, {
             ...opts,
@@ -3965,6 +4269,10 @@ async function waBridgeFetch(path, opts = {}) {
 async function openWALinkedDeviceModal() {
     const existing = document.getElementById('wa-pair-modal');
     if (existing) existing.remove();
+    if (window._waPollInterval) {
+        clearInterval(window._waPollInterval);
+        window._waPollInterval = null;
+    }
 
     const modal = document.createElement('div');
     modal.id = 'wa-pair-modal';
@@ -3977,11 +4285,11 @@ async function openWALinkedDeviceModal() {
                     <span class="wa-privacy-badge"> WhatsApp Multi-Device Companion</span>
                     <h3 style="font-size:1.15rem;font-weight:800;color:var(--text-main);margin-top:6px;">Link WhatsApp to OneSRM</h3>
                 </div>
-                <button class="class-modal-close" onclick="document.getElementById('wa-pair-modal')?.remove()"></button>
+                <button class="class-modal-close" onclick="closeWALinkModal()">&times;</button>
             </div>
             <div class="class-modal-body" style="align-items:center;">
                 <div id="wa-qr-container" style="min-height:180px;display:flex;align-items:center;justify-content:center;width:100%;">
-                    <div style="padding:30px 0;font-size:0.85rem;color:var(--blue);">⏳ Checking WhatsApp Bridge connection...</div>
+                    <div style="padding:30px 0;font-size:0.85rem;color:var(--blue);">⏳ Connecting to WhatsApp Bridge...</div>
                 </div>
 
                 <!-- Fast Mobile Ingest Alternative -->
@@ -3993,7 +4301,7 @@ async function openWALinkedDeviceModal() {
                         <button type="button" class="pill-btn" style="background:var(--accent);color:var(--text-inverse);font-weight:800;padding:8px 14px;font-size:0.78rem;" onclick="document.getElementById('wa-chat-standalone-input')?.click()">
                             📁 Upload Exported Chat (.txt)
                         </button>
-                        <button type="button" class="pill-btn" style="background:var(--card-elevated);color:var(--text-main);font-weight:700;padding:8px 14px;font-size:0.78rem;" onclick="document.getElementById('wa-pair-modal')?.remove(); openPasteChatModal();">
+                        <button type="button" class="pill-btn" style="background:var(--card-elevated);color:var(--text-main);font-weight:700;padding:8px 14px;font-size:0.78rem;" onclick="closeWALinkModal(); openPasteChatModal();">
                             📋 Paste Chat Text
                         </button>
                     </div>
@@ -4017,11 +4325,39 @@ async function openWALinkedDeviceModal() {
 
     document.body.appendChild(modal);
 
+    // 1. Kick off connection
     await waBridgeFetch('/api/wa/connect?fresh=true', { method: 'POST' });
-    loadWAQRStatus();
+    
+    // 2. Load immediate status
+    await loadWAQRStatus();
+
+    // 3. Active auto-polling so QR renders the second it is ready
+    let attempts = 0;
+    window._waPollInterval = setInterval(async () => {
+        attempts++;
+        if (attempts > 30 || !document.getElementById('wa-pair-modal')) {
+            if (window._waPollInterval) clearInterval(window._waPollInterval);
+            window._waPollInterval = null;
+            return;
+        }
+        await loadWAQRStatus();
+    }, 1500);
 }
 
+function closeWALinkModal() {
+    if (window._waPollInterval) {
+        clearInterval(window._waPollInterval);
+        window._waPollInterval = null;
+    }
+    document.getElementById('wa-pair-modal')?.remove();
+}
+window.closeWALinkModal = closeWALinkModal;
+
 async function disconnectWhatsApp() {
+    if (window._waPollInterval) {
+        clearInterval(window._waPollInterval);
+        window._waPollInterval = null;
+    }
     await waBridgeFetch('/api/wa/disconnect', { method: 'POST' });
     showAttendanceToast("WhatsApp session unlinked successfully!", "info");
     loadWAQRStatus();
@@ -4033,6 +4369,10 @@ async function loadWAQRStatus() {
     if (!box) return;
 
     if (res && res.status === 'CONNECTED') {
+        if (window._waPollInterval) {
+            clearInterval(window._waPollInterval);
+            window._waPollInterval = null;
+        }
         box.innerHTML = `
             <div style="padding:20px;text-align:center;">
                 <div style="font-size:2.2rem;margin-bottom:6px;">✅</div>
@@ -4042,11 +4382,11 @@ async function loadWAQRStatus() {
             </div>
         `;
     } else if (res && res.qrCodeDataURL) {
-        box.innerHTML = `<div class="wa-qr-box"><img src="${res.qrCodeDataURL}" alt="WhatsApp QR Code" style="max-width:200px;border-radius:8px;"></div>`;
+        box.innerHTML = `<div class="wa-qr-box"><img src="${res.qrCodeDataURL}" alt="WhatsApp QR Code" style="max-width:210px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.2);"></div>`;
     } else {
         box.innerHTML = `
             <div style="padding:24px;text-align:center;">
-                <div style="font-size:1.8rem;margin-bottom:6px;">📱</div>
+                <div style="font-size:1.8rem;margin-bottom:6px;animation:spin 1.5s linear infinite;">⏳</div>
                 <div style="font-size:0.88rem;font-weight:700;color:var(--text-main);">Generating Fresh QR...</div>
                 <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;max-width:260px;">
                     Ensure WhatsApp Bridge is active (<code>node wa_bridge.js</code>).
@@ -4060,7 +4400,7 @@ async function refreshWAQRCode() {
     const box = document.getElementById('wa-qr-container');
     if (box) box.innerHTML = '<div style="padding:40px 0;font-size:0.85rem;color:var(--blue);">⏳ Generating new fresh QR code...</div>';
     await waBridgeFetch('/api/wa/reset-session', { method: 'POST' });
-    setTimeout(loadWAQRStatus, 1500);
+    setTimeout(loadWAQRStatus, 1000);
 }
 
 async function openWAGroupSelectorModal() {
@@ -4274,8 +4614,11 @@ function getOfflineAIResponse(prompt) {
     const day = currentDayOrder || 'Day 1';
     const schedule = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[day]) || [];
 
-    // Greeting
-    if (q === 'hi' || q === 'hello' || q === 'hey' || q.startsWith('hi ') || q.startsWith('hello ')) {
+    // Greeting (only if purely a short greeting without an academic question)
+    const isPureGreeting = (q === 'hi' || q === 'hello' || q === 'hey' || q === 'hi copilot' || q === 'hello copilot') && 
+                           !q.includes('class') && !q.includes('bunk') && !q.includes('schedule') && 
+                           !q.includes('attendance') && !q.includes('code') && !q.includes('today');
+    if (isPureGreeting) {
         const todayClasses = schedule.filter(s => s.type !== 'Free');
         let nextSummary = 'You have a free day today!';
         if (todayClasses.length > 0) {
@@ -4283,6 +4626,26 @@ function getOfflineAIResponse(prompt) {
             nextSummary = `Today is **${day}** with **${todayClasses.length} class(es)**. Next up: **${first.title}** at \`${first.venue}\` (Hour ${first.hour}).`;
         }
         return `Hi **${studentName}**!\n\n${nextSummary}\n\nAsk me anything about your **timetable**, **attendance safe bunks**, **hostel**, **fees**, or coursework topics!`;
+    }
+
+    // Binary search
+    if (q.includes('binary search')) {
+        return `### 🔍 Binary Search Algorithm (C Implementation)\n\n` +
+               `\`\`\`c\n` +
+               `#include <stdio.h>\n\n` +
+               `int binarySearch(int arr[], int size, int target) {\n` +
+               `    int low = 0, high = size - 1;\n` +
+               `    while (low <= high) {\n` +
+               `        int mid = low + (high - low) / 2;\n` +
+               `        if (arr[mid] == target) return mid;\n` +
+               `        else if (arr[mid] < target) low = mid + 1;\n` +
+               `        else high = mid - 1;\n` +
+               `    }\n` +
+               `    return -1;\n` +
+               `}\n` +
+               `\`\`\`\n\n` +
+               `- **Time Complexity:** $O(\\log n)$ Best case: $O(1)$\n` +
+               `- **Prerequisite:** Array must be sorted in ascending order.`;
     }
 
     // Faculty Advisor & Advisors query
@@ -4429,7 +4792,7 @@ function getOfflineAIResponse(prompt) {
     }
 
     // Calculus
-    if (q.includes('eigen') || q.includes('matrix') || q.includes('calculus') || q.includes('26mab1001t') || q.includes('math')) {
+    if (q.includes('eigen') || q.includes('matrix') || q.includes('calculus') || q.includes('26mab1001t') || q.includes('math') || q.includes('cayley')) {
         return `### Calculus & Linear Algebra (26MAB1001T) — Eigenvalues & Diagonalization\n\n` +
                `**1. Characteristic Equation:**\n` +
                `Solve $|A - \\lambda I| = 0$ to obtain the characteristic polynomial and eigenvalues $\\lambda_1, \\lambda_2, \\dots, \\lambda_n$.\n\n` +
@@ -6862,6 +7225,32 @@ function switchTab(tabId) {
     switchSuperTab(tabId);
 }
 
+function openPortalModal() {
+    const modal = document.getElementById('portal-modal');
+    const frame = document.getElementById('portal-frame');
+    if (modal) {
+        modal.style.display = 'flex';
+        if (frame && (!frame.src || frame.src === 'about:blank')) {
+            frame.src = 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp';
+        }
+    }
+}
+
+function closePortalModal() {
+    const modal = document.getElementById('portal-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function finishPortalLogin() {
+    closePortalModal();
+    if (typeof showAttendanceToast === 'function') {
+        showAttendanceToast("Checking session status...", "info");
+    }
+    if (typeof triggerManualScrape === 'function') {
+        triggerManualScrape();
+    }
+}
+
 if (typeof window !== 'undefined') {
     window.switchTab = switchSuperTab;
     window.switchSuperTab = switchSuperTab;
@@ -6872,7 +7261,7 @@ if (typeof window !== 'undefined') {
     window.deleteAnnouncement = deleteAnnouncement;
     window.doAutoLogin = doAutoLogin;
     window.doLogout = doLogout;
-    window.doLogin = doLogin;
+    window.doLogin = doAutoLogin;
     window.editHostelDetails = editHostelDetails;
     window.editMessMeal = editMessMeal;
     window.fetchLiveCaptcha = fetchLiveCaptcha;
