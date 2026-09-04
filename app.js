@@ -704,6 +704,13 @@ async function fetchDirectSRMCaptchaNative() {
 
     try {
         console.log('[NativeCaptcha] Connecting directly to sp.srmist.edu.in from mobile device...');
+        
+        // Clear any stale cookies so SRM gives us a fresh JSESSIONID
+        const capCookies = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorCookies) || window.CapacitorCookies;
+        if (capCookies) {
+            try { await capCookies.clearAllCookies(); } catch(e) {}
+        }
+
         const loginUrl = 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp';
         const pageResp = await capHttp.request({
             url: loginUrl,
@@ -766,7 +773,9 @@ async function fetchDirectSRMCaptchaNative() {
         };
         _hiddenFields = hiddenFields;
 
-        // 4. Fetch CAPTCHA image with mandatory X-Domain-Proof and device Cookies
+        // 4. Fetch CAPTCHA image with mandatory X-Domain-Proof header.
+        // NOTE: On native Android, Capacitor's native CookieManager automatically attaches cookies.
+        // Explicitly passing a manual Cookie header causes duplicate Cookie headers which triggers F5 403 Forbidden!
         const domainProof = btoa(`${nonce}:sp.srmist.edu.in`);
         const capImgResp = await capHttp.request({
             url: captchaUrl,
@@ -775,17 +784,17 @@ async function fetchDirectSRMCaptchaNative() {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
                 'Referer': loginUrl,
                 'X-Domain-Proof': domainProof,
-                'Cookie': _liveCookies,
                 'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
             },
-            responseType: 'base64',
+            responseType: 'blob',
             connectTimeout: 10000,
             readTimeout: 10000
         });
 
         if (capImgResp && capImgResp.status === 200 && capImgResp.data) {
             _liveCookies = extractCookiesFromHeaders(capImgResp.headers, _liveCookies);
-            const b64 = String(capImgResp.data).startsWith('data:') ? capImgResp.data : `data:image/jpeg;base64,${capImgResp.data}`;
+            let rawB64 = String(capImgResp.data).trim().replace(/\r?\n|\r/g, '');
+            const b64 = rawB64.startsWith('data:') ? rawB64 : `data:image/png;base64,${rawB64}`;
             console.log('[NativeCaptcha] CAPTCHA image successfully fetched natively!');
             return {
                 success: true,
@@ -794,6 +803,8 @@ async function fetchDirectSRMCaptchaNative() {
                 sec_config: _secConfig,
                 hidden_fields: _hiddenFields
             };
+        } else {
+            console.warn('[NativeCaptcha] CAPTCHA image fetch returned status:', capImgResp ? capImgResp.status : 'null');
         }
     } catch (e) {
         console.warn('[DirectNativeCaptcha] Native fetch error:', e);
@@ -816,36 +827,52 @@ async function fetchLiveCaptcha(force = false) {
     try {
         let res = null;
 
-        // Candidate gateways in priority order
-        const candidateGateways = [
-            'https://srmbackend.vercel.app',
-            'https://srm-edge-gateway.srm-companion.workers.dev'
-        ];
-
-        // If running in browser and current origin is a known valid host, prioritize origin
-        if (typeof window !== 'undefined' && window.location && window.location.origin) {
-            const curOrigin = window.location.origin.replace(/\/$/, '');
-            if (curOrigin.includes('vercel.app') || curOrigin.includes('workers.dev')) {
-                const idx = candidateGateways.indexOf(curOrigin);
-                if (idx > -1) candidateGateways.splice(idx, 1);
-                candidateGateways.unshift(curOrigin);
+        // 0. On native Android device, fetch CAPTCHA directly from SRM so session is 100% bound to the phone's IP!
+        const capHttp = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) || window.CapacitorHttp;
+        if (capHttp) {
+            try {
+                const nativeCap = await fetchDirectSRMCaptchaNative();
+                if (nativeCap && nativeCap.success && nativeCap.captchaImg) {
+                    res = nativeCap;
+                    _activeGatewayUrl = 'native://sp.srmist.edu.in';
+                }
+            } catch (nativeErr) {
+                console.warn('[fetchLiveCaptcha] Direct native CAPTCHA fetch error, falling back to gateways:', nativeErr);
             }
         }
 
-        // Sequential multi-gateway attempt with fast timeout
-        for (const gw of candidateGateways) {
-            try {
-                const r = await nativeHttp(`${gw}/api/captcha`, { timeout: 4500 });
-                if (r && r.ok) {
-                    const data = await r.json();
-                    if (data && data.success && data.captchaImg) {
-                        res = data;
-                        _activeGatewayUrl = gw;
-                        break;
-                    }
+        if (!res) {
+            // Candidate gateways in priority order
+            const candidateGateways = [
+                'https://srmbackend.vercel.app',
+                'https://srm-edge-gateway.srm-companion.workers.dev'
+            ];
+
+            // If running in browser and current origin is a known valid host, prioritize origin
+            if (typeof window !== 'undefined' && window.location && window.location.origin) {
+                const curOrigin = window.location.origin.replace(/\/$/, '');
+                if (curOrigin.includes('vercel.app') || curOrigin.includes('workers.dev')) {
+                    const idx = candidateGateways.indexOf(curOrigin);
+                    if (idx > -1) candidateGateways.splice(idx, 1);
+                    candidateGateways.unshift(curOrigin);
                 }
-            } catch (gwErr) {
-                console.warn(`[Captcha] Gateway ${gw} error:`, gwErr);
+            }
+
+            // Sequential multi-gateway attempt with fast timeout
+            for (const gw of candidateGateways) {
+                try {
+                    const r = await nativeHttp(`${gw}/api/captcha`, { timeout: 4500 });
+                    if (r && r.ok) {
+                        const data = await r.json();
+                        if (data && data.success && data.captchaImg) {
+                            res = data;
+                            _activeGatewayUrl = gw;
+                            break;
+                        }
+                    }
+                } catch (gwErr) {
+                    console.warn(`[Captcha] Gateway ${gw} error:`, gwErr);
+                }
             }
         }
 
@@ -954,7 +981,6 @@ async function doNativePortalLogin(rawId, pass, captchaVal) {
                 'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/loginManager/youLogin.jsp',
                 'Origin': 'https://sp.srmist.edu.in',
                 'User-Agent': telemetry.userAgent,
-                'Cookie': _liveCookies,
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                 'Connection': 'keep-alive'
             },
@@ -965,10 +991,10 @@ async function doNativePortalLogin(rawId, pass, captchaVal) {
         _liveCookies = extractCookiesFromHeaders(loginRes.headers, _liveCookies);
 
         const html = typeof loginRes.data === 'string' ? loginRes.data : JSON.stringify(loginRes.data || '');
-        if (html.includes('AlertInvalid credentials') || html.includes('Invalid User Name or Password')) {
+        if (/invalid\s*(?:credentials|user\s*name\s*or\s*password)/i.test(html)) {
             return { success: false, error: 'Invalid NetID or Password. Please double-check your credentials.' };
         }
-        if (html.includes('AlertInvalid captcha') || html.includes('AlertInvalid Captcha') || html.includes('Invalid Captcha Code')) {
+        if (/invalid\s*captcha/i.test(html)) {
             return { success: false, error: 'Invalid CAPTCHA entered. Please tap reload and try again.' };
         }
 
@@ -979,20 +1005,18 @@ async function doNativePortalLogin(rawId, pass, captchaVal) {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/LoginServlet',
-                    'Cookie': _liveCookies
+                    'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/LoginServlet'
                 },
                 data: ''
             });
             _liveCookies = extractCookiesFromHeaders(loaderRes.headers, _liveCookies);
         }
 
-        // Fetch report tabs with active authenticated session cookies
+        // Fetch report tabs with active authenticated session
         const reportHeaders = {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Referer': 'https://sp.srmist.edu.in/srmiststudentportal/students/template/HRDSystem.jsp',
             'X-Requested-With': 'XMLHttpRequest',
-            'Cookie': _liveCookies,
             'User-Agent': telemetry.userAgent
         };
 
@@ -1241,7 +1265,7 @@ async function doAutoLogin(isBackgroundRefresh = false) {
         if (isNative) {
             console.log('[Auth] Attempting direct native on-device scraping...');
             const nativeRes = await doNativePortalLogin(rawId, pass, captchaVal);
-            if (nativeRes && nativeRes.success) {
+            if (nativeRes) {
                 res = nativeRes;
             }
         }
