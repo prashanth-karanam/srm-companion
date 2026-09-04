@@ -439,7 +439,7 @@ def _parse_timetable(html: str) -> Dict[str, list]:
     for table in tables:
         for row in table.find_all('tr')[1:]:
             cols = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
-            if len(cols) >= 5 and any(cols[0].startswith(p) for p in ['19', '20', '21', '22', '23', '24', '25', '26', 'CSE', 'ECE', 'MAB', 'MEE']):
+            if len(cols) >= 5 and re.match(r'^[A-Z0-9]{4,}', cols[0]) and not any(h in cols[0].upper() for h in ['CODE', 'COURSE', 'SL', 'S.NO']):
                 c_code = cols[0]
                 c_name = cols[1] if len(cols) > 1 else c_code
                 c_slot = cols[3] if len(cols) > 3 else ""

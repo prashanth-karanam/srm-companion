@@ -815,9 +815,9 @@
 
                     <!-- Hero Action Buttons (Equal 3-Column Grid) -->
                     <div class="hero-btn-row">
-                        <button type="button" class="apex-btn" onclick="triggerManualScrape()">Sync Portal</button>
+                        <button type="button" class="apex-btn" onclick="switchTab('view-schedule')">Timetable</button>
                         <button type="button" class="apex-btn apex-btn-secondary" onclick="switchTab('view-attendance')">Attendance</button>
-                        <button type="button" class="apex-btn apex-btn-secondary" onclick="openAITabWithPrompt('What is the syllabus and upcoming tests for my subjects?')">Ask Copilot</button>
+                        <button type="button" class="apex-btn apex-btn-secondary" onclick="openAITabWithPrompt('What is my attendance summary and safe bunks?')">Ask Copilot</button>
                     </div>
                 </div>
 
@@ -860,7 +860,12 @@
                 </div>
                 <div class="att-header-actions">
                     <button class="att-action-pill" onclick="openWhatIfModal()">What-If Sim</button>
-                    <button id="scrape-btn" class="att-action-pill sync-pill" onclick="triggerManualScrape()">Sync Portal</button>
+                    <button id="scrape-btn" class="att-action-pill sync-pill" onclick="triggerManualScrape()" title="Sync live attendance with SRM portal">
+                        <svg class="sync-icon-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                        </svg>
+                        <span class="sync-btn-text">Sync</span>
+                    </button>
                 </div>
             </div>
 

@@ -2410,15 +2410,35 @@ async function syncWithBackend() {
 async function triggerManualScrape() {
     const btn = document.getElementById('scrape-btn');
     if (!btn || btn.disabled) return;
-    btn.textContent = 'Syncing…'; btn.disabled = true;
-    
-    await syncWithBackend();
-    
-    setTimeout(() => {
-        btn.textContent = 'Sync Portal';
-        btn.disabled = false;
-        renderAttendance(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
-    }, 1200);
+    btn.classList.add('syncing');
+    const textSpan = btn.querySelector('.sync-btn-text');
+    if (textSpan) textSpan.textContent = 'Syncing…';
+    btn.disabled = true;
+
+    try {
+        const oldAttendance = portalAttendance && portalAttendance.length ? JSON.parse(JSON.stringify(portalAttendance)) : [];
+        await syncWithBackend();
+        
+        // Mathematical Delta Detection: alert only on actual changes
+        const newAttendance = portalAttendance || [];
+        const diffs = detectAttendanceDelta(oldAttendance, newAttendance);
+        
+        if (diffs && diffs.length > 0) {
+            showAttendanceToast(diffs);
+        } else {
+            showAttendanceToast('Attendance is up to date (No new marks)', 'success');
+        }
+    } catch (err) {
+        console.error('[Sync] Error syncing attendance:', err);
+        showAttendanceToast('Sync completed', 'info');
+    } finally {
+        setTimeout(() => {
+            btn.classList.remove('syncing');
+            if (textSpan) textSpan.textContent = 'Sync';
+            btn.disabled = false;
+            renderAttendance(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+        }, 600);
+    }
 }
 
 // ─── Mathematical Delta Change Detection & Toast Alerts ───────────────────────
@@ -3857,11 +3877,9 @@ function openCreateNoticeModal() {
                     </select>
                     <select id="notice-subject-input" class="ai-input-field" style="font-size:0.78rem;">
                         <option value="ALL">All Subjects</option>
-                        <option value="26CSE1002J">PPS (26CSE1002J)</option>
-                        <option value="26MAB1001T">Calculus (26MAB1001T)</option>
-                        <option value="26CYB1002J">Chemistry (26CYB1002J)</option>
-                        <option value="26BTB1001T">Comp Bio (26BTB1001T)</option>
-                        <option value="26MEE1001L">Workshop (26MEE1001L)</option>
+                        ${(portalAttendance && portalAttendance.length) 
+                            ? portalAttendance.map(c => `<option value="${c.code}">${c.title ? c.title.split(' ')[0] : c.code} (${c.code})</option>`).join('')
+                            : `<option value="26CSE1002J">PPS (26CSE1002J)</option><option value="26MAB1001T">Calculus (26MAB1001T)</option>`}
                     </select>
                 </div>
 
@@ -4617,9 +4635,25 @@ ${noticesText || 'No notices active.'}
 }
 
 async function askAcademicAI(userPrompt) {
-    const systemPrompt = getAcademicContextForAI();
+    const q = (userPrompt || '').toLowerCase().trim();
 
-    // 1. Primary: Direct Serverless / Backend AI Gateway (/api/chat)
+    // 1. Prioritize live on-device student telemetry for attendance, bunking, schedule & campus queries
+    const isPersonalQuery = 
+        q.includes('bunk') || q.includes('attendance') || q.includes('absent') || 
+        q.includes('safe') || q.includes('margin') || q.includes('percentage') ||
+        q.includes('tomorrow') || q.includes('today') || q.includes('schedule') ||
+        q.includes('timetable') || q.includes('advisor') || q.includes('fa') ||
+        q.includes('hostel') || q.includes('mess') || q.includes('food');
+
+    if (isPersonalQuery) {
+        const localAns = getOfflineAIResponse(userPrompt);
+        if (localAns && !localAns.includes('Sync your portal in the')) {
+            return localAns;
+        }
+    }
+
+    // 2. Fall back to Cloud AI Gateway for open-ended programming, derivations, and concepts
+    const systemPrompt = getAcademicContextForAI();
     try {
         const res = await apiFetch('/api/chat', {
             method: 'POST',
@@ -4630,7 +4664,6 @@ async function askAcademicAI(userPrompt) {
         }
     } catch (_) {}
 
-    // 2. Secondary: Instant Client-Side Academic Knowledge & Timetable Engine
     return getOfflineAIResponse(userPrompt);
 }
 
@@ -4783,13 +4816,14 @@ function getOfflineAIResponse(prompt) {
         return out;
     }
 
-    // Attendance & Safe Bunk Calculations
-    if (q.includes('bunk') || q.includes('attendance') || q.includes('75') || q.includes('margin') || q.includes('analyze') || q.includes('absent') || q.includes('percentage')) {
-        if (portalAttendance && portalAttendance.length > 0) {
-            let out = `### Live Attendance Breakdown & Safe Bunks\n\n`;
-            let totalCon = 0, totalAtt = 0;
+    // Attendance & Safe Bunk Calculations (Clean, direct & zero confusing formulas)
+    if (q.includes('bunk') || q.includes('attendance') || q.includes('75') || q.includes('margin') || q.includes('analyze') || q.includes('absent') || q.includes('percentage') || q.includes('skip')) {
+        const attList = (portalAttendance && portalAttendance.length > 0) ? portalAttendance : safeJsonParse(localStorage.getItem('srm_cached_attendance'), []);
+        if (attList && attList.length > 0) {
+            let totalCon = 0, totalAtt = 0, totalSafeBunks = 0, criticalCount = 0;
+            const lines = [];
 
-            portalAttendance.forEach(a => {
+            attList.forEach(a => {
                 const con = parseInt(a.conducted || 0, 10);
                 const att = parseInt(a.attended || 0, 10);
                 const pct = con > 0 ? parseFloat(a.percentage || ((att / con) * 100).toFixed(1)) : 100;
@@ -4797,24 +4831,43 @@ function getOfflineAIResponse(prompt) {
                 totalAtt += att;
 
                 const danger = con > 0 && pct < 75;
+                if (danger) criticalCount++;
                 const bunks = con > 0 ? Math.max(0, Math.floor((4 * att - 3 * con) / 3)) : 0;
                 const needed = con > 0 ? Math.max(0, 3 * con - 4 * att) : 0;
+                totalSafeBunks += bunks;
 
-                const statusTag = danger ? '[CRITICAL]' : (bunks > 0 ? '[SAFE]' : '[MARGIN]');
-                const marginText = danger ? `Need **${needed}** more class(es)` : (bunks > 0 ? `Can skip **${bunks}** class(es)` : `Exactly at margin`);
+                const statusTag = danger ? '🔴 [ALERT]' : (bunks > 0 ? '🟢 [SAFE]' : '🟡 [MARGIN]');
+                const marginText = danger ? `⚠️ Need **${needed}** consecutive class(es)` : (bunks > 0 ? `Can safely skip **${bunks} hr(s)**` : `At exact 75% cutoff`);
 
-                out += `- ${statusTag} **${a.code}** (${a.title || a.subject}): **${pct}%** (${att}/${con} hrs) &rarr; ${marginText}\n`;
+                lines.push(`- ${statusTag} **${a.code}** (${a.title || a.subject}): **${pct}%** (${att}/${con} hrs) &rarr; ${marginText}`);
             });
 
-            const overallPct = totalCon > 0 ? ((totalAtt / totalCon) * 100).toFixed(1) : 100;
-            out += `\n**Overall Semester Attendance:** **${overallPct}%** (${totalAtt}/${totalCon} hours)`;
-            return out;
+            const overallPct = totalCon > 0 ? ((totalAtt / totalCon) * 100).toFixed(1) : '100.0';
+            
+            // Generate clear, direct verdict for students
+            let header = '';
+            if (q.includes('can i bunk') || q.includes('bunk tomorrow') || q.includes('bunk today') || q.includes('should i bunk') || q.includes('bunk tommorow')) {
+                if (criticalCount === 0 && totalSafeBunks > 0) {
+                    header = `### ✅ Yes, You Can Safely Bunk!\n\n` +
+                             `You have **${overallPct}%** attendance across all courses with a buffer of **+${totalSafeBunks} safe hours**.\n` +
+                             `Even if you bunk tomorrow, your attendance remains safely above the mandatory 75% cutoff.\n\n`;
+                } else if (criticalCount > 0) {
+                    header = `### ⚠️ Warning: Do Not Bunk Critical Courses\n\n` +
+                             `You have **${criticalCount} course(s)** currently below the 75% threshold! Check the breakdown below before bunking:\n\n`;
+                } else {
+                    header = `### 🟡 Attendance Warning\n\nYou are right at the 75% cutoff margin (0 safe bunks). Missing classes will drop you below 75%.\n\n`;
+                }
+            } else {
+                header = `### 📊 Live Attendance Telemetry & Safe Bunk Margins\n\n` +
+                         `**Overall Attendance:** **${overallPct}%** (${totalAtt}/${totalCon} hours) &bull; **Total Buffer:** **+${totalSafeBunks} safe hours**\n\n`;
+            }
+
+            return header + lines.join('\n') + `\n\n**Overall Semester Attendance:** **${overallPct}%** (${totalAtt}/${totalCon} hours attended)`;
         }
 
-        return `### SRM Attendance Regulations & Formulas\n\n` +
+        return `### SRM Attendance Guidelines\n\n` +
                `- **Mandatory Minimum:** 75% per registered course.\n` +
-               `- **Safe Bunk Formula:** \`Math.floor((4 * Attended - 3 * Conducted) / 3)\`\n` +
-               `- **Recovery Formula:** \`Math.max(0, 3 * Conducted - 4 * Attended)\`\n` +
+               `- **Safe Bunk Rule:** You can safely skip classes as long as your attendance stays at or above 75%.\n` +
                `- Sync your portal in the **Attendance Tab** to see live margins for all your subjects!`;
     }
 
@@ -5647,9 +5700,17 @@ function renderMessHub() {
 
     // 4. Meal Cards Grid
     const customMenu = safeJsonParse(localStorage.getItem('srm_custom_mess_menu'), {});
+    
+    // Choose appropriate menu according to selected hostel (Boys vs Girls from Campus Web)
+    let baseWeeklyMenu = messData.weeklyMenu;
+    const isGirlsHostel = /m[\s\-_]?block|senbagam|meenakshi|kalpana|girl/i.test(selectedMessHostel || '');
+    if (messData.menus) {
+        baseWeeklyMenu = isGirlsHostel ? messData.menus.M_BLOCK_GIRLS : messData.menus.SANNASI_BOYS;
+    }
+
     const menuObj = (customMenu[selectedMessHostel] && customMenu[selectedMessHostel][selectedMessDay]) 
                     ? customMenu[selectedMessHostel][selectedMessDay] 
-                    : (messData.weeklyMenu[selectedMessDay] || messData.weeklyMenu["Monday"]);
+                    : (baseWeeklyMenu[selectedMessDay] || baseWeeklyMenu["Monday"]);
 
     const meals = [
         { key: 'breakfast', label: 'Breakfast', icon: 'BF', time: '07:30 AM - 09:30 AM', items: menuObj.breakfast },

@@ -5275,6 +5275,29 @@ body {
     background: var(--accent);
     color: var(--text-inverse);
     border-color: var(--accent);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    transition: all 0.2s ease;
+}
+
+.att-action-pill.sync-pill:active {
+    transform: scale(0.94);
+}
+
+.sync-icon-svg {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+}
+
+.att-action-pill.sync-pill.syncing .sync-icon-svg {
+    animation: spinSyncIcon 0.75s linear infinite;
+}
+
+@keyframes spinSyncIcon {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 /* ─── Master Hero Telemetry Deck ─── */
