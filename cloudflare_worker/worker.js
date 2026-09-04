@@ -87,10 +87,9 @@ ${studentCtx ? "\n[Student Profile & Telemetry Context]:\n" + (typeof studentCtx
           const candidateModels = (body && body.model_override)
             ? [body.model_override]
             : [
+                "@cf/meta/llama-3.1-8b-instruct-fast",
                 "@cf/meta/llama-3.2-3b-instruct",
-                "@cf/meta/llama-3.2-1b-instruct",
-                "@cf/meta/llama-3.1-8b-instruct",
-                "@cf/mistral/mistral-7b-instruct-v0.2"
+                "@cf/meta/llama-3.2-1b-instruct"
               ];
 
           let replyText = "";
@@ -101,7 +100,7 @@ ${studentCtx ? "\n[Student Profile & Telemetry Context]:\n" + (typeof studentCtx
                   { role: "system", content: systemInstruction },
                   { role: "user", content: userMsg }
                 ],
-                max_tokens: 450,
+                max_tokens: 1500,
                 temperature: 0.3
               });
 

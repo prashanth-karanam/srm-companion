@@ -1420,6 +1420,27 @@ function applyStudentProfile(rawRes, rawId, pass = '', isBackgroundRefresh = fal
         portalAttendance = res.attendance;
         localStorage.setItem('srm_attendance_cache', JSON.stringify(res.attendance));
         localStorage.setItem('srm_cached_attendance', JSON.stringify(res.attendance));
+        
+        // Dynamically synchronize SRM_DATA.courses with student's real enrolled courses!
+        if (typeof SRM_DATA !== 'undefined') {
+            SRM_DATA.courses = res.attendance.map(a => {
+                const code = a.code || '';
+                const title = a.title || a.subject || code;
+                const isLab = code.endsWith('L') || code.endsWith('J') || title.toLowerCase().includes('lab') || title.toLowerCase().includes('practice') || title.toLowerCase().includes('workshop');
+                return {
+                    code: code,
+                    title: title,
+                    credits: isLab ? 2 : 4,
+                    theorySlot: isLab ? null : 'A',
+                    labSlot: isLab ? 'P1, P2' : null,
+                    theoryFaculty: a.faculty || 'Faculty Incharge',
+                    labFaculty: isLab ? (a.faculty || 'Lab Instructor') : null,
+                    theoryLocation: 'UB 601',
+                    labLocation: isLab ? 'Tech Park Lab' : null,
+                    category: isLab ? 'Practical / Laboratory' : 'Discipline Core'
+                };
+            });
+        }
     } else {
         portalAttendance = [];
     }
@@ -2103,7 +2124,28 @@ function _initApp() {
     try {
         const cachedAtt = localStorage.getItem('srm_attendance_cache') || localStorage.getItem('srm_cached_attendance');
         if (cachedAtt) {
-            portalAttendance = JSON.parse(cachedAtt);
+            try {
+                portalAttendance = JSON.parse(cachedAtt);
+                if (Array.isArray(portalAttendance) && portalAttendance.length > 0 && typeof SRM_DATA !== 'undefined') {
+                    SRM_DATA.courses = portalAttendance.map(a => {
+                        const code = a.code || '';
+                        const title = a.title || a.subject || code;
+                        const isLab = code.endsWith('L') || code.endsWith('J') || title.toLowerCase().includes('lab') || title.toLowerCase().includes('practice') || title.toLowerCase().includes('workshop');
+                        return {
+                            code: code,
+                            title: title,
+                            credits: isLab ? 2 : 4,
+                            theorySlot: isLab ? null : 'A',
+                            labSlot: isLab ? 'P1, P2' : null,
+                            theoryFaculty: a.faculty || 'Faculty Incharge',
+                            labFaculty: isLab ? (a.faculty || 'Lab Instructor') : null,
+                            theoryLocation: 'UB 601',
+                            labLocation: isLab ? 'Tech Park Lab' : null,
+                            category: isLab ? 'Practical / Laboratory' : 'Discipline Core'
+                        };
+                    });
+                }
+            } catch (_) {}
         }
         const cachedTt = localStorage.getItem('srm_timetable_cache') || localStorage.getItem('srm_cached_schedule');
         if (cachedTt) {
@@ -2354,6 +2396,25 @@ async function syncWithBackend() {
                 portalAttendance = res.attendance;
                 localStorage.setItem('srm_attendance_cache', JSON.stringify(res.attendance));
                 localStorage.setItem('srm_cached_attendance', JSON.stringify(res.attendance));
+                if (typeof SRM_DATA !== 'undefined') {
+                    SRM_DATA.courses = res.attendance.map(a => {
+                        const code = a.code || '';
+                        const title = a.title || a.subject || code;
+                        const isLab = code.endsWith('L') || code.endsWith('J') || title.toLowerCase().includes('lab') || title.toLowerCase().includes('practice') || title.toLowerCase().includes('workshop');
+                        return {
+                            code: code,
+                            title: title,
+                            credits: isLab ? 2 : 4,
+                            theorySlot: isLab ? null : 'A',
+                            labSlot: isLab ? 'P1, P2' : null,
+                            theoryFaculty: a.faculty || 'Faculty Incharge',
+                            labFaculty: isLab ? (a.faculty || 'Lab Instructor') : null,
+                            theoryLocation: 'UB 601',
+                            labLocation: isLab ? 'Tech Park Lab' : null,
+                            category: isLab ? 'Practical / Laboratory' : 'Discipline Core'
+                        };
+                    });
+                }
                 renderAttendance(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
             }
             if (res.timetable) {
@@ -2528,88 +2589,7 @@ function scheduleClassBoundaryCheck() {
     }
 }
 
-// ─── Attendance Renderer (Compact Bento & High-Density Telemetry) ───────────
-function renderAttendance(syncedAt) {
-    const wrap = document.getElementById('att-wrap');
-    const stamp = document.getElementById('att-stamp');
-    if (!wrap) return;
-    if (stamp && syncedAt) stamp.textContent = 'Last synced: ' + syncedAt;
-
-    if (!portalAttendance || !portalAttendance.length) {
-        wrap.innerHTML = '<p class="att-empty" style="text-align:center;color:var(--text-muted);padding:30px 0;">No attendance records found yet. Tap "Sync".</p>';
-        return;
-    }
-
-    let totCon = 0, totAtt = 0, totAbs = 0;
-    portalAttendance.forEach(a => {
-        totCon += parseInt(a.conducted || 0, 10);
-        totAtt += parseInt(a.attended || 0, 10);
-        totAbs += parseInt(a.absent || 0, 10);
-    });
-
-    const overallPct = totCon > 0 ? parseFloat(((totAtt / totCon) * 100).toFixed(1)) : 100.0;
-    const overallDanger = totCon > 0 && overallPct < 75;
-    const overallBunk = totCon > 0 ? Math.max(0, Math.floor((4 * totAtt - 3 * totCon) / 3)) : 0;
-    const overallNeeded = totCon > 0 ? Math.max(0, 3 * totCon - 4 * totAtt) : 0;
-
-    // 1. Compact 3-Column Bento Metric Summary
-    const summaryHtml = `
-    <div class="att-bento-hero">
-        <div class="att-bento-card">
-            <span class="att-bento-lbl">Overall</span>
-            <div class="att-bento-val" style="color:${overallDanger ? 'var(--red)' : 'var(--accent)'};">${overallPct}%</div>
-            <span class="att-bento-sub">${overallDanger ? '️ Below 75%' : ' Safe Margin'}</span>
-        </div>
-        <div class="att-bento-card" onclick="openWhatIfModal()" style="cursor:pointer;" title="Tap to simulate">
-            <span class="att-bento-lbl">Safe Bunks</span>
-            <div class="att-bento-val" style="color:${overallDanger ? 'var(--red)' : 'var(--accent)'};">${overallDanger ? `-${overallNeeded}` : `+${overallBunk}`}</div>
-            <span class="att-bento-sub">${overallDanger ? 'Classes Needed' : 'Classes Safe'}</span>
-        </div>
-        <div class="att-bento-card">
-            <span class="att-bento-lbl">Total Hours</span>
-            <div class="att-bento-val">${totAtt}<span style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">/${totCon}</span></div>
-            <span class="att-bento-sub">${totAbs} Absent hrs</span>
-        </div>
-    </div>`;
-
-    // 2. High-Density Subject Telemetry Rows
-    const cardsHtml = portalAttendance.map(item => {
-        const title = item.title || item.subject || item.course || item.code || 'Academic Subject';
-        const code  = item.code || '';
-        const con   = parseInt(item.conducted || 0, 10);
-        const att   = parseInt(item.attended  || 0, 10);
-        const abs   = parseInt(item.absent    || 0, 10);
-        
-        const isUnconducted = con === 0;
-        const pct   = isUnconducted ? 100.0 : (item.percentage ? parseFloat(item.percentage) : parseFloat(((att / con) * 100).toFixed(1)));
-        const danger = !isUnconducted && pct < 75;
-        const needed   = isUnconducted ? 0 : Math.max(0, 3 * con - 4 * att);
-        const bunkable = isUnconducted ? 0 : Math.max(0, Math.floor((4 * att - 3 * con) / 3));
-
-        return `
-        <div class="att-compact-row ${danger ? 'att-danger' : ''}" onclick="showSubjectAttDetail('${escapeHtml(code)}')">
-            <div class="att-row-left">
-                <div style="display:flex;align-items:center;gap:6px;min-width:0;">
-                    <span class="att-code-tag">${code || 'COURSE'}</span>
-                    <span class="att-subject-name">${escapeHtml(title)}</span>
-                </div>
-                <div class="att-row-meta">
-                    <span>${att}/${con} hrs conducted</span>
-                    <span style="opacity:0.3;">•</span>
-                    <span style="color:${abs > 0 ? 'var(--red)' : 'var(--text-muted)'};">${abs} absent</span>
-                </div>
-            </div>
-            <div class="att-row-right">
-                <div class="att-pct-pill" style="color:${danger ? 'var(--red)' : 'var(--accent)'};">${pct}%</div>
-                <span class="att-bunk-pill" style="color:${danger ? 'var(--red)' : 'var(--accent)'};background:${danger ? 'var(--red-subtle)' : 'var(--accent-subtle)'};border-color:${danger ? 'var(--red-border)' : 'var(--accent-border)'};">
-                    ${danger ? `Need ${needed}` : `+${bunkable} Bunk`}
-                </span>
-            </div>
-        </div>`;
-    }).join('');
-
-    wrap.innerHTML = summaryHtml + `<div class="att-rows-container">${cardsHtml}</div>`;
-}
+// Note: Attendance is rendered by the complete telemetry suite with What-If simulations
 
 function showSubjectAttDetail(code) {
     const course = (portalAttendance && portalAttendance.find(a => a.code === code)) || (SRM_DATA.courses && SRM_DATA.courses.find(c => c.code === code));
@@ -3217,8 +3197,36 @@ function renderDaySchedule(day) {
         emptyEl.style.cssText = 'justify-content:center;color:var(--text-muted);font-size:0.8rem;padding:20px;text-align:center;';
         emptyEl.textContent = `No working classes scheduled for ${targetDay} (Free Day).`;
         list.appendChild(emptyEl);
+
+        const hudTitle = document.getElementById('hud-class-title');
+        const statusTextEl = document.getElementById('monolith-status-text');
+        const monoTimeVenue = document.getElementById('monolith-time-venue');
+        const monoFaculty = document.getElementById('monolith-faculty-text');
+        const progTimeLeft = document.getElementById('prog-time-left');
+        if (hudTitle) hudTitle.textContent = 'No Classes Scheduled';
+        if (statusTextEl) statusTextEl.textContent = `${targetDay.toUpperCase()} (CAMPUS RECESS / FREE DAY)`;
+        if (monoTimeVenue) monoTimeVenue.textContent = `${targetDay} • Campus Free`;
+        if (monoFaculty) monoFaculty.textContent = 'No Faculty Assigned';
+        if (progTimeLeft) progTimeLeft.textContent = 'Free Day • 0 Classes';
         return;
     }
+
+    // Dynamically update Hero Card to reflect the viewed Day Order
+    const hudTitle = document.getElementById('hud-class-title');
+    const statusTextEl = document.getElementById('monolith-status-text');
+    const monoTimeVenue = document.getElementById('monolith-time-venue');
+    const monoFaculty = document.getElementById('monolith-faculty-text');
+    const progTimeLeft = document.getElementById('prog-time-left');
+
+    const firstClass = workingSchedule[0];
+    const firstSlot = SRM_DATA.timeSlots.find(s => s.hour === firstClass.hour) || { start: `H${firstClass.hour}`, end: '' };
+    if (hudTitle) hudTitle.textContent = formatShortSubject(firstClass.title);
+    if (statusTextEl) {
+        statusTextEl.textContent = (targetDay === currentDayOrder && !isTodayHoliday) ? 'TODAY\'S LECTURE ROSTER' : `SRM ${targetDay.toUpperCase()} SCHEDULE`;
+    }
+    if (monoTimeVenue) monoTimeVenue.textContent = `${targetDay}, ${firstSlot.start} • ${formatCleanVenue(firstClass.venue)}`;
+    if (monoFaculty) monoFaculty.textContent = formatTitleCaseName(firstClass.faculty || 'Faculty TBA');
+    if (progTimeLeft) progTimeLeft.textContent = `${workingSchedule.length} working classes scheduled for ${targetDay}`;
 
     workingSchedule.forEach((p) => {
         const slotInfo = SRM_DATA.timeSlots.find(s => s.hour === p.hour) || SRM_DATA.timeSlots[p.hour - 1] || { start: `H${p.hour}`, end: '', label: `Hour ${p.hour}` };
@@ -4678,6 +4686,92 @@ async function queryInceptionAI(prompt, systemContext = '') {
     }
 }
 
+// ─── Inception AI (Mercury dLLM) High-Speed Autonomous Solver ─────────────────
+async function queryInceptionAI(userPrompt, systemContext) {
+    if (!window.Capacitor || !window.Capacitor.Plugins || !window.Capacitor.Plugins.CapacitorHttp) {
+        return null;
+    }
+    const capHttp = window.Capacitor.Plugins.CapacitorHttp;
+    const desktopHeaders = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Referer': 'https://chat.inceptionlabs.ai/',
+    };
+
+    try {
+        // 1. Acquire clean session token natively
+        const sessRes = await capHttp.request({
+            method: 'GET',
+            url: 'https://chat.inceptionlabs.ai/api/session',
+            headers: desktopHeaders,
+            connectTimeout: 7000,
+            readTimeout: 7000
+        });
+
+        const token = (sessRes && sessRes.data && sessRes.data.token) ? sessRes.data.token : null;
+        if (!token) return null;
+
+        // 2. Format prompt with OneSRM academic system context
+        const fullPrompt = (systemContext ? systemContext + '\n\n' : '') + userPrompt;
+
+        // 3. Post to Inception Mercury diffusion chat endpoint
+        const chatRes = await capHttp.request({
+            method: 'POST',
+            url: 'https://chat.inceptionlabs.ai/api/chat',
+            headers: {
+                ...desktopHeaders,
+                'Content-Type': 'application/json',
+                'x-session-token': token
+            },
+            data: {
+                messages: [
+                    {
+                        id: 'msg-' + Date.now(),
+                        role: 'user',
+                        parts: [{ type: 'text', text: fullPrompt }]
+                    }
+                ],
+                reasoningEffort: 'low',
+                webSearchEnabled: false,
+                voiceMode: false,
+                timezone: 'Asia/Kolkata'
+            },
+            connectTimeout: 12000,
+            readTimeout: 25000
+        });
+
+        if (!chatRes || chatRes.status !== 200 || !chatRes.data) {
+            return null;
+        }
+
+        // 4. Parse SSE (Server-Sent Events) stream
+        let fullReply = '';
+        const lines = (typeof chatRes.data === 'string' ? chatRes.data : '').split('\n');
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('data:')) {
+                const raw = trimmed.slice(5).trim();
+                if (raw === '[DONE]') break;
+                try {
+                    const ev = JSON.parse(raw);
+                    if (ev.type === 'text-delta' && ev.delta) {
+                        fullReply += ev.delta;
+                    }
+                } catch (_) {}
+            }
+        }
+
+        if (fullReply && fullReply.trim()) {
+            let reply = fullReply.trim();
+            reply = reply.replace(/\b(Mercury|Inception Labs|Inception)\b/gi, 'OneSRM Copilot');
+            return reply;
+        }
+    } catch (err) {
+        console.warn('[InceptionAI] Direct native call failed, falling back to Edge Gateway:', err);
+    }
+    return null;
+}
+
 async function askAcademicAI(userPrompt) {
     const q = (userPrompt || '').toLowerCase().trim();
 
@@ -4694,6 +4788,14 @@ async function askAcademicAI(userPrompt) {
     }
 
     const systemPrompt = getAcademicContextForAI(userPrompt);
+
+    // 1. High-Performance Inception Labs Mercury dLLM Engine (Native On-Device OkHttp)
+    try {
+        const inceptionReply = await queryInceptionAI(userPrompt, systemPrompt);
+        if (inceptionReply) {
+            return inceptionReply;
+        }
+    } catch (_) {}
 
     // 2. High-Speed Sovereign Edge AI Gateway
     try {
@@ -7378,11 +7480,20 @@ function switchSuperTab(tabId) {
     const target = document.getElementById(tabId);
     if (target) target.style.display = 'block';
 
-    if (tabId === 'view-attendance') renderAttendanceHUD();
-    else if (tabId === 'view-mess-clubs') renderMessHub();
-    else if (tabId === 'view-passport') renderPassportHub();
-    else if (tabId === 'view-announcements') renderAnnouncements();
-    else if (tabId === 'view-calendar') renderCalendarList();
+    if (tabId === 'view-schedule') {
+        renderDaySchedule(selectedDay);
+        updateLiveHUD();
+    } else if (tabId === 'view-attendance') {
+        renderAttendanceHUD();
+    } else if (tabId === 'view-mess-clubs') {
+        renderMessHub();
+    } else if (tabId === 'view-passport') {
+        renderPassportHub();
+    } else if (tabId === 'view-announcements') {
+        renderAnnouncements();
+    } else if (tabId === 'view-calendar') {
+        renderCalendarList();
+    }
 }
 
 function switchTab(tabId) {
