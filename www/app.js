@@ -935,7 +935,9 @@ async function doNativePortalLogin(rawId, pass, captchaVal) {
             }
             if (_secConfig.captchaFieldName) {
                 const rd = _secConfig.randomDelimiter || '';
-                postData[_secConfig.captchaFieldName] = btoa(`4${rd}18`);
+                const elapsedSec = Math.max(1, Math.floor((Date.now() - (_captchaLoadTime || Date.now())) / 1000));
+                const interactCnt = Math.floor(Math.random() * 5) + 3;
+                postData[_secConfig.captchaFieldName] = btoa(`${elapsedSec}${rd}${interactCnt}`);
             }
         }
         postData.telemetryPayload = btoa(JSON.stringify(telemetry));
@@ -1234,7 +1236,8 @@ async function doAutoLogin(isBackgroundRefresh = false) {
 
         // 1. If running inside Android/iOS Native App, scrape DIRECTLY on the device!
         // This uses the student's Indian ISP / mobile SIM IP, completely bypassing cloud datacenter filters!
-        const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+        const capHttp = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) || window.CapacitorHttp;
+        const isNative = !!(capHttp || (window.Capacitor && (window.Capacitor.isNativePlatform?.() || window.Capacitor.getPlatform?.() === 'android' || window.Capacitor.getPlatform?.() === 'ios')));
         if (isNative) {
             console.log('[Auth] Attempting direct native on-device scraping...');
             const nativeRes = await doNativePortalLogin(rawId, pass, captchaVal);

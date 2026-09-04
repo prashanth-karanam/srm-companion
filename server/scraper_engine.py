@@ -161,7 +161,9 @@ async def login_and_scrape_all(
             cf_name = sec_config.get('captchaFieldName')
             rd = sec_config.get('randomDelimiter', '')
             if cf_name:
-                trap_payload = f"4{rd}12"
+                created_at = session_data.get('created_at', time.time())
+                elapsed_sec = max(1, int(time.time() - created_at))
+                trap_payload = f"{elapsed_sec}{rd}5"
                 login_payload[cf_name] = base64.b64encode(trap_payload.encode('utf-8')).decode('utf-8')
 
         now_ms = int(time.time() * 1000)
