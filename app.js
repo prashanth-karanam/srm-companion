@@ -4541,7 +4541,7 @@ function initAI() {
     });
 }
 
-function getAcademicContextForAI() {
+function getAcademicContextForAI(userPrompt = '') {
     const p = (typeof SRM_DATA !== 'undefined' && (SRM_DATA.studentProfile || SRM_DATA.profile)) ? (SRM_DATA.studentProfile || SRM_DATA.profile) : {};
     const studentName = getStudentDisplayName();
     const rawId = (localStorage.getItem('srm_auto_id') || '').toLowerCase();
@@ -4552,43 +4552,47 @@ function getAcademicContextForAI() {
     const roomNo = localStorage.getItem('srm_user_room_no') || p.room || '';
     const day = currentDayOrder || 'Day 1';
 
-    // Day 1 to Day 5 Full Matrix
-    let allScheduleText = '';
-    const allDays = ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'];
-    allDays.forEach(d => {
-        const list = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[d]) || [];
-        if (list.length > 0) {
-            allScheduleText += `\n[${d}]:\n`;
-            list.forEach(c => {
-                if (c.type !== 'Free' && c.title && c.title !== 'Free Period') {
-                    allScheduleText += `  - Hour ${c.hour} (${c.time || 'Period ' + c.hour}): ${c.title} (${c.code || ''}) at ${c.venue || 'Classroom'} | Faculty: ${c.faculty || 'Dept'}\n`;
-                }
-            });
-        }
-    });
+    const q = (userPrompt || '').toLowerCase();
+    const isAttendanceQuery = q.includes('attendance') || q.includes('bunk') || q.includes('margin') || q.includes('miss') || q.includes('75%');
+    const isScheduleQuery = q.includes('class') || q.includes('schedule') || q.includes('timetable') || q.includes('today') || q.includes('tomorrow') || q.includes('period') || q.includes('day order') || q.includes('venue') || q.includes('room');
+    const isAdvisorQuery = q.includes('advisor') || q.includes('fa') || q.includes('faculty') || q.includes('hostel') || q.includes('fee');
 
-    // Attendance
+    // 1. Lightweight context for general programming, math, and conversational queries
+    if (userPrompt && !isAttendanceQuery && !isScheduleQuery && !isAdvisorQuery) {
+        return `Student: ${studentName}, Program: ${program}, Section: ${section || 'General'}. Provide concise, direct solutions with complete working code or step-by-step math derivations.`;
+    }
+
+    // 2. Focused schedule context
+    let allScheduleText = '';
+    if (isScheduleQuery) {
+        let targetDays = [day];
+        for (let i = 1; i <= 5; i++) {
+            if (q.includes('day ' + i)) targetDays = ['Day ' + i];
+        }
+        targetDays.forEach(d => {
+            const list = (SRM_DATA.dayOrderSchedule && SRM_DATA.dayOrderSchedule[d]) || [];
+            if (list.length > 0) {
+                allScheduleText += `\n[${d}]:\n`;
+                list.forEach(c => {
+                    if (c.type !== 'Free' && c.title && c.title !== 'Free Period') {
+                        allScheduleText += `  - Hour ${c.hour} (${c.time || 'Period ' + c.hour}): ${c.title} (${c.code || ''}) at ${c.venue || 'Classroom'} | Faculty: ${c.faculty || 'Dept'}\n`;
+                    }
+                });
+            }
+        });
+    }
+
+    // 3. Focused attendance context
     let attText = '';
-    if (portalAttendance && portalAttendance.length > 0) {
+    if (isAttendanceQuery && portalAttendance && portalAttendance.length > 0) {
         attText = portalAttendance.map(a => {
             const con = parseInt(a.conducted || 0, 10);
             const att = parseInt(a.attended || 0, 10);
             const pct = con > 0 ? parseFloat(a.percentage || ((att / con) * 100).toFixed(1)) : 100;
             const bunks = con > 0 ? Math.max(0, Math.floor((4 * att - 3 * con) / 3)) : 0;
             const needed = con > 0 ? Math.max(0, 3 * con - 4 * att) : 0;
-            return `- ${a.title || a.subject || a.code} [${a.code}]: ${pct}% (${att}/${con} hrs). Safe Bunks: ${bunks} hrs. Required to reach 75%: ${needed} hrs.`;
+            return `- ${a.title || a.subject || a.code} [${a.code}]: ${pct}% (${att}/${con} hrs). Safe Bunks: ${bunks} hrs. Required for 75%: ${needed} hrs.`;
         }).join('\n');
-    }
-
-    // Pinned and Active Notices
-    let noticesText = '';
-    const pinnedNotices = announcementsData.filter(a => a.isPinned);
-    const activeNotices = announcementsData.slice(0, 6);
-    if (pinnedNotices.length > 0) {
-        noticesText += `\nPINNED NOTICES (High Priority):\n` + pinnedNotices.map(n => `- [PINNED] ${n.title}: ${n.detail} (${n.venue || ''})`).join('\n');
-    }
-    if (activeNotices.length > 0) {
-        noticesText += `\nRECENT CLASS NOTICES:\n` + activeNotices.map(n => `- ${n.title}: ${n.detail}`).join('\n');
     }
 
     const fa = localStorage.getItem('srm_advisor') || p.facultyAdvisor || 'Faculty Advisor';
@@ -4597,41 +4601,11 @@ function getAcademicContextForAI() {
     const fees = p.feeDetails || {};
 
     return `You are the personal 360° AI Academic Copilot for SRMIST student ${studentName}.
-
-=== STUDENT PROFILE & ACADEMIC PASSPORT ===
-- Full Name: ${studentName}
-- SRM NetID: ${rawId || 'Student'}
-- Registration Number: ${regNo || '-'}
-- Student ID: ${p.studentId || rawId || '-'}
-- Program: ${program}
-- Section: ${section ? 'Section ' + section : 'General'}
-- Batch: ${p.batch || '-'}
-- Semester: ${p.semester || 'I SEMESTER'}
-- Faculty Advisor (FA): ${fa}
-- Academic Advisor: ${aa}
-- Base Classroom: ${orient}
-- Hostel Allocation: ${hostelBlock}${roomNo ? ', Room ' + roomNo : ''}
-- Tuition & Fee Status: ${fees.tuition || 'Paid (Cleared)'}
-- Personal KYC: Blood Group: ${p.bloodGroup || '-'}, ABC ID: ${p.abcId || '-'}
-
-=== CURRENT CAMPUS CONTEXT ===
-- Active Day Order Today: ${day}
-- Today's Date: ${new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-
-=== COMPLETE TIMETABLE MATRIX (Day 1 - Day 5) ===
-${allScheduleText || 'No schedule loaded.'}
-
-=== LIVE ATTENDANCE & SAFE BUNK MARGINS ===
-${attText || '100% attendance.'}
-
-=== CLASS NOTICES & WHATSAPP EXTRACTS ===
-${noticesText || 'No notices active.'}
-
-=== INSTRUCTIONS ===
-1. You have complete 360° knowledge about this student (${studentName}). Always answer questions about their name, Faculty Advisor (${fa}), hostel (${hostelBlock}${roomNo ? ' Room ' + roomNo : ''}), section (${section}), fees, timetable, attendance, and coursework with 100% precision.
-2. When asked about classes or timetable for today, tomorrow, or any Day Order (Day 1 - Day 5), provide the exact list of hours, subjects, venues, and faculty.
-3. When asked about attendance or bunks, use the exact percentages and safe bunk calculations from above.
-4. When asked about coursework, provide high-yield explanations, full working code, or math derivations with formulas.`;
+Student Profile: ${studentName}, NetID: ${rawId}, Section: ${section}, Program: ${program}, FA: ${fa}, Room: ${hostelBlock} ${roomNo}
+Current Day Order: ${day}
+${allScheduleText ? '\nSchedule:\n' + allScheduleText : ''}
+${attText ? '\nAttendance & Bunks:\n' + attText : ''}
+Instructions: Provide precise, direct answers with numbers, code, or formulas.`;
 }
 
 // Native Reverse-Engineered Inception AI Client (Mercury Protocol)
@@ -4719,7 +4693,7 @@ async function askAcademicAI(userPrompt) {
         }
     }
 
-    const systemPrompt = getAcademicContextForAI();
+    const systemPrompt = getAcademicContextForAI(userPrompt);
 
     // 2. High-Speed Sovereign Edge AI Gateway
     try {

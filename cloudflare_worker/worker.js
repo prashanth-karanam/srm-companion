@@ -71,6 +71,8 @@ export default {
           });
         }
 
+        let lastErr = "";
+        let modelUsed = "";
         if (env.AI) {
           const systemInstruction = `You are OneSRM Academic Copilot, a high-intelligence academic companion designed specifically for SRMIST students.
 Provide direct, accurate, comprehensive, and crisp solutions.
@@ -82,12 +84,14 @@ When answering:
 - Maintain a direct, supportive, and highly technical tone without mentioning any external model names or providers.
 ${studentCtx ? "\n[Student Profile & Telemetry Context]:\n" + (typeof studentCtx === "string" ? studentCtx : JSON.stringify(studentCtx)) : ""}`;
 
-          const candidateModels = [
-            "@cf/mistral/mistral-7b-instruct-v0.2",
-            "@cf/qwen/qwen1.5-7b-chat",
-            "@cf/qwen/qwen1.5-14b-chat-awq",
-            "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"
-          ];
+          const candidateModels = (body && body.model_override)
+            ? [body.model_override]
+            : [
+                "@cf/meta/llama-3.2-3b-instruct",
+                "@cf/meta/llama-3.2-1b-instruct",
+                "@cf/meta/llama-3.1-8b-instruct",
+                "@cf/mistral/mistral-7b-instruct-v0.2"
+              ];
 
           let replyText = "";
           for (const model of candidateModels) {
@@ -97,16 +101,18 @@ ${studentCtx ? "\n[Student Profile & Telemetry Context]:\n" + (typeof studentCtx
                   { role: "system", content: systemInstruction },
                   { role: "user", content: userMsg }
                 ],
-                max_tokens: 600,
+                max_tokens: 450,
                 temperature: 0.3
               });
 
               const text = (aiRes && (aiRes.response || aiRes.text || (typeof aiRes === "string" ? aiRes : ""))) || "";
               if (text && text.trim()) {
                 replyText = text.trim();
+                modelUsed = model;
                 break;
               }
-            } catch (_) {
+            } catch (err) {
+              lastErr = err.message || String(err);
               continue;
             }
           }
@@ -120,13 +126,14 @@ ${studentCtx ? "\n[Student Profile & Telemetry Context]:\n" + (typeof studentCtx
               success: true,
               reply: replyText,
               provider: "OneSRM Autonomous Copilot",
+              modelUsed: modelUsed,
               timestamp: Math.floor(Date.now() / 1000)
             }), {
               headers: { "Content-Type": "application/json", ...CORS_HEADERS }
             });
           }
         }
-        throw new Error("Edge intelligence cluster currently unavailable");
+        throw new Error(lastErr || "Edge intelligence cluster currently unavailable");
       } catch (err) {
         return new Response(JSON.stringify({
           success: false,
