@@ -59,66 +59,90 @@ var SRM_DATA = {
         }
     },
     courses: [
-    {
-        "code": "26CSE1002J",
-        "title": "PROGRAMMING FOR PROBLEM SOLVING",
-        "credits": 3,
-        "theorySlot": "E",
-        "labSlot": "P13, P14",
-        "theoryFaculty": "SHEEBA RACHEL S [ 103905 ]",
-        "labFaculty": "SHEEBA RACHEL S [ 103905 ]",
-        "theoryLocation": "UB 6th Floor, Room 601 (Annexure-II)",
-        "labLocation": "Tech Park 3rd Floor, Integrative Programming Lab (Annexure-I)",
-        "category": "Discipline Courses (B/E/C)"
-    },
-    {
-        "code": "26MAB1001T",
-        "title": "CALCULUS AND LINEAR ALGEBRA",
-        "credits": 4,
-        "theorySlot": "B",
-        "labSlot": null,
-        "theoryFaculty": "DR. N. PARVATHI [ 100429 ]",
-        "labFaculty": null,
-        "theoryLocation": "UB 6th Floor, Room 601 (Annexure-II)",
-        "labLocation": null,
-        "category": "Discipline Courses (B/E/C)"
-    },
-    {
-        "code": "26CYB1002J",
-        "title": "CHEMISTRY FOR COMPUTER SCIENCE",
-        "credits": 4,
-        "theorySlot": "D",
-        "labSlot": "P7, P8",
-        "theoryFaculty": "DR. JOHN BOSCO A [ 101727 ]",
-        "labFaculty": "DR. JOHN BOSCO A [ 101727 ]",
-        "theoryLocation": "UB 6th Floor, Room 601 (Annexure-II)",
-        "labLocation": "Chemistry Lab Block 1st Floor, Chemistry Laboratory 4 (Annexure-II)",
-        "category": "Discipline Courses (B/E/C)"
-    },
-    {
-        "code": "26BTB1001T",
-        "title": "INTRODUCTION TO COMPUTATIONAL BIOLOGY",
-        "credits": 2,
-        "theorySlot": "A",
-        "labSlot": null,
-        "theoryFaculty": "SIVASANKARESWARI E [ 104015 ]",
-        "labFaculty": null,
-        "theoryLocation": "UB 6th Floor, Room 601 (Annexure-II)",
-        "labLocation": null,
-        "category": "Discipline Courses (B/E/C)"
-    },
-    {
-        "code": "26MEE1001L",
-        "title": "WORKSHOP PRACTICE",
-        "credits": 2,
-        "theorySlot": null,
-        "labSlot": "P27, P28, P29, P30",
-        "theoryFaculty": null,
-        "labFaculty": "DR. MANOJ SAMSON R [ 101614 ]",
-        "theoryLocation": null,
-        "labLocation": "Basic Engineering Lab (BEL) Ground Floor, Sheet Metal Lab (Annexure-I)",
-        "category": "Discipline Courses (B/E/C)"
-    }
+        {
+                "code": "26CSE1002J",
+                "title": "PROGRAMMING FOR PROBLEM SOLVING",
+                "credits": 3,
+                "theorySlot": "P31, P32",
+                "labSlot": "P31, P32",
+                "theoryFaculty": "DR. ARUN PRASATH S",
+                "labFaculty": "DR. ARUN PRASATH S",
+                "theoryLocation": "7th Floor - UB712 Blockchain Laboratory",
+                "labLocation": "7th Floor - UB712 Blockchain Laboratory",
+                "category": "Core Professional Engineering"
+        },
+        {
+                "code": "26MAB1001T",
+                "title": "CALCULUS AND LINEAR ALGEBRA",
+                "credits": 4,
+                "theorySlot": "D",
+                "labSlot": null,
+                "theoryFaculty": "DR. N. PARVATHI",
+                "labFaculty": null,
+                "theoryLocation": "UB 9th Floor, Room 901",
+                "labLocation": null,
+                "category": "Basic Sciences"
+        },
+        {
+                "code": "26CYB1002J",
+                "title": "CHEMISTRY FOR COMPUTER SCIENCE",
+                "credits": 4,
+                "theorySlot": "P29, P30",
+                "labSlot": "P29, P30",
+                "theoryFaculty": "DR. MIHIR GHOSH",
+                "labFaculty": "DR. MIHIR GHOSH",
+                "theoryLocation": "Ground Floor - CL-1C Chemistry Laboratory 3",
+                "labLocation": "Ground Floor - CL-1C Chemistry Laboratory 3",
+                "category": "Basic Sciences"
+        },
+        {
+                "code": "26BTB1001T",
+                "title": "INTRODUCTION TO COMPUTATIONAL BIOLOGY",
+                "credits": 2,
+                "theorySlot": "G",
+                "labSlot": null,
+                "theoryFaculty": "SAILESHWAR M",
+                "labFaculty": null,
+                "theoryLocation": "UB 9th Floor, Room 901",
+                "labLocation": null,
+                "category": "Basic Sciences"
+        },
+        {
+                "code": "26MEE1001L",
+                "title": "WORKSHOP PRACTICE",
+                "credits": 2,
+                "theorySlot": null,
+                "labSlot": "P47, P48, P49, P50",
+                "theoryFaculty": null,
+                "labFaculty": "DR. ANUSUYA K",
+                "theoryLocation": null,
+                "labLocation": "Ground Floor - BEL101 Sheet Metal Lab",
+                "category": "Engineering Sciences / Practical"
+        },
+        {
+                "code": "26LCA1006J",
+                "title": "KOREAN",
+                "credits": 2,
+                "theorySlot": "X",
+                "labSlot": null,
+                "theoryFaculty": "JASMINE ANKITA BAGE",
+                "labFaculty": null,
+                "theoryLocation": "Main Campus",
+                "labLocation": null,
+                "category": "Foreign Language Elective"
+        },
+        {
+                "code": "26GNN1007J",
+                "title": "PHYSICAL AND MENTAL HEALTH USING YOGA",
+                "credits": 1,
+                "theorySlot": "P7, P8, P9",
+                "labSlot": null,
+                "theoryFaculty": "DR. DHANALAKSHMI K",
+                "labFaculty": null,
+                "theoryLocation": "6th Floor - 601 AVVAI HALL",
+                "labLocation": null,
+                "category": "Mandatory Non-Credit / Health Course"
+        }
 ],
     timeSlots: [
     {
@@ -1911,14 +1935,14 @@ var SRM_DATA = {
     },
     hostelMess: {
         "hostels": [
+                "M Block Mess (Girls Dining Hall)",
                 "Sannasi Mess (Boys Dining Hall)",
                 "Paari Block Mess (Boys Dining Hall)",
                 "Kaveri Block Mess (Boys Dining Hall)",
                 "Agasthya Mess (Boys Dining Hall)",
-                "M Block Mess (Girls Dining Hall)",
                 "Senbagam Mess (Girls Dining Hall)",
                 "Kalpana Chawla Mess (Girls Dining Hall)"
-        ],
+],
         "timings": {
                 "breakfast": {
                         "label": "Breakfast",
@@ -1992,50 +2016,50 @@ var SRM_DATA = {
                 },
                 "M_BLOCK_GIRLS": {
                         "Monday": {
-                                "breakfast": "Ven Pongal, Tiffin Sambar, Coconut Chutney, Medu Vada, Masala Omelette / Whole Wheat Bread Omelette (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
-                                "lunch": "Methi Chappathi, Black Channa Masala, Lemon Rice / Tamarind Rice, Dal Makhani, Steamed Rice, Arachivitta Sambar, Keerai Kootu, Lemon Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Pickle, Buttermilk, Payasam",
-                                "snacks": "Samosa / Veg Roll (1 No), Milk, Rose Milk / Badam Milk, Tea, Whole Wheat Bread, Butter, Jam",
-                                "dinner": "Bagara Pulao / Idli, Raita / Chutney, Chappathi, Paneer Gravy / Baby Corn Gravy, Steamed Rice, Pumpkin Sambar, Dal Rasam, Buttermilk, Pickle, Green Salad, Milk, Andhra Chicken Curry (120 gm) / Flavored Gravy (Non-Veg)"
+                                                "breakfast": "Sweet, Bread, Butter, Jam, Idly, Sambar, Spl Chutney, Poori, Aloo Dal Masala, Tea / Coffee / Milk, Boiled Egg, Banana",
+                                                "lunch": "Chapathi, Chana Salna, Jeera Pulao, Steamed Rice, Masala Sambar, Bagara Dal, Mix Veg Usal, Lemon Rasam, Pickle, Butter Milk, Fryums",
+                                                "snacks": "Pav Baji, Tea / Coffee",
+                                                "dinner": "Punjabi Paratha, Rajma Masala Wala, Dosa, Idly Podi, Oil, Special Chutney, Steamed Rice, Vegetable Dal, Rasam, Pickle, Fryums, Veg Salad, Chicken Gravy"
                         },
                         "Tuesday": {
-                                "breakfast": "Veg Rava Kitchadi / Vegetable Upma, Vegetable Sambar, Red Chilli Coconut Chutney, Poori, Aloo Masala, Boiled Egg (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Seasonal Fruits",
-                                "lunch": "Chappathi, White Peas Curry, Jeera Pulao, Yellow Dal, Steamed Rice, Karakuzhambu / More Kuzhambu, Poriyal, Tomato Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Pickle, Buttermilk",
-                                "snacks": "Pani Puri (5 Nos) / Pav Bhaji (1 No), Milk, Filter Coffee, Ginger Tea, Whole Wheat Bread, Butter, Jam",
-                                "dinner": "Onion Uthappam, Kara Chutney, Millet Chappathi, Dal Pancharathan, Idli Podi, Oil, Steamed Rice, Radish Sambar, Lemon Rasam, Buttermilk, Pickle, Green Salad, Milk, Egg Gravy / Flavored Gravy (Non-Veg)"
+                                                "breakfast": "Bread, Butter, Jam, Ghee Pongu, Vadai, Veg Kosthu, Coconut Chutney, Puttu, Mint Chutney, Tea / Coffee / Milk, Masala Omlet",
+                                                "lunch": "Sweet, Poori, Muttar Mughlai, Variety Rice, Steamed Rice, Sambar, Dal Lauki, Tomato Rasam, Curd, 65 / Bhindi Jaipuri, Fryums, Butter Milk, Pickle",
+                                                "snacks": "Boiled Peanut / Black Channa Sundal, Tea / Coffee",
+                                                "dinner": "Chapathi, Mix Veg Khurma, Fried Rice / Noodles, Manchurian Dry / Crispy Vegetable, Steamed Rice, Rasam, Dal Fry, Pickle, Fryums, Veg Salad, Milk, Spl Fruits, Chicken Gravy"
                         },
                         "Wednesday": {
-                                "breakfast": "Idiyappam, Vada Curry / Veg Stew, Poha, Mint Chutney, Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
-                                "lunch": "Beetroot Chappathi, Rajma Masala, Sambar Rice / Tomato Rice, Dal Fry, Steamed Rice, Urulai Kara Curry, Garlic Rasam, Curd Rice, Paruppu Podi, Ghee, Oil, Appalam, Pickle, Buttermilk",
-                                "snacks": "Cream Bun (1 No) / Osmania Biscuits (2 Nos), Milk, Filter Coffee, Masala Tea, Whole Wheat Bread, Butter, Jam",
-                                "dinner": "Kal Dosa, Tomato Chutney, Chappathi, Paneer Butter Masala, Steamed Rice, Masala Sambar, Pineapple Rasam, Buttermilk, Pickle, Green Salad, Milk, Chicken Curry (120 gm Chicken) / Chicken Biryani with Boiled Egg (1 No) (Non-Veg)"
+                                                "breakfast": "Bread, Butter, Jam, Dosa, Idly, Podi, Oil, Arachuvitta Sambar, Chutney, Coconut Aloo Poriyal, Milagai, Tea / Coffee / Milk, Banana",
+                                                "lunch": "Butter Roti, Aloo Palak, Peas Pulao, Dal Makhni, Kadi Vegetable, Steamed Rice, Drumstick Bhajiya Sambar, Ghee Rasam, Pickle, Fryums, Butter Milk",
+                                                "snacks": "Veg Puff / Sweet Bun, Juice (or) Tea / Coffee",
+                                                "dinner": "Chapathi, Steamed Rice, Dal Tadka, Chicken Masala (Non-Veg) / Paneer Butter Masala, Rasam, Pickle, Fryums, Veg Salad, Milk, Ice Cream, Chicken Gravy"
                         },
                         "Thursday": {
-                                "breakfast": "Idli, Udipi Sambar, Groundnut Chutney, Medu Vada, Corn Flakes, Idli Podi, Oil, Boiled Egg (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
-                                "lunch": "Chappathi, Vegetable Sabji, Ghee Pulao, Tomato Dal Fry, Steamed Rice, Vathakuzhambu, Vegetable Kootu, Ginger Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Pickle, Buttermilk, Boondi",
-                                "snacks": "Masala Sundal (100 ml), Milk, Filter Coffee, Cardamom Tea, Whole Wheat Bread, Butter, Jam",
-                                "dinner": "Uthappam, Vegetable Chutney, Chole Poori (Atta), Channa Masala, Steamed Rice, Kathirikai Sambar, Tomato Rasam, Buttermilk, Pickle, Green Salad, Milk, Arun Choco Bar / Cone Ice Cream (1 No), Chettinadu Mutton Kuzhambu / Flavored Gravy (Non-Veg)"
+                                                "breakfast": "Bread, Butter, Jam, Chapathi, Aloo Meal Maker Masala, Veg Salna, Kootu, Coconut Chutney, Boiled Egg, Tea / Coffee / Milk",
+                                                "lunch": "Luchi, Kashmiri Dum Aloo, Onion Pulao, Steamed Rice, Moong Dal Fry, Kadi Pakoda, Pepper Rasam, Poriyal, Pickle, Fryums, Butter Milk",
+                                                "snacks": "Parle-G Pori / Chunda Naka, Tea / Coffee",
+                                                "dinner": "Ghee Pulao / Kaju Pulao (Basmati Rice), Chapathi, Muttar Paneer, Steamed Rice, Dal Tadka, Rasam, Aloo Peanut Masala, Fryums, Pickle, Veg Salad, Milk, Ice Cream, Mutton Gravy"
                         },
                         "Friday": {
-                                "breakfast": "Kal Dosa, Tiffin Sambar, Onion Tomato Chutney, Semiya Bath, Idli Podi, Oil, Omelette / Whole Wheat Bread Omelette (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
-                                "lunch": "Chappathi, Aloo Palak, Peas Pulao, Dal Tadka, Steamed Rice, Sambar, Beetroot Poriyal, Puli Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Appalam, Pickle, Buttermilk",
-                                "snacks": "Murukku (2 Nos), Milk, Mint Lemon Juice, Tea, Whole Wheat Bread, Butter, Jam",
-                                "dinner": "Pasta (Bechamel / Arrabbiata) / Veg Schezwan Fried Rice (Manchurian), Soup, Chappathi, Kadai Vegetables, Steamed Rice, Mix Veg Sambar, Pepper Rasam, Buttermilk, Pickle, Green Salad, Milk, Chicken Gravy / Flavored Gravy (Non-Veg)"
+                                                "breakfast": "Bread, Butter, Jam, Podi Dosa, Idly Podi, Oil, Chilli Sambar, Chutney, Chapathi, Matar Masala, Tea / Coffee / Milk, Boiled Egg, Banana",
+                                                "lunch": "Dry Jamun / Bread Halwa, Veg Biryani, Mix Raitha, Bisibeleabath, Gourd Rice, Steamed Rice, Tomato Rasam, Aloo Gobi Aadrak, Moongdal Tadka, Pickle, Fryums",
+                                                "snacks": "Bonda / Vada, Chutney, Tea / Coffee",
+                                                "dinner": "Chole Bhatura, Steamed Rice, Tomato Dal, Sambar, Rava Upma, Coconut Chutney, Rasam, Cabbage Poriyal, Pickle, Fryums, Veg Salad, Milk, Chicken Gravy"
                         },
                         "Saturday": {
-                                "breakfast": "Idli, Chinna Vengaya Sambar, Groundnut Chutney, Aloo Paratha, Curd (100 ml), Idli Podi, Oil, Boiled Egg (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
-                                "lunch": "Chappathi, Meal Maker Kuruma, Vegetable Dum Biryani, Raita, Steamed Rice, Keerai Kootu, Jeera Rasam, Curd Rice, Paruppu Podi, Ghee, Oil, Frymes, Pickle, Buttermilk, Gulab Jamun / Badusha",
-                                "snacks": "Eggless Cake / Brownie (1 No), Milk, Filter Coffee, Masala Tea, Whole Wheat Bread, Butter, Jam",
-                                "dinner": "Kal Dosa, Chutney, Parotta, Veg Salna, Idli Podi, Oil, Steamed Rice, Karaikudi Sambar, Garlic Rasam, Buttermilk, Pickle, Green Salad, Milk, Chicken Gravy / Flavored Gravy (Non-Veg)"
+                                                "breakfast": "Bread, Butter, Jam, Chapathi, Veg Khurma, Idiyappam (Lemon or Masala), Coconut Chutney, Tea / Coffee / Milk, Boiled Egg",
+                                                "lunch": "Poori, Dal Aloo Masala, Veg Pulao, Steamed Rice, Punjabi Dal Tadka, Bhindi Do Pyasa, Kara Kuzhambu, Kootu, Jeera Rasam, Pickle, Special Fryums, Butter Milk",
+                                                "snacks": "Cake (or) Brownie, Tea / Coffee",
+                                                "dinner": "Sweet, Malabar Chapathi, Meal Maker Curry, Mix Vegetable Sabji, Steamed Rice, Dal Makhni, Idly, Idly Podi, Oil, Chutney, Tiffin Sambar, Rasam, Pickle, Fryums, Veg Salad, Special Fruit, Fried Fish"
                         },
                         "Sunday": {
-                                "breakfast": "Chole Bhature, Chenna Masala, Kal Dosa, Coconut Chutney, Sambar, Idli Podi, Oil, Egg Kal Dosa (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
-                                "lunch": "Chappathi, Chicken Curry (with 120 gm Chicken) / Paneer Gravy, Steamed Rice, Chettinad Sambar, Beetroot Poriyal, Dal Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Pickle, Buttermilk, Arun Cup Ice Cream (1 No)",
-                                "snacks": "Channa Sundal (White / Black - 100 ml), Milk, Filter Coffee, Ginger Tea, Whole Wheat Bread, Butter, Jam",
-                                "dinner": "Dal Kitchadi, Chappathi, Veg Kuruma, Poriyal, Steamed Rice, Kadamba Sambar, Rasam, Buttermilk, Pickle, Green Salad, Milk, Chicken Gravy / Flavored Gravy (Non-Veg)"
+                                                "breakfast": "Bread, Butter, Jam, Onion Poori, Veg Upma, Coconut Chutney, Tea / Coffee / Milk",
+                                                "lunch": "Chapathi, Chicken (Pepper / Kadai), Paneer Butter Masala (or) Kadai Paneer, Dal Dhadka, Mint Pulao, Steamed Rice, Garlic Rasam, Poriyal, Pickle, Fryums, Butter Milk, Chicken Gravy",
+                                                "snacks": "Corn / Bajji, Chutney, Tea / Coffee",
+                                                "dinner": "Variety Sikku Paratha, Curd, Sambar, Rice, Haleem, Moong Dal Tadka, Kathamba Sambar, Poriyal, Rasam, Pickle, Fryums, Veg Salad, Milk, Ice Cream, Chicken Gravy"
                         }
-                }
+}
         },
-        "specialNotes": "Official SRMIST Student Mess Menu & Campus Web Live Roster (Effective 2026-2027). Sannasi (Boys) & M-Block (Girls) verified.",
+        "specialNotes": "MONTHLY TWICE (or) 4th WEDNESDAY WE PROVIDE CHICKEN BIRYANI & PANNEER BIRYANI\nNote: Special Items (Chicken, Egg, Fruit, Ice Cream, Sweet) are limited & menu is planned based on seasonal vegetable availability.",
         "weeklyMenu": {
                 "Monday": {
                         "breakfast": "Ven Pongal, Tiffin Sambar, Coconut Chutney, Medu Vada, Masala Omelette / Whole Wheat Bread Omelette (1 No), Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",

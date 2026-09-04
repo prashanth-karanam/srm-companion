@@ -1,4 +1,4 @@
-var APP_BUILD_VERSION = window.APP_BUILD_VERSION || '2.5.2';
+var APP_BUILD_VERSION = window.APP_BUILD_VERSION || '2.5.3';
 window.APP_BUILD_VERSION = APP_BUILD_VERSION;
 var _liveCookies = '';
 var _secConfig = {};
@@ -1433,9 +1433,9 @@ function applyStudentProfile(rawRes, rawId, pass = '', isBackgroundRefresh = fal
                     credits: isLab ? 2 : 4,
                     theorySlot: isLab ? null : 'A',
                     labSlot: isLab ? 'P1, P2' : null,
-                    theoryFaculty: a.faculty || 'Faculty Incharge',
+                    theoryFaculty: a.faculty || (res.timetable && Object.values(res.timetable).flat().find(x => x && x.code === code && x.faculty && x.faculty !== '-')?.faculty) || 'Faculty Assigned',
                     labFaculty: isLab ? (a.faculty || 'Lab Instructor') : null,
-                    theoryLocation: 'UB 601',
+                    theoryLocation: (res.timetable && Object.values(res.timetable).flat().find(x => x && x.code === code && x.venue && x.venue !== '-')?.venue) || 'Classroom / Venue',
                     labLocation: isLab ? 'Tech Park Lab' : null,
                     category: isLab ? 'Practical / Laboratory' : 'Discipline Core'
                 };
@@ -2137,9 +2137,9 @@ function _initApp() {
                             credits: isLab ? 2 : 4,
                             theorySlot: isLab ? null : 'A',
                             labSlot: isLab ? 'P1, P2' : null,
-                            theoryFaculty: a.faculty || 'Faculty Incharge',
+                            theoryFaculty: a.faculty || (res.timetable && Object.values(res.timetable).flat().find(x => x && x.code === code && x.faculty && x.faculty !== '-')?.faculty) || 'Faculty Assigned',
                             labFaculty: isLab ? (a.faculty || 'Lab Instructor') : null,
-                            theoryLocation: 'UB 601',
+                            theoryLocation: (res.timetable && Object.values(res.timetable).flat().find(x => x && x.code === code && x.venue && x.venue !== '-')?.venue) || 'Classroom / Venue',
                             labLocation: isLab ? 'Tech Park Lab' : null,
                             category: isLab ? 'Practical / Laboratory' : 'Discipline Core'
                         };
@@ -2407,9 +2407,9 @@ async function syncWithBackend() {
                             credits: isLab ? 2 : 4,
                             theorySlot: isLab ? null : 'A',
                             labSlot: isLab ? 'P1, P2' : null,
-                            theoryFaculty: a.faculty || 'Faculty Incharge',
+                            theoryFaculty: a.faculty || (res.timetable && Object.values(res.timetable).flat().find(x => x && x.code === code && x.faculty && x.faculty !== '-')?.faculty) || 'Faculty Assigned',
                             labFaculty: isLab ? (a.faculty || 'Lab Instructor') : null,
-                            theoryLocation: 'UB 601',
+                            theoryLocation: (res.timetable && Object.values(res.timetable).flat().find(x => x && x.code === code && x.venue && x.venue !== '-')?.venue) || 'Classroom / Venue',
                             labLocation: isLab ? 'Tech Park Lab' : null,
                             category: isLab ? 'Practical / Laboratory' : 'Discipline Core'
                         };
@@ -2592,15 +2592,23 @@ function scheduleClassBoundaryCheck() {
 // Note: Attendance is rendered by the complete telemetry suite with What-If simulations
 
 function showSubjectAttDetail(code) {
+    let p = null;
+    if (SRM_DATA && SRM_DATA.dayOrderSchedule) {
+        for (const d of ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5']) {
+            const found = (SRM_DATA.dayOrderSchedule[d] || []).find(x => x && x.code === code);
+            if (found) { p = found; break; }
+        }
+    }
     const course = (portalAttendance && portalAttendance.find(a => a.code === code)) || (SRM_DATA.courses && SRM_DATA.courses.find(c => c.code === code));
-    if (course) {
+    if (course || p) {
         showClassSummaryModal({
-            title: course.title || course.subject || course.code,
-            code: course.code,
-            type: course.type || 'Theory',
-            venue: course.theoryLocation || course.labLocation || 'UB 601',
-            faculty: course.theoryFaculty || course.labFaculty || 'Faculty Assigned',
-            hour: 1
+            title: (p && p.title) || (course && (course.title || course.subject)) || code,
+            code: code,
+            type: (p && p.type) || (course && course.type) || 'Theory',
+            venue: (p && p.venue && p.venue !== '-') ? p.venue : ((course && (course.theoryLocation || course.labLocation)) || 'Classroom / Venue'),
+            faculty: (p && p.faculty && p.faculty !== '-' && p.faculty !== 'Faculty TBA') ? p.faculty : ((course && (course.theoryFaculty || course.labFaculty)) || 'Faculty Assigned'),
+            slot: (p && p.slot && p.slot !== '-') ? p.slot : ((course && (course.theorySlot || course.labSlot)) || 'Regular'),
+            hour: (p && p.hour) || 1
         }, currentDayOrder);
     }
 }
@@ -3298,7 +3306,7 @@ function showClassSummaryModal(p, dayOrder) {
     const needed = isUnconducted ? 0 : Math.max(0, 3 * con - 4 * att);
     const bunkable = isUnconducted ? 0 : Math.max(0, Math.floor((4 * att - 3 * con) / 3));
 
-    // 3. Find all weekly slots for this course
+    // 3. Find all weekly slots for this course from SRM_DATA.dayOrderSchedule
     const weeklySlots = [];
     ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'].forEach(d => {
         const daySched = SRM_DATA.dayOrderSchedule[d] || [];
@@ -3311,8 +3319,9 @@ function showClassSummaryModal(p, dayOrder) {
                     day: d,
                     hour: slotP.hour || (idx + 1),
                     time: `${timeSlot.start} - ${timeSlot.end}`,
-                    venue: slotP.venue || 'UB 601',
-                    type: slotP.type || 'Theory'
+                    venue: (slotP.venue && slotP.venue !== '-') ? slotP.venue : (p.venue || 'Classroom'),
+                    faculty: (slotP.faculty && slotP.faculty !== '-') ? slotP.faculty : (p.faculty || ''),
+                    type: slotP.type || p.type || 'Theory'
                 });
             }
         });
@@ -3325,6 +3334,7 @@ function showClassSummaryModal(p, dayOrder) {
     if (isFree) {
         modal.innerHTML = `
             <div class="class-modal-sheet">
+                <div style="width:36px;height:4px;border-radius:2px;background:var(--card-border-strong);margin:0 auto 12px;"></div>
                 <div class="class-modal-header">
                     <div>
                         <span style="font-size:0.7rem;background:var(--card-elevated);color:var(--blue);border:var(--border-width) solid var(--card-border);padding:3px 8px;border-radius:var(--radius-sm);font-weight:800;font-family:var(--font-mono);">FREE PERIOD</span>
@@ -3337,7 +3347,7 @@ function showClassSummaryModal(p, dayOrder) {
                 <div class="class-modal-body">
                     <div class="class-info-card">
                         <div style="font-size:0.85rem;color:var(--text-sub);line-height:1.5;">
-                            This is a scheduled free period on <b>${dayOrder || 'Selected Day'}</b> (Hour ${p.hour}). No attendance is taken during this hour.
+                            This is a scheduled free period on <b>${escapeHtml(dayOrder || 'Selected Day')}</b> (Hour ${p.hour}). No attendance is taken during this hour.
                         </div>
                     </div>
                     <div style="display:flex;flex-direction:column;gap:8px;">
@@ -3354,13 +3364,30 @@ function showClassSummaryModal(p, dayOrder) {
             </div>
         `;
     } else {
-        const title = courseMeta.title || p.title || 'Course Details';
-        const code = courseMeta.code || p.code || 'COURSE';
-        const credits = courseMeta.credits ? `${courseMeta.credits} Credits` : (p.type === 'Lab' ? '2 Credits' : '4 Credits');
-        const category = courseMeta.category || 'Discipline Course (B/E/C)';
-        const faculty = courseMeta.theoryFaculty || courseMeta.labFaculty || p.faculty || 'Faculty Assigned';
-        const venue = courseMeta.theoryLocation || courseMeta.labLocation || p.venue || 'Classroom / Lab Venue';
-        const slot = courseMeta.theorySlot || courseMeta.labSlot || p.slot || 'Regular';
+        const title = p.title || courseMeta.title || 'Course Details';
+        const code = p.code || courseMeta.code || 'COURSE';
+        const type = p.type || courseMeta.type || (code.endsWith('L') ? 'Lab' : 'Theory');
+        const credits = courseMeta.credits ? `${courseMeta.credits} Credits` : (type === 'Lab' ? '2 Credits' : (code.startsWith('26GNN') ? '1 Credit' : (code.startsWith('26LCA') ? '2 Credits' : (code.startsWith('26BTB') ? '2 Credits' : '4 Credits'))));
+        const category = courseMeta.category && !courseMeta.category.includes('Discipline Core') ? courseMeta.category : (
+            code.startsWith('26GNN') ? 'Mandatory Non-Credit / Health Course' :
+            code.startsWith('26LCA') ? 'Foreign Language Elective' :
+            code.startsWith('26MEE') ? 'Engineering Sciences / Practical' :
+            code.startsWith('26CSE') ? 'Core Professional Engineering' :
+            courseMeta.category || 'Discipline Course (B/E/C)'
+        );
+
+        // Prioritize actual scheduled faculty and venue from the clicked period!
+        const faculty = (p.faculty && p.faculty !== '-' && p.faculty !== 'Faculty TBA' && p.faculty !== 'Faculty Incharge')
+            ? p.faculty
+            : (courseMeta.theoryFaculty && courseMeta.theoryFaculty !== 'Faculty Incharge' ? courseMeta.theoryFaculty : (courseMeta.labFaculty || p.faculty || 'Faculty Assigned'));
+
+        const venue = (p.venue && p.venue !== '-' && p.venue !== 'UB 601')
+            ? p.venue
+            : (courseMeta.theoryLocation && courseMeta.theoryLocation !== 'UB 601' ? courseMeta.theoryLocation : (courseMeta.labLocation || p.venue || 'Classroom / Lab Venue'));
+
+        const slot = (p.slot && p.slot !== '-' && p.slot !== 'A')
+            ? p.slot
+            : (courseMeta.theorySlot && courseMeta.theorySlot !== 'A' ? courseMeta.theorySlot : (courseMeta.labSlot || p.slot || 'Regular'));
 
         const weeklyHtml = weeklySlots.length > 0 ? weeklySlots.map(w => `
             <div class="class-slot-row">
@@ -3374,14 +3401,15 @@ function showClassSummaryModal(p, dayOrder) {
 
         modal.innerHTML = `
             <div class="class-modal-sheet">
+                <div style="width:36px;height:4px;border-radius:2px;background:var(--card-border-strong);margin:0 auto 12px;"></div>
                 <div class="class-modal-header">
                     <div style="min-width:0;flex:1;">
                         <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">
                             <span class="class-code-tag">${code}</span>
-                            <span class="class-type-tag">${p.type || 'Theory'} &bull; ${credits}</span>
+                            <span class="class-type-tag">${type} &bull; ${credits}</span>
                         </div>
-                        <h3 style="font-size:1.15rem;font-weight:900;color:var(--text-main);line-height:1.25;letter-spacing:-0.02em;">${title}</h3>
-                        <p style="font-size:0.72rem;color:var(--text-muted);font-family:var(--font-mono);margin-top:3px;">${category} &bull; Slot: ${slot}</p>
+                        <h3 style="font-size:1.15rem;font-weight:900;color:var(--text-main);line-height:1.25;letter-spacing:-0.02em;">${escapeHtml(title)}</h3>
+                        <p style="font-size:0.72rem;color:var(--text-muted);font-family:var(--font-mono);margin-top:3px;">${escapeHtml(category)} &bull; Slot: ${escapeHtml(slot)}</p>
                     </div>
                     <button class="class-modal-close" onclick="closeClassSummaryModal()" title="Close">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -3414,7 +3442,7 @@ function showClassSummaryModal(p, dayOrder) {
                                 </div>
                                 <div class="modal-info-content">
                                     <div class="modal-info-label">Course Instructor</div>
-                                    <div class="modal-info-val">${faculty}</div>
+                                    <div class="modal-info-val">${escapeHtml(faculty)}</div>
                                 </div>
                             </div>
                             <div class="modal-info-row">
@@ -3423,7 +3451,7 @@ function showClassSummaryModal(p, dayOrder) {
                                 </div>
                                 <div class="modal-info-content">
                                     <div class="modal-info-label">Classroom / Venue</div>
-                                    <div class="modal-info-val">${venue}</div>
+                                    <div class="modal-info-val">${escapeHtml(venue)}</div>
                                 </div>
                             </div>
                         </div>
@@ -3441,11 +3469,11 @@ function showClassSummaryModal(p, dayOrder) {
 
                     <!-- AI Academic Copilot 1-Tap Actions -->
                     <div style="display:flex;flex-direction:column;gap:8px;">
-                        <button class="modal-ai-btn" onclick="closeClassSummaryModal(); openAITabWithPrompt('Summarize all key formulas, important concepts, and core theorems for ${title} (${code}) with clear examples')">
+                        <button class="modal-ai-btn" onclick="closeClassSummaryModal(); openAITabWithPrompt('Summarize all key formulas, important concepts, and core theorems for ${escapeHtml(title)} (${escapeHtml(code)}) with clear examples')">
                             <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
                             <span>Explain Key Concepts & Formulas (AI)</span>
                         </button>
-                        <button class="modal-ai-btn" onclick="closeClassSummaryModal(); openAITabWithPrompt('Generate 5 high-yield exam practice questions and step-by-step solutions for ${title} (${code})')">
+                        <button class="modal-ai-btn" onclick="closeClassSummaryModal(); openAITabWithPrompt('Generate 5 high-yield exam practice questions and step-by-step solutions for ${escapeHtml(title)} (${escapeHtml(code)})')">
                             <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
                             <span>Generate 5 Practice Exam Questions (AI)</span>
                         </button>
@@ -4087,14 +4115,8 @@ ${parsed.cleaned.slice(0, 40).join('\n') || 'No recent messages provided.'}
 
     let reply = '';
     try {
-        const res = await apiFetch('/api/chat', {
-            method: 'POST',
-            body: JSON.stringify({
-                message: promptText,
-                context: getAcademicContextForAI()
-            })
-        });
-        reply = (res && res.reply) ? res.reply : generateOfflineWADigest(parsed, groupName);
+        const inceptionReply = await queryInceptionAI(promptText, getAcademicContextForAI());
+        reply = inceptionReply || generateOfflineWADigest(parsed, groupName);
     } catch (_) {
         reply = generateOfflineWADigest(parsed, groupName);
     }
@@ -4721,51 +4743,21 @@ async function askAcademicAI(userPrompt) {
 
     const systemPrompt = getAcademicContextForAI(userPrompt);
 
-    // 1. High-Performance Inception Labs Mercury dLLM Engine (Native On-Device OkHttp)
+    // 1. High-Performance Inception Labs Mercury dLLM Engine (Native On-Device OkHttp) - 100% Free & Fast
     try {
-        const inceptionReply = await queryInceptionAI(userPrompt, systemPrompt);
+        let inceptionReply = await queryInceptionAI(userPrompt, systemPrompt);
+        if (!inceptionReply) {
+            // Auto retry once if initial session expired
+            inceptionReply = await queryInceptionAI(userPrompt, systemPrompt);
+        }
         if (inceptionReply) {
             return inceptionReply;
         }
-    } catch (_) {}
+    } catch (err) {
+        console.warn('[AcademicCopilot] Inception AI query encountered issue:', err);
+    }
 
-    // 2. High-Speed Sovereign Edge AI Gateway
-    try {
-        const edgeRes = await nativeHttp('https://srm-edge-gateway.srm-companion.workers.dev/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: userPrompt, context: systemPrompt }),
-            timeout: 35000
-        });
-        if (edgeRes && edgeRes.ok) {
-            const edgeData = await edgeRes.json();
-            if (edgeData && edgeData.success && edgeData.reply) {
-                const rep = edgeData.reply.trim();
-                if (rep && !rep.includes('I am your **OneSRM Academic Copilot**') && !rep.includes('I am your **SRM Academic Copilot**')) {
-                    return rep;
-                }
-            }
-        }
-    } catch (_) {}
-
-    // 3. Fallback to Serverless Backend Gateway (/api/chat)
-    try {
-        const res = await nativeHttp('https://srmbackend.vercel.app/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: userPrompt, context: systemPrompt }),
-            timeout: 30000
-        });
-        if (res && res.ok) {
-            const data = await res.json();
-            const reply = (data && data.reply && typeof data.reply === 'string') ? data.reply.trim() : '';
-            if (reply && !reply.includes('I am your **SRM Academic Copilot**') && !reply.includes('I am your **OneSRM Academic Copilot**')) {
-                return reply;
-            }
-        }
-    } catch (_) {}
-
-    // 4. Fallback to sovereign offline solvers if completely offline
+    // 2. Sovereign Local Offline Academic Solver (Zero third-party Cloudflare APIs or fees)
     return getOfflineAIResponse(userPrompt);
 }
 
@@ -5395,7 +5387,7 @@ function renderCalendarList() {
 
 // ─── Super-App: Interactive Bunk Stepper & Radial HUD ────────────────────────
 var bunkSimDeltas = {}; // e.g. { '26CSE1002J': { attendDelta: 0, bunkDelta: 0 } }
-var selectedMessHostel = (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile && SRM_DATA.profile.hostel) || localStorage.getItem('srm_user_hostel_block') || "Adhiyaman";
+var selectedMessHostel = localStorage.getItem("srm_selected_mess_hostel") || (typeof SRM_DATA !== "undefined" && SRM_DATA.profile && SRM_DATA.profile.hostel) || "M Block Mess (Girls Dining Hall)";
 var selectedMessDay = "";
 var activeClubsCategory = "All";
 var userGradeSelections = {}; // e.g. { '26CSE1002J': 10, '26MAB1001T': 9 }

@@ -1,13 +1,19 @@
 {
-  "version": "2.5.2",
-  "build": 1044,
+  "version": "2.5.3",
+  "build": 1045,
   "releaseDate": "2026-09-03",
   "minAppVersion": "1.0.0",
   "hotReload": true,
   "bundleUrl": "https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/app.js",
   "gateways": [
-    { "name": "Cluster Alpha (Vercel Production Edge)", "url": "https://srmbackend.vercel.app" },
-    { "name": "Cluster Cloudflare (Global Edge Shield)", "url": "https://srm-edge-gateway.srm-companion.workers.dev" }
+    {
+      "name": "Cluster Alpha (Vercel Production Edge)",
+      "url": "https://srmbackend.vercel.app"
+    },
+    {
+      "name": "Cluster Cloudflare (Global Edge Shield)",
+      "url": "https://srm-edge-gateway.srm-companion.workers.dev"
+    }
   ],
   "features": [
     "100% Reliable Native SRM Login & Bi-Directional Session Cookies",
