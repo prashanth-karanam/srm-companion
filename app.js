@@ -4637,33 +4637,45 @@ ${noticesText || 'No notices active.'}
 async function askAcademicAI(userPrompt) {
     const q = (userPrompt || '').toLowerCase().trim();
 
-    // 1. Prioritize live on-device student telemetry for attendance, bunking, schedule & campus queries
-    const isPersonalQuery = 
-        q.includes('bunk') || q.includes('attendance') || q.includes('absent') || 
-        q.includes('safe') || q.includes('margin') || q.includes('percentage') ||
-        q.includes('tomorrow') || q.includes('today') || q.includes('schedule') ||
-        q.includes('timetable') || q.includes('advisor') || q.includes('fa') ||
-        q.includes('hostel') || q.includes('mess') || q.includes('food');
+    // 1. Fast local check for pure static telemetry queries
+    const isPureOfflineCommand = 
+        q === 'advisor' || q === 'who is my fa' || q === 'fa' ||
+        q === 'fees' || q === 'fee status';
 
-    if (isPersonalQuery) {
+    if (isPureOfflineCommand) {
         const localAns = getOfflineAIResponse(userPrompt);
         if (localAns && !localAns.includes('Sync your portal in the')) {
             return localAns;
         }
     }
 
-    // 2. Fall back to Cloud AI Gateway for open-ended programming, derivations, and concepts
+    // 2. Query High-Intelligence Edge Copilot (Meta LLaMA 3.3 70B on Cloudflare & Vercel)
     const systemPrompt = getAcademicContextForAI();
-    try {
-        const res = await apiFetch('/api/chat', {
-            method: 'POST',
-            body: JSON.stringify({ message: userPrompt, context: systemPrompt })
-        });
-        if (res && res.reply && res.reply.trim()) {
-            return res.reply;
-        }
-    } catch (_) {}
+    const chatEndpoints = [
+        'https://srm-edge-gateway.srm-companion.workers.dev/api/chat',
+        'https://srmbackend.vercel.app/api/chat'
+    ];
 
+    for (const ep of chatEndpoints) {
+        try {
+            const res = await nativeHttp(ep, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: userPrompt, context: systemPrompt }),
+                timeout: 16000
+            });
+            if (res && res.ok) {
+                const data = await res.json();
+                const reply = (data && data.reply && typeof data.reply === 'string') ? data.reply.trim() : '';
+                // Reject obsolete canned greetings if any
+                if (reply && !reply.includes('I am your **SRM Academic Copilot**. I can help you with:')) {
+                    return reply;
+                }
+            }
+        } catch (_) {}
+    }
+
+    // 3. Fallback to sovereign offline solvers if completely offline
     return getOfflineAIResponse(userPrompt);
 }
 

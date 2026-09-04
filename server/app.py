@@ -451,44 +451,53 @@ async def ai_chat(req: ChatRequest):
         if sdata:
             ctx = f"Student Profile: {sdata.get('name')}, NetID: {sid}, Section: {sdata.get('section')}, Timetable: {json.dumps(sdata.get('timetable'))}, Attendance: {json.dumps(sdata.get('attendance'))}"
 
-    # ─── 1. Optional External LLM Integration (Groq / Gemini / OpenAI) ───────
+    # ─── 1. External LLM Integration (Cloudflare LLaMA 3.3 / Groq / Gemini / OpenAI) ─
     groq_key = os.environ.get("GROQ_API_KEY")
     gemini_key = os.environ.get("GEMINI_API_KEY")
     openai_key = os.environ.get("OPENAI_API_KEY")
 
-    if groq_key or openai_key or gemini_key:
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                if groq_key:
-                    llm_res = await client.post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
-                        json={
-                            "model": "llama-3.1-8b-instant",
-                            "messages": [
-                                {"role": "system", "content": f"You are the official SRM Academic Copilot. Use this student context when answering:\n{ctx}"},
-                                {"role": "user", "content": msg}
-                            ],
-                            "temperature": 0.3
-                        }
-                    )
-                    if llm_res.status_code == 200:
-                        reply = llm_res.json()["choices"][0]["message"]["content"]
-                        return make_ai_reply(reply, "Groq LLaMA-3.1")
-                elif gemini_key:
-                    gem_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
-                    gem_res = await client.post(
-                        gem_url,
-                        headers={"Content-Type": "application/json"},
-                        json={
-                            "contents": [{"parts": [{"text": f"System Context: {ctx}\n\nStudent Query: {msg}"}]}]
-                        }
-                    )
-                    if gem_res.status_code == 200:
-                        reply = gem_res.json()["candidates"][0]["content"]["parts"][0]["text"]
-                        return make_ai_reply(reply, "Google Gemini 1.5 Flash")
-        except Exception as e:
-            logger.warning(f"External LLM call failed, falling back to sovereign academic solver: {e}")
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            if groq_key:
+                llm_res = await client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": "llama-3.1-8b-instant",
+                        "messages": [
+                            {"role": "system", "content": f"You are the official SRM Academic Copilot. Use this student context when answering:\n{ctx}"},
+                            {"role": "user", "content": msg}
+                        ],
+                        "temperature": 0.3
+                    }
+                )
+                if llm_res.status_code == 200:
+                    reply = llm_res.json()["choices"][0]["message"]["content"]
+                    return make_ai_reply(reply, "Groq LLaMA-3.1")
+            elif gemini_key:
+                gem_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+                gem_res = await client.post(
+                    gem_url,
+                    headers={"Content-Type": "application/json"},
+                    json={
+                        "contents": [{"parts": [{"text": f"System Context: {ctx}\n\nStudent Query: {msg}"}]}]
+                    }
+                )
+                if gem_res.status_code == 200:
+                    reply = gem_res.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    return make_ai_reply(reply, "Google Gemini 1.5 Flash")
+            else:
+                # Direct Cloudflare Edge AI (Meta LLaMA 3.3 70B Serverless Edge)
+                cf_res = await client.post(
+                    "https://srm-edge-gateway.srm-companion.workers.dev/api/chat",
+                    json={"message": msg, "context": ctx}
+                )
+                if cf_res.status_code == 200:
+                    cf_data = cf_res.json()
+                    if cf_data.get("success") and cf_data.get("reply"):
+                        return make_ai_reply(cf_data["reply"], cf_data.get("provider", "OneSRM Edge AI"))
+    except Exception as e:
+        logger.warning(f"External LLM call failed, falling back to sovereign academic solver: {e}")
 
     # ─── 2. Sovereign Academic Reasoning & Telemetry Solver ──────────────────
     # A. Timetable, Schedule & Today / Tomorrow Queries

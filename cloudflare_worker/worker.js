@@ -47,6 +47,106 @@ export default {
       );
     }
 
+    // 2.2. Native Edge AI Copilot (Powered by Meta LLaMA 3.1 on Cloudflare Edge)
+    if (url.pathname === "/api/chat" && request.method === "POST") {
+      try {
+        const reqClone = request.clone();
+        let body;
+        try {
+          body = await reqClone.json();
+        } catch (parseErr) {
+          return new Response(JSON.stringify({ success: false, error: "Invalid JSON: " + parseErr.message }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+          });
+        }
+
+        const userMsg = (body.message || "").trim();
+        const studentCtx = body.context || "";
+        
+        if (!userMsg) {
+          return new Response(JSON.stringify({ success: false, error: "Empty message" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+          });
+        }
+
+        if (env.AI) {
+          const systemInstruction = `You are the official SRM Academic Copilot for SRMIST students (OneSRM).
+You are an intelligent, empathetic, and highly capable academic companion.
+When answering:
+- Address the user's exact question accurately, thoroughly, and directly.
+- If asking about timetable, attendance, or bunks, incorporate their student context if provided.
+- If asking about coding, calculus, science, or exams, give clear, clean explanations with code or LaTeX formulas.
+- Maintain a friendly, supportive, and crisp tone. Do NOT repeat generic greetings or canned menus unless asked.
+${studentCtx ? "\n[Student Academic Context]:\n" + (typeof studentCtx === "string" ? studentCtx : JSON.stringify(studentCtx)) : ""}`;
+
+          const candidateModels = [
+            "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "@cf/meta/llama-3.2-3b-instruct",
+            "@cf/meta/llama-3.2-1b-instruct",
+            "@cf/meta/llama-3-8b-instruct",
+            "@cf/google/gemma-2-9b-it",
+            "@cf/mistral/mistral-7b-instruct-v0.2"
+          ];
+
+          let replyText = "";
+          let usedModel = "";
+          let lastErr = null;
+
+          for (const model of candidateModels) {
+            try {
+              const aiRes = await env.AI.run(model, {
+                messages: [
+                  { role: "system", content: systemInstruction },
+                  { role: "user", content: userMsg }
+                ],
+                max_tokens: 1024,
+                temperature: 0.5
+              });
+
+              const text = (aiRes && (aiRes.response || aiRes.text || (typeof aiRes === "string" ? aiRes : ""))) || "";
+              if (text.trim()) {
+                replyText = text.trim();
+                usedModel = model;
+                break;
+              }
+            } catch (err) {
+              lastErr = err;
+              continue;
+            }
+          }
+
+          if (replyText) {
+            return new Response(JSON.stringify({
+              success: true,
+              reply: replyText,
+              provider: `Cloudflare Edge AI (${usedModel.replace('@cf/', '')})`,
+              timestamp: Math.floor(Date.now() / 1000)
+            }), {
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+            });
+          }
+
+          throw lastErr || new Error("All edge AI candidate models failed");
+        } else {
+          return new Response(JSON.stringify({ success: false, error: "env.AI binding missing" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+          });
+        }
+      } catch (aiErr) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: "Workers AI Error: " + (aiErr.message || String(aiErr)),
+          stack: aiErr.stack
+        }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+        });
+      }
+    }
+
     // 2.5. Persistent Multi-User Student Storage (Cloudflare KV)
     if (url.pathname === "/api/sync-student" && request.method === "POST") {
       try {
