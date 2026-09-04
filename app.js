@@ -4721,13 +4721,32 @@ async function askAcademicAI(userPrompt) {
 
     const systemPrompt = getAcademicContextForAI();
 
-    // 2. Direct Reverse-Engineered Inception AI (Mercury Engine)
+    // 2. High-Speed Sovereign Edge AI Gateway
+    try {
+        const edgeRes = await nativeHttp('https://srm-edge-gateway.srm-companion.workers.dev/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: userPrompt, context: systemPrompt }),
+            timeout: 15000
+        });
+        if (edgeRes && edgeRes.ok) {
+            const edgeData = await edgeRes.json();
+            if (edgeData && edgeData.success && edgeData.reply) {
+                const rep = edgeData.reply.trim();
+                if (rep && !rep.includes('I am your **OneSRM Academic Copilot**') && !rep.includes('I am your **SRM Academic Copilot**')) {
+                    return rep;
+                }
+            }
+        }
+    } catch (_) {}
+
+    // 3. Fallback to Direct Reverse-Engineered Inception AI
     const directReply = await queryInceptionAI(userPrompt, systemPrompt);
     if (directReply) {
         return directReply;
     }
 
-    // 3. Fallback to Serverless Inception Gateway (/api/chat)
+    // 4. Fallback to Serverless Backend Gateway (/api/chat)
     try {
         const res = await nativeHttp('https://srmbackend.vercel.app/api/chat', {
             method: 'POST',
@@ -4738,13 +4757,13 @@ async function askAcademicAI(userPrompt) {
         if (res && res.ok) {
             const data = await res.json();
             const reply = (data && data.reply && typeof data.reply === 'string') ? data.reply.trim() : '';
-            if (reply && !reply.includes('I am your **SRM Academic Copilot**. I can help you with:')) {
+            if (reply && !reply.includes('I am your **SRM Academic Copilot**') && !reply.includes('I am your **OneSRM Academic Copilot**')) {
                 return reply;
             }
         }
     } catch (_) {}
 
-    // 4. Fallback to sovereign offline solvers if completely offline
+    // 5. Fallback to sovereign offline solvers if completely offline
     return getOfflineAIResponse(userPrompt);
 }
 

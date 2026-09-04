@@ -526,11 +526,31 @@ async def ai_chat(req: ChatRequest):
         if sdata:
             ctx = f"Student Profile: {sdata.get('name')}, NetID: {sid}, Section: {sdata.get('section')}, Timetable: {json.dumps(sdata.get('timetable'))}, Attendance: {json.dumps(sdata.get('attendance'))}"
 
-    # ─── 1. Reverse-Engineered Inception AI Protocol Emulation ───────────────
+    # ─── 1. OneSRM Sovereign Autonomous Edge AI ──────────────────────────────
+    try:
+        async with httpx.AsyncClient(timeout=14.0) as client:
+            edge_res = await client.post(
+                "https://srm-edge-gateway.srm-companion.workers.dev/api/chat",
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                },
+                json={"message": msg, "context": ctx}
+            )
+            if edge_res.status_code == 200:
+                edge_data = edge_res.json()
+                if edge_data.get("success") and edge_data.get("reply"):
+                    reply = edge_data["reply"].strip()
+                    reply = re.sub(r"\b(Meta|LLaMA|Facebook)\b", "OneSRM", reply, flags=re.IGNORECASE)
+                    return make_ai_reply(reply, "OneSRM Autonomous Copilot")
+    except Exception as e:
+        logger.warning(f"Edge AI query failed: {e}")
+
+    # ─── 2. Reverse-Engineered Inception AI Protocol Emulation ───────────────
     try:
         reply = await inception_ai.query(msg, ctx)
         if reply:
-            return make_ai_reply(reply, "Inception AI (Mercury Deep-Reasoning)")
+            return make_ai_reply(reply, "Inception AI (Mercury Engine)")
     except Exception as e:
         logger.warning(f"Inception AI query failed, trying external providers: {e}")
 

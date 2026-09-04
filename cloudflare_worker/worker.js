@@ -47,7 +47,7 @@ export default {
       );
     }
 
-    // 2.2. Reverse-Engineered Inception AI Copilot (Mercury Engine)
+    // 2.2. OneSRM Autonomous Academic Copilot (High-Yield Neural Solver)
     if (url.pathname === "/api/chat" && request.method === "POST") {
       try {
         const reqClone = request.clone();
@@ -71,91 +71,66 @@ export default {
           });
         }
 
-        const sessionHeaders = {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-          "Accept": "application/json, text/plain, */*",
-          "Referer": "https://chat.inceptionlabs.ai/"
-        };
+        if (env.AI) {
+          const systemInstruction = `You are OneSRM Academic Copilot, a high-intelligence academic companion designed specifically for SRMIST students.
+Provide direct, accurate, comprehensive, and crisp solutions.
+When answering:
+- Address the student's exact prompt with precision.
+- Include full, working code (with comments) for programming queries (C/Python/Java).
+- Include clear step-by-step mathematical derivations or LaTeX formulas for Calculus/Math queries.
+- Incorporate the student's profile, schedule, and attendance if provided in the context.
+- Maintain a direct, supportive, and highly technical tone without mentioning any external model names or providers.
+${studentCtx ? "\n[Student Profile & Telemetry Context]:\n" + (typeof studentCtx === "string" ? studentCtx : JSON.stringify(studentCtx)) : ""}`;
 
-        const sessRes = await fetch("https://chat.inceptionlabs.ai/api/session", { headers: sessionHeaders });
-        if (!sessRes.ok) {
-          const errBody = await sessRes.text();
-          throw new Error(`Inception session fetch failed (HTTP ${sessRes.status}): ${errBody.slice(0, 150)}`);
-        }
-        const sessData = await sessRes.json();
-        const token = sessData.token;
+          const candidateModels = [
+            "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+            "@cf/mistral/mistral-7b-instruct-v0.2",
+            "@cf/qwen/qwen1.5-14b-chat-awq",
+            "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+          ];
 
-        const chatHeaders = {
-          "Content-Type": "application/json",
-          "Accept": "text/event-stream",
-          "x-session-token": token,
-          "Referer": "https://chat.inceptionlabs.ai/",
-          "Origin": "https://chat.inceptionlabs.ai",
-          "User-Agent": sessionHeaders["User-Agent"]
-        };
-
-        const messages = [];
-        if (studentCtx) {
-          messages.push({
-            id: "ctx-" + Date.now(),
-            role: "system",
-            parts: [{ type: "text", text: `You are the official SRM Academic Copilot for SRMIST students (OneSRM).\n${typeof studentCtx === "string" ? studentCtx : JSON.stringify(studentCtx)}` }]
-          });
-        }
-        messages.push({
-          id: "msg-" + Date.now(),
-          role: "user",
-          parts: [{ type: "text", text: userMsg }]
-        });
-
-        const chatRes = await fetch("https://chat.inceptionlabs.ai/api/chat", {
-          method: "POST",
-          headers: chatHeaders,
-          body: JSON.stringify({
-            messages,
-            reasoningEffort: "medium",
-            webSearchEnabled: false,
-            voiceMode: false,
-            timezone: "Asia/Kolkata"
-          })
-        });
-
-        if (!chatRes.ok) {
-          const chatErr = await chatRes.text();
-          throw new Error(`Inception chat fetch failed (HTTP ${chatRes.status}): ${chatErr.slice(0, 150)}`);
-        }
-
-        const streamText = await chatRes.text();
-        let reply = "";
-        for (const line of streamText.split("\n")) {
-          const trimmed = line.trim();
-          if (trimmed.startsWith("data:")) {
-            const raw = trimmed.slice(5).trim();
-            if (raw === "[DONE]") break;
+          let replyText = "";
+          for (const model of candidateModels) {
             try {
-              const ev = JSON.parse(raw);
-              if (ev.type === "text-delta" && ev.delta) {
-                reply += ev.delta;
+              const aiRes = await env.AI.run(model, {
+                messages: [
+                  { role: "system", content: systemInstruction },
+                  { role: "user", content: userMsg }
+                ],
+                max_tokens: 1200,
+                temperature: 0.4
+              });
+
+              const text = (aiRes && (aiRes.response || aiRes.text || (typeof aiRes === "string" ? aiRes : ""))) || "";
+              if (text && text.trim()) {
+                replyText = text.trim();
+                break;
               }
-            } catch (_) {}
+            } catch (_) {
+              continue;
+            }
+          }
+
+          if (replyText) {
+            // Strip any internal reasoning tags from deepseek r1
+            replyText = replyText.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+            // Completely scrub any Meta / LLaMA / third-party mentions
+            replyText = replyText.replace(/\b(Meta|LLaMA|Facebook)\b/gi, "OneSRM");
+            return new Response(JSON.stringify({
+              success: true,
+              reply: replyText,
+              provider: "OneSRM Autonomous Copilot",
+              timestamp: Math.floor(Date.now() / 1000)
+            }), {
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+            });
           }
         }
-
-        if (reply.trim()) {
-          return new Response(JSON.stringify({
-            success: true,
-            reply: reply.trim(),
-            provider: "Inception AI (Mercury Deep-Reasoning)",
-            timestamp: Math.floor(Date.now() / 1000)
-          }), {
-            headers: { "Content-Type": "application/json", ...CORS_HEADERS }
-          });
-        }
-        throw new Error("No text received from Inception AI stream");
+        throw new Error("Edge intelligence cluster currently unavailable");
       } catch (err) {
         return new Response(JSON.stringify({
           success: false,
-          error: "Inception AI Error: " + (err.message || String(err))
+          error: "OneSRM Copilot Error: " + (err.message || String(err))
         }), {
           status: 500,
           headers: { "Content-Type": "application/json", ...CORS_HEADERS }
