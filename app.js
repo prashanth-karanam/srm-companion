@@ -1902,6 +1902,7 @@ window.openSyncQRCodeModal = openSyncQRCodeModal;
 
 // ─── App Initialization (0ms Instant Load from Cache) ─────────────────────────
 function bootApp() {
+    if (typeof initNativeWAScraper === 'function') initNativeWAScraper();
     initTheme();
     const curBuildVer = typeof APP_BUILD_VERSION !== 'undefined' ? APP_BUILD_VERSION : '2.4.1';
     try {
@@ -2183,6 +2184,7 @@ function _initApp() {
     updateLiveHUD();
     renderPassportHub();
     initP2PMesh();
+    initNativeWAScraper();
 
     // Attach interactive Day Order switcher to Island Pill
     const pill = document.getElementById('island-pill');
@@ -3154,8 +3156,9 @@ function renderDaySchedule(day) {
                 const slotInfo = SRM_DATA.timeSlots.find(s => s.hour === p.hour) || SRM_DATA.timeSlots[p.hour - 1] || { start: `H${p.hour}`, end: '', label: `Hour ${p.hour}` };
                 const shortVenue = formatShortVenue(p.venue);
                 const facultyName = p.faculty && p.faculty !== '-' ? p.faculty : 'Faculty TBA';
+                const isCancelled = (typeof isClassCancelledToday === 'function') ? isClassCancelledToday(p, nextInfo.dayOrder) : false;
                 const rail = document.createElement('div');
-                rail.className = 'class-rail';
+                rail.className = 'class-rail' + (isCancelled ? ' is-cancelled' : '');
                 rail.onclick = () => showClassSummaryModal(p, nextInfo.dayOrder);
 
                 rail.innerHTML = `
@@ -3164,6 +3167,7 @@ function renderDaySchedule(day) {
                             <span class="class-time-slot-tag">${slotInfo.start} - ${slotInfo.end}</span>
                             <span class="class-code-tag">${p.code || 'COURSE'}</span>
                             ${p.type ? `<span class="class-type-tag">${p.type}</span>` : ''}
+                            ${isCancelled ? `<span class="class-type-tag" style="background:rgba(239,68,68,0.2);color:#ef4444;border:1px solid rgba(239,68,68,0.4);font-weight:800;">🚫 CANCELLED</span>` : ''}
                         </div>
                         <span class="room-tag-box" title="${escapeHtml(p.venue || 'UB 601')}">${escapeHtml(shortVenue)}</span>
                     </div>
@@ -3171,6 +3175,7 @@ function renderDaySchedule(day) {
                     <div class="class-meta">
                         <span>${escapeHtml(facultyName)}</span>
                         ${p.slot ? `<span>&bull; Slot ${p.slot}</span>` : ''}
+                        ${isCancelled ? `<span style="color:#ef4444;font-weight:800;">&bull; Cancelled on WhatsApp</span>` : ''}
                     </div>
                 `;
                 list.appendChild(rail);
@@ -3253,7 +3258,8 @@ function renderDaySchedule(day) {
             }
         }
 
-        rail.className = 'class-rail' + (isNow ? ' active-class' : '');
+        const isCancelled = (typeof isClassCancelledToday === 'function') ? isClassCancelledToday(p, targetDay) : false;
+        rail.className = 'class-rail' + (isNow ? ' active-class' : '') + (isCancelled ? ' is-cancelled' : '');
         rail.onclick = () => showClassSummaryModal(p, day);
 
         rail.innerHTML = `
@@ -3262,6 +3268,7 @@ function renderDaySchedule(day) {
                     <span class="class-time-slot-tag">${slotInfo.start} - ${slotInfo.end}</span>
                     <span class="class-code-tag">${p.code || 'COURSE'}</span>
                     ${p.type ? `<span class="class-type-tag">${p.type}</span>` : ''}
+                    ${isCancelled ? `<span class="class-type-tag" style="background:rgba(239,68,68,0.2);color:#ef4444;border:1px solid rgba(239,68,68,0.4);font-weight:800;">🚫 CANCELLED</span>` : ''}
                 </div>
                 <span class="room-tag-box ${isNow ? 'active' : ''}" title="${escapeHtml(p.venue || 'UB 601')}">${escapeHtml(shortVenue)}</span>
             </div>
@@ -3269,7 +3276,7 @@ function renderDaySchedule(day) {
             <div class="class-meta">
                 <span>${escapeHtml(facultyName)}</span>
                 ${p.slot ? `<span>&bull; Slot ${p.slot}</span>` : ''}
-                ${isNow ? `<span style="color:var(--accent);font-weight:800;">&bull; Active Class</span>` : ''}
+                ${isCancelled ? `<span style="color:#ef4444;font-weight:800;">&bull; Cancelled on WhatsApp</span>` : (isNow ? `<span style="color:var(--accent);font-weight:800;">&bull; Active Class</span>` : '')}
             </div>
         `;
         list.appendChild(rail);
@@ -3417,6 +3424,25 @@ function showClassSummaryModal(p, dayOrder) {
                 </div>
                 
                 <div class="class-modal-body">
+                    ${(function() {
+                        const cancelInfo = (typeof getCancellationInfoForClass === 'function') ? getCancellationInfoForClass(p) : null;
+                        if (!cancelInfo) return '';
+                        return `
+                            <div style="background:rgba(239,68,68,0.12);border:1.5px solid rgba(239,68,68,0.35);border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                                <div style="min-width:0;">
+                                    <div style="font-weight:800;font-size:0.82rem;color:#ef4444;display:flex;align-items:center;gap:6px;">
+                                        <span>🚫 Class Reported Cancelled</span>
+                                    </div>
+                                    <div style="font-size:0.72rem;color:var(--text-sub);margin-top:3px;line-height:1.4;">
+                                        "${escapeHtml(cancelInfo.reason || 'Notice on class WhatsApp group')}"
+                                    </div>
+                                </div>
+                                <button type="button" class="pill-btn" style="background:var(--card-elevated);color:var(--text-sub);font-size:0.72rem;padding:6px 10px;white-space:nowrap;border:1px solid var(--card-border);" onclick="unmarkClassCancelled('${escapeHtml(p.code || p.title)}'); showClassSummaryModal(p, '${escapeHtml(dayOrder || '')}');">
+                                    Unmark
+                                </button>
+                            </div>
+                        `;
+                    })()}
                     <!-- Live Attendance & Safe Margin Card -->
                     <div class="class-info-card" style="border-color:${danger ? 'var(--red-border)' : 'var(--accent-border)'};background:${danger ? 'var(--red-subtle)' : 'var(--card-elevated)'};">
                         <div class="class-info-card-header">
@@ -3813,18 +3839,29 @@ function parseWAChatLocally(chatText) {
 
     cleaned.forEach(m => {
         const low = m.toLowerCase();
+        let isAcademic = false;
         // 1. Detect Day Order / Holiday schedule overrides
         if (/day\s*[1-5]\s*(?:order|timetable|schedule)|follow\s*day\s*[1-5]|tomorrow\s*(?:is|will be)\s*day\s*[1-5]|holiday\s*(?:declared|tomorrow|today)/i.test(low)) {
             classified.dayOrderChanges.push(m);
-        } else if (/cancel|no class|postponed|leave today|optional hour|free hour|rescheduled/i.test(low)) {
+            isAcademic = true;
+        }
+        if (/cancel|no class|postponed|leave today|optional hour|free hour|rescheduled/i.test(low)) {
             classified.cancelled.push(m);
-        } else if (/submit|assignment|observation|record|deadline|homework|due date|submission/i.test(low)) {
+            isAcademic = true;
+        }
+        if (/submit|assignment|observation|record|deadline|homework|due date|submission/i.test(low)) {
             classified.assignments.push(m);
-        } else if (/exam|test|cla-1|cla-2|cla-3|quiz|marks|portion|syllabus|unit/i.test(low)) {
+            isAcademic = true;
+        }
+        if (/exam|test|cla-1|cla-2|cla-3|quiz|marks|portion|syllabus|unit/i.test(low)) {
             classified.exams.push(m);
-        } else if (/room|venue|ub\s*601|tp\s*|tech park|bel\s*|pink bldg|lab\s*|annexure/i.test(low)) {
+            isAcademic = true;
+        }
+        if (/room|venue|ub\s*601|tp\s*|tech park|bel\s*|pink bldg|lab\s*|annexure/i.test(low)) {
             classified.venues.push(m);
-        } else if (m.length > 15 && !/^(ok|thanks|lol|hah|gm|gn|yes|no|hi|hello|done|k)$/i.test(low)) {
+            isAcademic = true;
+        }
+        if (!isAcademic && m.length > 15 && !/^(ok|thanks|lol|hah|gm|gn|yes|no|hi|hello|done|k)$/i.test(low)) {
             classified.general.push(m);
         }
     });
@@ -4550,6 +4587,631 @@ async function saveSelectedWAGroups() {
 
     showAttendanceToast(`AI now monitoring ${groupIds.length} WhatsApp groups!`, 'success');
 }
+
+// ─── Autonomous Native Android WhatsApp Scraper & Academic Intelligence Pipeline ──
+var _cachedScrapedMessages = [];
+
+async function initNativeWAScraper() {
+    if (typeof window === 'undefined') return;
+
+    try {
+        const localSaved = localStorage.getItem('srm_wa_scraped_cache');
+        if (localSaved) {
+            _cachedScrapedMessages = JSON.parse(localSaved);
+        }
+    } catch (_) {}
+
+    const WAScraper = window.Capacitor?.Plugins?.WAScraper;
+
+    if (!WAScraper) {
+        updateWAScraperUI({ enabled: false, isWeb: true, messageCount: _cachedScrapedMessages.length });
+        renderRecentScrapedStream(_cachedScrapedMessages);
+        return;
+    }
+
+    try {
+        const status = await WAScraper.checkStatus();
+        window._nativeWAScraperStatus = status;
+        updateWAScraperUI(status);
+
+        if (!window._nativeWAMessageListenerAttached) {
+            window._nativeWAMessageListenerAttached = true;
+
+            WAScraper.addListener('onWAMessage', (msg) => {
+                console.log('[Native WA Scraper] ⚡ Intercepted WhatsApp Message:', msg);
+                handleIncomingNativeWAMessage(msg);
+            });
+
+            WAScraper.addListener('onWAShareReceived', (shareData) => {
+                console.log('[Native WA Scraper] 📥 Received Shared WhatsApp Content:', shareData);
+                handleIncomingWAShare(shareData);
+            });
+        }
+
+        const pending = await WAScraper.getPendingShare();
+        if (pending && pending.hasShare && pending.text) {
+            handleIncomingWAShare(pending);
+        }
+
+        const res = await WAScraper.getMessages();
+        if (res && Array.isArray(res.messages)) {
+            _cachedScrapedMessages = res.messages;
+            localStorage.setItem('srm_wa_scraped_cache', JSON.stringify(_cachedScrapedMessages));
+        }
+        renderRecentScrapedStream(_cachedScrapedMessages);
+    } catch (err) {
+        console.warn('[WA Scraper] initNativeWAScraper error:', err);
+    }
+}
+
+function updateWAScraperUI(status) {
+    const dot = document.getElementById('wa-status-dot');
+    const badge = document.getElementById('wa-live-badge');
+    const title = document.getElementById('wa-native-status-title');
+    const sub = document.getElementById('wa-native-status-sub');
+    const banner = document.getElementById('wa-native-status-banner');
+    const btn = document.getElementById('wa-native-action-btn');
+
+    if (!banner || !title) return;
+
+    if (status && status.enabled) {
+        if (dot) dot.style.background = '#10b981';
+        if (badge) {
+            badge.textContent = '🟢 24/7 Listening';
+            badge.style.background = 'rgba(16,185,129,0.15)';
+            badge.style.color = '#10b981';
+            badge.style.borderColor = 'rgba(16,185,129,0.3)';
+        }
+        banner.style.background = 'rgba(16,185,129,0.08)';
+        banner.style.borderColor = 'rgba(16,185,129,0.25)';
+        title.innerHTML = '<span>🟢 Autonomous Scraper Active</span>';
+        if (sub) sub.textContent = `Monitoring class groups in background for cancellations & schedule overrides (${status.messageCount || _cachedScrapedMessages.length} captured).`;
+        if (btn) {
+            btn.textContent = '⚙️ Settings';
+            btn.onclick = openWAScraperSettingsModal;
+        }
+    } else {
+        if (dot) dot.style.background = '#f59e0b';
+        if (badge) {
+            badge.textContent = '⚠️ Access Required';
+            badge.style.background = 'rgba(245,158,11,0.15)';
+            badge.style.color = '#f59e0b';
+            badge.style.borderColor = 'rgba(245,158,11,0.3)';
+        }
+        banner.style.background = 'rgba(245,158,11,0.08)';
+        banner.style.borderColor = 'rgba(245,158,11,0.3)';
+        title.innerHTML = '<span style="color:#f59e0b;">⚠️ Enable WhatsApp Auto-Scraper</span>';
+        if (sub) sub.textContent = 'Grant notification access to let OneSRM automatically catch cancelled lectures and Day Order shifts.';
+        if (btn) {
+            btn.textContent = 'Enable Access';
+            btn.onclick = requestNativeWAScraperPermission;
+        }
+    }
+}
+
+async function requestNativeWAScraperPermission() {
+    const WAScraper = window.Capacitor?.Plugins?.WAScraper;
+    if (WAScraper && WAScraper.openNotificationSettings) {
+        try {
+            await WAScraper.openNotificationSettings();
+            showAttendanceToast("Toggle 'OneSRM' ON in Notification Access settings to activate scraper!", "info");
+            let checks = 0;
+            const checkInterval = setInterval(async () => {
+                checks++;
+                if (checks > 15) clearInterval(checkInterval);
+                const s = await WAScraper.checkStatus();
+                if (s && s.enabled) {
+                    clearInterval(checkInterval);
+                    updateWAScraperUI(s);
+                    showAttendanceToast("🎉 24/7 WhatsApp Scraper Activated!", "success");
+                }
+            }, 2000);
+        } catch (e) {
+            showAttendanceToast("Could not open settings: " + e.message, "error");
+        }
+    } else {
+        showAttendanceToast("Notification scraper is available in the native Android app.", "info");
+    }
+}
+
+function handleIncomingNativeWAMessage(msg) {
+    if (!msg || !msg.text) return;
+
+    _cachedScrapedMessages.unshift(msg);
+    if (_cachedScrapedMessages.length > 100) _cachedScrapedMessages.pop();
+    try {
+        localStorage.setItem('srm_wa_scraped_cache', JSON.stringify(_cachedScrapedMessages));
+    } catch (_) {}
+
+    renderRecentScrapedStream(_cachedScrapedMessages);
+
+    const parsed = parseWAChatLocally(msg.text);
+
+    if (parsed.classified.dayOrderChanges.length > 0) {
+        handleDetectedScheduleOverride(parsed.classified.dayOrderChanges[0]);
+    }
+
+    if (parsed.classified.cancelled.length > 0) {
+        const cancelMsg = parsed.classified.cancelled[0];
+        const matched = findCourseMatchingText(cancelMsg);
+        markClassCancelledForToday(matched, cancelMsg, msg.sender, msg.group);
+
+        const notice = {
+            id: 'wa-cancel-' + Date.now(),
+            subject: matched ? matched.title : 'Lecture Cancellation',
+            code: matched ? matched.code : 'ALL',
+            category: 'Cancelled',
+            title: `🚫 Cancelled: ${matched ? matched.title : cancelMsg.substring(0, 50)}`,
+            detail: `Reported by ${msg.sender || 'CR'} in "${msg.group || 'Class Group'}":\n\n"${msg.text}"`,
+            faculty: msg.sender || 'Class CR / WhatsApp',
+            venue: msg.group || 'Class WhatsApp',
+            timestamp: 'Just Now',
+            createdAt: Date.now(),
+            isPinned: true
+        };
+        announcementsData.unshift(notice);
+        saveUserAnnouncements();
+        renderAnnouncements();
+        renderDaySchedule(selectedDay);
+        showAttendanceToast(`🚫 Cancelled Class: ${matched ? matched.title : 'Lecture'} flagged!`, 'warning');
+    }
+
+    if (parsed.classified.assignments.length > 0) {
+        const assignMsg = parsed.classified.assignments[0];
+        const matched = findCourseMatchingText(assignMsg);
+
+        const notice = {
+            id: 'wa-assign-' + Date.now(),
+            subject: matched ? matched.title : 'Assignment Deadline',
+            code: matched ? matched.code : 'ALL',
+            category: 'Assignment',
+            title: `📝 Assignment: ${assignMsg.substring(0, 50)}`,
+            detail: `Announced in "${msg.group || 'Class Group'}":\n\n"${msg.text}"`,
+            faculty: msg.sender || 'Faculty / CR',
+            venue: msg.group || 'WhatsApp',
+            timestamp: 'Just Now',
+            createdAt: Date.now(),
+            isPinned: true
+        };
+        announcementsData.unshift(notice);
+        saveUserAnnouncements();
+        renderAnnouncements();
+        showAttendanceToast(`📝 New assignment deadline saved from WhatsApp!`, 'info');
+    }
+}
+
+function handleIncomingWAShare(shareData) {
+    if (!shareData || !shareData.text) return;
+    const group = shareData.title || 'Shared WhatsApp Chat';
+    showAttendanceToast("Ingesting shared WhatsApp chat...", "info");
+    switchSuperTab('view-announcements');
+    processWAChatTextForAI(shareData.text, group, 'ALL', true);
+}
+
+function renderRecentScrapedStream(messages) {
+    const container = document.getElementById('wa-live-intercept-container');
+    const stream = document.getElementById('wa-recent-messages-stream');
+    const counter = document.getElementById('wa-captured-counter');
+
+    if (!container || !stream) return;
+
+    if (!messages || messages.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+    if (counter) counter.textContent = `View All (${messages.length}) ↗`;
+
+    const preview = messages.slice(0, 3);
+    stream.innerHTML = preview.map(m => {
+        const cat = m.academicCategory || WAScraperStore_classify(m.text);
+        let badgeClass = 'wa-intent-dayorder';
+        let badgeLabel = '⚡ Academic';
+        if (cat === 'Cancelled') { badgeClass = 'wa-intent-cancelled'; badgeLabel = '🚫 Cancelled'; }
+        else if (cat === 'DayOrder') { badgeClass = 'wa-intent-dayorder'; badgeLabel = '📅 Day Order'; }
+        else if (cat === 'Assignment') { badgeClass = 'wa-intent-assignment'; badgeLabel = '📝 Deadline'; }
+        else if (cat === 'Exam') { badgeClass = 'wa-intent-exam'; badgeLabel = '📚 Portion'; }
+        else if (cat === 'Venue') { badgeClass = 'wa-intent-venue'; badgeLabel = '📍 Venue'; }
+
+        const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recent';
+
+        return `
+            <div class="wa-intercept-item">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                        <span class="wa-intent-badge ${badgeClass}">${badgeLabel}</span>
+                        <span style="font-weight:800;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;">${escapeHtml(m.group || 'WhatsApp Group')}</span>
+                    </div>
+                    <span style="font-size:0.68rem;color:var(--text-muted);">${timeStr}</span>
+                </div>
+                <div style="color:var(--text-sub);font-size:0.75rem;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    <b style="color:var(--text-main);">${escapeHtml(m.sender || 'Member')}:</b> "${escapeHtml(m.text || '')}"
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function WAScraperStore_classify(text) {
+    if (!text) return 'General';
+    const low = text.toLowerCase();
+    if (low.includes('day order') || low.includes('follow day') || low.includes('holiday')) return 'DayOrder';
+    if (low.includes('cancel') || low.includes('no class') || low.includes('free hour')) return 'Cancelled';
+    if (low.includes('assignment') || low.includes('submit') || low.includes('deadline') || low.includes('record')) return 'Assignment';
+    if (low.includes('cla') || low.includes('exam') || low.includes('portion')) return 'Exam';
+    if (low.includes('ub') || low.includes('tp') || low.includes('room') || low.includes('venue')) return 'Venue';
+    return 'General';
+}
+
+function findCourseMatchingText(text) {
+    if (!text) return null;
+    const low = text.toLowerCase();
+
+    const courses = (portalAttendance && portalAttendance.length > 0) ? portalAttendance : ((typeof SRM_DATA !== 'undefined' && SRM_DATA.courses) || []);
+    
+    for (const c of courses) {
+        const code = (c.code || '').toLowerCase();
+        const title = (c.title || c.subject || '').toLowerCase();
+        const shortName = formatShortSubject(c.title || c.subject || '').toLowerCase();
+
+        if (code && low.includes(code)) return c;
+        if (shortName.length > 2 && low.includes(shortName)) return c;
+        if (title.length > 3 && low.includes(title)) return c;
+    }
+
+    if (low.includes('pps') || low.includes('c programming')) {
+        return courses.find(c => (c.code && c.code.includes('1002')) || (c.title && c.title.toLowerCase().includes('programming'))) || { title: 'PPS Programming', code: '26CSE1002J' };
+    }
+    if (low.includes('calculus') || low.includes('maths') || low.includes('math')) {
+        return courses.find(c => (c.code && c.code.includes('1001')) || (c.title && c.title.toLowerCase().includes('calculus'))) || { title: 'Calculus', code: '26MAB1001T' };
+    }
+    if (low.includes('chemistry') || low.includes('chem')) {
+        return courses.find(c => (c.title && c.title.toLowerCase().includes('chemistry'))) || { title: 'Chemistry', code: '26CYB1001J' };
+    }
+    if (low.includes('physics') || low.includes('phy')) {
+        return courses.find(c => (c.title && c.title.toLowerCase().includes('physics'))) || { title: 'Physics', code: '26PYB1001J' };
+    }
+    if (low.includes('english')) {
+        return courses.find(c => (c.title && c.title.toLowerCase().includes('english'))) || { title: 'English', code: '26LEH1001T' };
+    }
+    return null;
+}
+
+// ─── Cancellation Persistence & State Management ──────────────────────────────
+function getTodayDateString() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function getCancelledClassesToday() {
+    try {
+        const raw = localStorage.getItem('srm_cancelled_classes_v2');
+        if (!raw) return [];
+        const list = JSON.parse(raw);
+        const today = getTodayDateString();
+        return Array.isArray(list) ? list.filter(item => item && item.date === today) : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function markClassCancelledForToday(course, reasonText, sender, group) {
+    const today = getTodayDateString();
+    const list = getCancelledClassesToday();
+    const entry = {
+        date: today,
+        courseCode: course ? course.code : null,
+        courseTitle: course ? course.title : null,
+        reason: reasonText,
+        sender: sender || 'CR',
+        group: group || 'WhatsApp',
+        markedAt: Date.now()
+    };
+    list.push(entry);
+    localStorage.setItem('srm_cancelled_classes_v2', JSON.stringify(list));
+}
+
+function isClassCancelledToday(period, dayOrder) {
+    if (!period) return false;
+    const cancelledList = getCancelledClassesToday();
+    if (!cancelledList || cancelledList.length === 0) return false;
+
+    return cancelledList.some(c => {
+        if (c.courseCode && period.code && c.courseCode.toLowerCase() === period.code.toLowerCase()) return true;
+        if (c.courseTitle && period.title && (
+            period.title.toLowerCase().includes(c.courseTitle.toLowerCase()) ||
+            c.courseTitle.toLowerCase().includes(period.title.toLowerCase())
+        )) return true;
+        if (c.reason && period.title) {
+            const shortName = formatShortSubject(period.title).toLowerCase();
+            if (shortName.length > 2 && c.reason.toLowerCase().includes(shortName)) return true;
+        }
+        return false;
+    });
+}
+
+function getCancellationInfoForClass(period) {
+    if (!period) return null;
+    const list = getCancelledClassesToday();
+    return list.find(c => {
+        if (c.courseCode && period.code && c.courseCode.toLowerCase() === period.code.toLowerCase()) return true;
+        if (c.courseTitle && period.title && period.title.toLowerCase().includes(c.courseTitle.toLowerCase())) return true;
+        if (c.reason && period.title) {
+            const shortName = formatShortSubject(period.title).toLowerCase();
+            if (shortName.length > 2 && c.reason.toLowerCase().includes(shortName)) return true;
+        }
+        return false;
+    }) || null;
+}
+
+function unmarkClassCancelled(courseIdentifier) {
+    if (!courseIdentifier) return;
+    const today = getTodayDateString();
+    const list = getCancelledClassesToday();
+    const low = courseIdentifier.toLowerCase();
+    const updated = list.filter(c => {
+        if (c.date !== today) return false;
+        if (c.courseCode && c.courseCode.toLowerCase() === low) return false;
+        if (c.courseTitle && c.courseTitle.toLowerCase() === low) return false;
+        return true;
+    });
+    localStorage.setItem('srm_cancelled_classes_v2', JSON.stringify(updated));
+    showAttendanceToast("Class cancellation removed!", "info");
+    renderDaySchedule(selectedDay);
+}
+
+async function triggerAISummaryFromScraped() {
+    let messages = _cachedScrapedMessages;
+    const WAScraper = window.Capacitor?.Plugins?.WAScraper;
+    if (WAScraper && WAScraper.getMessages) {
+        try {
+            const res = await WAScraper.getMessages();
+            if (res && Array.isArray(res.messages) && res.messages.length > 0) {
+                messages = res.messages;
+            }
+        } catch (_) {}
+    }
+
+    if (!messages || messages.length === 0) {
+        const doDemo = confirm("No WhatsApp messages captured yet.\n\nWould you like to analyze a simulated sample class group chat with cancellations and assignments to test the Inception AI Engine?");
+        if (doDemo) {
+            const sampleChat = `CR Rahul: Tomorrow Tuesday will follow DAY 3 order due to holiday compensation.\nDr. Sharma (PPS): PPS Lab Slot P1 cancelled today due to faculty meeting in Tech Park.\nFaculty Math: Calculus Assignment 2 submission deadline extended to Friday UB 601.\nChemistry Dept: Bring completed record books for CLA-2 portion validation tomorrow morning.`;
+            processWAChatTextForAI(sampleChat, 'Section P1 Official Group', 'ALL', true);
+            return;
+        } else {
+            openPasteChatModal();
+            return;
+        }
+    }
+
+    const formatted = messages.slice(0, 30).map(m => `[${m.group || 'Class Group'}] ${m.sender || 'Member'}: ${m.text}`).join('\n');
+    processWAChatTextForAI(formatted, 'Monitored WhatsApp Class Groups', 'ALL', true);
+}
+
+async function openWAScraperSettingsModal() {
+    const existing = document.getElementById('wa-scraper-settings-modal');
+    if (existing) existing.remove();
+
+    const WAScraper = window.Capacitor?.Plugins?.WAScraper;
+    let status = { enabled: false, messageCount: _cachedScrapedMessages.length, monitoredKeywords: ["p1", "section", "class", "pps", "calculus", "lab", "srm"] };
+    if (WAScraper && WAScraper.checkStatus) {
+        try {
+            status = await WAScraper.checkStatus();
+        } catch (_) {}
+    }
+
+    const modal = document.createElement('div');
+    modal.id = 'wa-scraper-settings-modal';
+    modal.className = 'class-modal-backdrop';
+
+    const keywords = (status.monitoredKeywords && status.monitoredKeywords.length > 0) 
+        ? status.monitoredKeywords 
+        : ["p1", "section", "class", "pps", "calculus", "lab", "srm", "notice"];
+
+    modal.innerHTML = `
+        <div class="class-modal-sheet">
+            <div class="class-modal-header">
+                <div>
+                    <span class="wa-privacy-badge">⚡ 100% On-Device & Safe</span>
+                    <h3 style="font-size:1.1rem;font-weight:800;color:var(--text-main);margin-top:4px;">WhatsApp Scraper Settings</h3>
+                </div>
+                <button type="button" class="class-modal-close" onclick="document.getElementById('wa-scraper-settings-modal')?.remove()">&times;</button>
+            </div>
+            <div class="class-modal-body" style="display:flex;flex-direction:column;gap:12px;">
+                <!-- Status Row -->
+                <div style="background:var(--card-elevated);border:1px solid var(--card-border);border-radius:12px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                    <div>
+                        <div style="font-weight:800;font-size:0.84rem;color:var(--text-main);display:flex;align-items:center;gap:6px;">
+                            <span>${status.enabled ? '🟢 Service Active (Listening 24/7)' : '⚠️ Notification Access Disabled'}</span>
+                        </div>
+                        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">
+                            ${status.enabled ? 'Autonomous on-device interception active. Zero battery drain.' : 'Tap to open Android Settings and grant Notification Access.'}
+                        </div>
+                    </div>
+                    <button type="button" class="pill-btn" style="background:${status.enabled ? 'var(--card-bg)' : 'var(--accent)'};color:${status.enabled ? 'var(--text-main)' : 'var(--text-inverse)'};font-weight:800;font-size:0.74rem;padding:6px 12px;" onclick="requestNativeWAScraperPermission()">
+                        ${status.enabled ? 'Settings ↗' : 'Enable Access'}
+                    </button>
+                </div>
+
+                <!-- Monitored Keywords / Groups -->
+                <div>
+                    <div style="font-size:0.8rem;font-weight:800;color:var(--text-main);margin-bottom:4px;">Monitored Group Keywords</div>
+                    <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:8px;">
+                        WhatsApp notifications containing these keywords in their title or group name will be automatically scraped and parsed:
+                    </div>
+                    <div id="wa-keywords-chip-box" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+                        ${keywords.map(kw => `
+                            <span class="wa-keyword-chip">
+                                <span>${escapeHtml(kw)}</span>
+                                <span class="wa-keyword-remove" onclick="removeWAScraperKeyword('${escapeHtml(kw)}')">&times;</span>
+                            </span>
+                        `).join('')}
+                    </div>
+                    <div style="display:flex;gap:6px;">
+                        <input type="text" id="wa-new-kw-input" class="ai-input-field" placeholder="Add keyword (e.g. Physics Lab, AH1, CR)..." style="font-size:0.76rem;height:34px;" onkeypress="if(event.key==='Enter')addWAScraperKeyword()">
+                        <button type="button" class="pill-btn" style="background:var(--card-elevated);color:var(--accent);font-weight:800;font-size:0.75rem;padding:0 12px;white-space:nowrap;" onclick="addWAScraperKeyword()">+ Add</button>
+                    </div>
+                </div>
+
+                <!-- Action Tools -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">
+                    <button type="button" class="pill-btn" style="background:var(--card-elevated);color:var(--text-main);font-size:0.74rem;justify-content:center;padding:8px;" onclick="simulateSampleWANotification()">
+                        🧪 Test Sample Alert
+                    </button>
+                    <button type="button" class="pill-btn" style="background:var(--card-elevated);color:var(--blue);font-size:0.74rem;justify-content:center;padding:8px;" onclick="document.getElementById('wa-scraper-settings-modal')?.remove(); openWAScraperLogModal();">
+                        📜 View Log (${_cachedScrapedMessages.length})
+                    </button>
+                </div>
+
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;border-top:1px solid var(--card-border);padding-top:10px;">
+                    <button type="button" class="pill-btn" style="background:transparent;color:var(--red);font-size:0.72rem;padding:4px;" onclick="clearAllScrapedWAMessages()">
+                        🗑️ Clear Message Log
+                    </button>
+                    <button type="button" class="pill-btn" style="background:var(--accent);color:var(--text-inverse);font-weight:800;font-size:0.75rem;padding:6px 14px;" onclick="document.getElementById('wa-scraper-settings-modal')?.remove()">
+                        Done
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+async function addWAScraperKeyword() {
+    const input = document.getElementById('wa-new-kw-input');
+    if (!input || !input.value.trim()) return;
+    const newKw = input.value.trim().toLowerCase();
+    input.value = '';
+
+    const WAScraper = window.Capacitor?.Plugins?.WAScraper;
+    let keywords = [];
+    if (WAScraper && WAScraper.checkStatus) {
+        const s = await WAScraper.checkStatus();
+        keywords = s.monitoredKeywords || [];
+    }
+    if (!keywords.includes(newKw)) {
+        keywords.push(newKw);
+    }
+    if (WAScraper && WAScraper.setMonitoredKeywords) {
+        await WAScraper.setMonitoredKeywords({ keywords });
+    }
+    showAttendanceToast(`Added keyword: "${newKw}"`, "success");
+    openWAScraperSettingsModal();
+}
+
+async function removeWAScraperKeyword(kw) {
+    const WAScraper = window.Capacitor?.Plugins?.WAScraper;
+    let keywords = [];
+    if (WAScraper && WAScraper.checkStatus) {
+        const s = await WAScraper.checkStatus();
+        keywords = (s.monitoredKeywords || []).filter(k => k !== kw);
+        await WAScraper.setMonitoredKeywords({ keywords });
+    }
+    showAttendanceToast(`Removed keyword: "${kw}"`, "info");
+    openWAScraperSettingsModal();
+}
+
+function simulateSampleWANotification() {
+    const sample = {
+        id: 'wa_sim_' + Date.now(),
+        group: 'Section P1 Official',
+        sender: 'CR Rahul',
+        text: 'Tomorrow is Day 4 order. Also PPS lecture 2nd hour is cancelled by Dr. Sharma due to review meeting.',
+        timestamp: Date.now(),
+        academicCategory: 'Cancelled',
+        source: 'simulator'
+    };
+    handleIncomingNativeWAMessage(sample);
+    showAttendanceToast("🧪 Test alert dispatched! Schedule & notices updated.", "success");
+    document.getElementById('wa-scraper-settings-modal')?.remove();
+}
+
+async function clearAllScrapedWAMessages() {
+    _cachedScrapedMessages = [];
+    localStorage.removeItem('srm_wa_scraped_cache');
+    const WAScraper = window.Capacitor?.Plugins?.WAScraper;
+    if (WAScraper && WAScraper.clearMessages) {
+        await WAScraper.clearMessages();
+    }
+    renderRecentScrapedStream([]);
+    showAttendanceToast("Scraped messages cleared.", "info");
+    document.getElementById('wa-scraper-settings-modal')?.remove();
+}
+
+function openWAScraperLogModal() {
+    const existing = document.getElementById('wa-log-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'wa-log-modal';
+    modal.className = 'class-modal-backdrop';
+
+    const messages = _cachedScrapedMessages;
+
+    modal.innerHTML = `
+        <div class="class-modal-sheet">
+            <div class="class-modal-header">
+                <div>
+                    <span class="wa-privacy-badge">Captured Messages Log</span>
+                    <h3 style="font-size:1.1rem;font-weight:800;color:var(--text-main);margin-top:4px;">Intercepted WhatsApp Messages</h3>
+                </div>
+                <button type="button" class="class-modal-close" onclick="document.getElementById('wa-log-modal')?.remove()">&times;</button>
+            </div>
+            <div class="class-modal-body" style="max-height:65vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;">
+                ${messages.length === 0 ? '<div style="text-align:center;color:var(--text-muted);font-size:0.8rem;padding:30px 0;">No messages intercepted yet. Messages matching monitored class groups will appear here in real time.</div>' : ''}
+                ${messages.map(m => {
+                    const cat = m.academicCategory || WAScraperStore_classify(m.text);
+                    let badgeClass = 'wa-intent-dayorder';
+                    let badgeLabel = cat;
+                    if (cat === 'Cancelled') { badgeClass = 'wa-intent-cancelled'; badgeLabel = '🚫 Cancelled'; }
+                    else if (cat === 'DayOrder') { badgeClass = 'wa-intent-dayorder'; badgeLabel = '📅 Day Order'; }
+                    else if (cat === 'Assignment') { badgeClass = 'wa-intent-assignment'; badgeLabel = '📝 Deadline'; }
+                    else if (cat === 'Exam') { badgeClass = 'wa-intent-exam'; badgeLabel = '📚 Portion'; }
+                    else if (cat === 'Venue') { badgeClass = 'wa-intent-venue'; badgeLabel = '📍 Venue'; }
+
+                    const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent';
+
+                    return `
+                        <div class="wa-intercept-item" style="padding:10px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                                <div style="display:flex;align-items:center;gap:6px;">
+                                    <span class="wa-intent-badge ${badgeClass}">${badgeLabel}</span>
+                                    <span style="font-weight:800;color:var(--text-main);">${escapeHtml(m.group || 'Group')}</span>
+                                </div>
+                                <span style="font-size:0.68rem;color:var(--text-muted);">${timeStr}</span>
+                            </div>
+                            <div style="font-size:0.78rem;color:var(--text-main);line-height:1.45;word-break:break-word;">
+                                <b style="color:var(--blue);">${escapeHtml(m.sender || 'Member')}:</b> ${escapeHtml(m.text || '')}
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+            <div style="padding:10px 16px;border-top:1px solid var(--card-border);display:flex;gap:8px;justify-content:flex-end;">
+                <button type="button" class="pill-btn" style="background:var(--accent);color:var(--text-inverse);font-weight:800;" onclick="document.getElementById('wa-log-modal')?.remove(); triggerAISummaryFromScraped();">
+                    ⚡ Inception AI Digest
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+// Window exports
+window.initNativeWAScraper = initNativeWAScraper;
+window.requestNativeWAScraperPermission = requestNativeWAScraperPermission;
+window.openWAScraperSettingsModal = openWAScraperSettingsModal;
+window.openWAScraperLogModal = openWAScraperLogModal;
+window.triggerAISummaryFromScraped = triggerAISummaryFromScraped;
+window.addWAScraperKeyword = addWAScraperKeyword;
+window.removeWAScraperKeyword = removeWAScraperKeyword;
+window.simulateSampleWANotification = simulateSampleWANotification;
+window.clearAllScrapedWAMessages = clearAllScrapedWAMessages;
+window.unmarkClassCancelled = unmarkClassCancelled;
+
 
 // ─── 360° Personal AI Copilot & Knowledge Synthesis Engine ────────────────────
 function initAI() {

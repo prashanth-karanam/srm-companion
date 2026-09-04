@@ -955,29 +955,61 @@
         <!-- Section 4: Categorized Announcements & WhatsApp Hub -->
         <div id="view-announcements" class="tab-view" style="display: none;">
             <!-- Direct On-Device WhatsApp & Notice Hub -->
-            <div class="wa-hub-card">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div class="wa-hub-card" id="wa-hub-card">
+                <!-- Header & Scraper Status -->
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                     <div style="display:flex;align-items:center;gap:8px;">
-                        <span class="status-dot" style="background:var(--accent);"></span>
-                        <span style="font-size:0.88rem;font-weight:800;color:var(--text-main);">Class WhatsApp & Notice Feed</span>
+                        <span id="wa-status-dot" class="status-dot" style="background:#10b981;"></span>
+                        <span style="font-size:0.88rem;font-weight:800;color:var(--text-main);">Class WhatsApp Intelligence</span>
                     </div>
-                    <span class="wa-privacy-badge">Live Scraping</span>
+                    <span id="wa-live-badge" class="wa-privacy-badge" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);">
+                        ⚡ Native Scraper
+                    </span>
                 </div>
 
-                <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:8px;">
-                    <button class="pill-btn" style="justify-content:center;color:var(--accent);font-size:0.75rem;padding:7px 8px;" onclick="openWALinkedDeviceModal()">
-                        <span>QR Link</span>
-                    </button>
-                    <button class="pill-btn" style="justify-content:center;color:var(--blue);font-size:0.75rem;padding:7px 8px;" onclick="openWAGroupSelectorModal()">
-                        <span>Groups</span>
-                    </button>
-                    <button class="pill-btn" style="justify-content:center;font-size:0.75rem;padding:7px 8px;" onclick="openCreateNoticeModal()">
-                        <span>Add Notice</span>
+                <!-- Live Scraper Status Banner -->
+                <div id="wa-native-status-banner" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                    <div style="min-width:0;">
+                        <div id="wa-native-status-title" style="font-size:0.82rem;font-weight:800;color:var(--text-main);display:flex;align-items:center;gap:6px;">
+                            <span>🟢 Autonomous Scraper Active</span>
+                        </div>
+                        <div id="wa-native-status-sub" style="font-size:0.72rem;color:var(--text-sub);margin-top:2px;">
+                            Monitoring class groups in background for cancellations & day orders.
+                        </div>
+                    </div>
+                    <button id="wa-native-action-btn" type="button" class="pill-btn" style="background:var(--card-elevated);color:var(--accent);font-size:0.72rem;font-weight:700;padding:6px 10px;white-space:nowrap;border:1px solid var(--card-border);" onclick="openWAScraperSettingsModal()">
+                        ⚙️ Configure
                     </button>
                 </div>
-                <div id="wa-groups-list" class="wa-groups-grid">
-                    <!-- Populated by JS -->
+
+                <!-- Action Buttons Row -->
+                <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:6px;margin-bottom:10px;">
+                    <button class="pill-btn" style="justify-content:center;color:var(--accent);font-size:0.72rem;padding:7px 4px;font-weight:800;" onclick="triggerAISummaryFromScraped()">
+                        <span>⚡ AI Digest</span>
+                    </button>
+                    <button class="pill-btn" style="justify-content:center;color:var(--blue);font-size:0.72rem;padding:7px 4px;font-weight:700;" onclick="openWAScraperSettingsModal()">
+                        <span>🔍 Monitored</span>
+                    </button>
+                    <button class="pill-btn" style="justify-content:center;color:var(--text-main);font-size:0.72rem;padding:7px 4px;" onclick="openPasteChatModal()">
+                        <span>📋 Paste</span>
+                    </button>
+                    <button class="pill-btn" style="justify-content:center;font-size:0.72rem;padding:7px 4px;" onclick="openCreateNoticeModal()">
+                        <span>➕ Notice</span>
+                    </button>
                 </div>
+
+                <!-- Real-time Intercepted Message Preview Container -->
+                <div id="wa-live-intercept-container" style="display:none;background:var(--card-bg);border:1px solid var(--card-border);border-radius:10px;padding:10px;margin-top:4px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <span style="font-size:0.74rem;font-weight:800;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.5px;">Recently Captured Messages</span>
+                        <span id="wa-captured-counter" style="font-size:0.68rem;color:var(--accent);cursor:pointer;" onclick="openWAScraperLogModal()">View All ↗</span>
+                    </div>
+                    <div id="wa-recent-messages-stream" style="display:flex;flex-direction:column;gap:6px;">
+                        <!-- Injected by JS -->
+                    </div>
+                </div>
+
+                <div id="wa-groups-list" class="wa-groups-grid" style="display:none;"></div>
             </div>
 
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">

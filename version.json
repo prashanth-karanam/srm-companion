@@ -1,6 +1,6 @@
 {
-  "version": "2.5.3",
-  "build": 1045,
+  "version": "2.5.4",
+  "build": 1046,
   "releaseDate": "2026-09-03",
   "minAppVersion": "1.0.0",
   "hotReload": true,
