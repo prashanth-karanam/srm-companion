@@ -1969,14 +1969,63 @@ var activeSubjectFilter = 'ALL';
 var portalAttendance = [];
 
 // ─── Auto-Cache Invalidation & GitHub Live OTA Updates ────────────────────────
+function purgeSimulatedCancellations() {
+    try {
+        const raw = localStorage.getItem('srm_cancelled_classes_v2');
+        if (raw) {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) {
+                const cleaned = list.filter(item => {
+                    if (!item) return false;
+                    const idStr = String(item.id || '');
+                    if (idStr.startsWith('wa_sim_')) return false;
+                    if (item.sender === 'CR Rahul' || item.source === 'simulator') return false;
+                    const reason = (item.reason || '').toLowerCase();
+                    if (reason.includes('review meeting') || reason.includes('simulated') || reason.includes('test alert')) return false;
+                    return true;
+                });
+                localStorage.setItem('srm_cancelled_classes_v2', JSON.stringify(cleaned));
+            }
+        }
+    } catch (_) {}
+
+    try {
+        if (typeof announcementsData !== 'undefined' && Array.isArray(announcementsData)) {
+            announcementsData = announcementsData.filter(a => {
+                if (!a) return false;
+                const idStr = String(a.id || '');
+                if (idStr.startsWith('wa-cancel-') && (a.faculty === 'CR Rahul' || (a.detail && a.detail.includes('review meeting')))) return false;
+                return true;
+            });
+            if (typeof saveUserAnnouncements === 'function') saveUserAnnouncements();
+        }
+    } catch (_) {}
+}
+
 function applyAppVersionAndCleanStaleCaches() {
-    const currentVer = (typeof APP_BUILD_VERSION !== 'undefined') ? APP_BUILD_VERSION : '2.4.3';
+    const currentVer = (typeof APP_BUILD_VERSION !== 'undefined') ? APP_BUILD_VERSION : '2.5.5';
     const storedVer = localStorage.getItem('srm_installed_build_version');
 
     const customImg = localStorage.getItem('srm_custom_avatar_img');
     if (customImg && (customImg.includes('dicebear') || customImg.includes('avatar_presets') || customImg.includes('avatar_cosmic_astro'))) {
         localStorage.removeItem('srm_custom_avatar_img');
     }
+
+    // Default profile details to Adhiyaman 335 if not already configured
+    if (!localStorage.getItem('srm_user_hostel_block')) {
+        localStorage.setItem('srm_user_hostel_block', 'Adhiyaman');
+    }
+    if (!localStorage.getItem('srm_user_room_no')) {
+        localStorage.setItem('srm_user_room_no', '335');
+    }
+    if (!localStorage.getItem('srm_user_fa_cabin')) {
+        localStorage.setItem('srm_user_fa_cabin', 'UB 6th Floor, Room 601');
+    }
+    if (!localStorage.getItem('srm_section')) {
+        localStorage.setItem('srm_section', 'Sec AL1');
+    }
+
+    purgeSimulatedCancellations();
 
     if (storedVer !== currentVer) {
         localStorage.setItem('srm_installed_build_version', currentVer);
@@ -3534,12 +3583,31 @@ function openAITabWithPrompt(promptText) {
     }
 }
 
+function jumpToTodaySchedule() {
+    selectedDay = isTodayHoliday ? 'Holiday' : (currentDayOrder || 'Day 1');
+    highlightActiveDayBtn(selectedDay);
+    renderDaySchedule(selectedDay);
+    showAttendanceToast(`Switched to Today (${isTodayHoliday ? 'Campus Off' : currentDayOrder})`, 'info');
+}
+window.jumpToTodaySchedule = jumpToTodaySchedule;
+
 function initDaySelector() {
     const container = document.getElementById('day-selector');
     if (!container) return;
     container.innerHTML = '';
 
-    const nextInfo = getNextWorkingDayInfo();
+    const todayTarget = isTodayHoliday ? 'Holiday' : (currentDayOrder || 'Day 1');
+
+    // 1. Prominent dedicated "Today" quick selector
+    const todayQuickBtn = document.createElement('div');
+    todayQuickBtn.className = 'day-chip today-chip' + (selectedDay === todayTarget ? ' active' : '');
+    todayQuickBtn.id = 'btn-today-quick';
+    todayQuickBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Today (${isTodayHoliday ? 'Off' : (currentDayOrder || 'Day 1')})</span>
+    `;
+    todayQuickBtn.onclick = () => jumpToTodaySchedule();
+    container.appendChild(todayQuickBtn);
 
     if (isTodayHoliday) {
         const holBtn = document.createElement('div');
@@ -3555,10 +3623,11 @@ function initDaySelector() {
     }
 
     ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'].forEach(d => {
+        const isToday = (d === currentDayOrder && !isTodayHoliday);
         const btn = document.createElement('div');
-        btn.className = 'day-chip' + (d === selectedDay ? ' active' : '');
-        btn.textContent = d;
+        btn.className = 'day-chip' + (d === selectedDay ? ' active' : '') + (isToday ? ' is-today-chip' : '');
         btn.id = 'btn-' + d.replace(' ', '');
+        btn.innerHTML = `<span>${d}</span>${isToday ? '<span class="day-chip-badge">Today</span>' : ''}`;
         btn.onclick = () => {
             selectedDay = d;
             highlightActiveDayBtn(d);
@@ -3573,16 +3642,22 @@ function highlightActiveDayBtn(d) {
     const target = document.getElementById('btn-' + d.replace(' ', ''));
     if (target) target.classList.add('active');
 
+    const todayTarget = isTodayHoliday ? 'Holiday' : (currentDayOrder || 'Day 1');
+    const todayQuickBtn = document.getElementById('btn-today-quick');
+    if (todayQuickBtn) {
+        todayQuickBtn.classList.toggle('active', d === todayTarget);
+    }
+
     const activeDayTitleEl = document.getElementById('schedule-active-day-title');
     if (activeDayTitleEl) {
         if (d === 'Holiday') {
             activeDayTitleEl.textContent = 'CAMPUS HOLIDAY / OFF';
             activeDayTitleEl.style.color = 'var(--red)';
-        } else if (d === currentDayOrder) {
+        } else if (d === currentDayOrder && !isTodayHoliday) {
             activeDayTitleEl.textContent = `SRM ${d.toUpperCase()} ORDER (TODAY ACTIVE)`;
             activeDayTitleEl.style.color = 'var(--text-main)';
         } else {
-            activeDayTitleEl.textContent = `VIEWING SRM ${d.toUpperCase()} ORDER`;
+            activeDayTitleEl.textContent = `VIEWING ${d.toUpperCase()} (TODAY: ${currentDayOrder}) • JUMP TO TODAY ⚡`;
             activeDayTitleEl.style.color = 'var(--accent)';
         }
     }
@@ -5054,18 +5129,33 @@ async function openWAScraperSettingsModal() {
                     </div>
                 </div>
 
+                <!-- Engine Architecture Status -->
+                <div style="background:var(--card-elevated);border:1px solid var(--card-border);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-size:0.72rem;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:0.04em;">#1 Primary Engine: Notification Listener</span>
+                        <span style="font-size:0.68rem;background:rgba(34,197,94,0.15);color:var(--accent);padding:2px 6px;border-radius:var(--radius-sm);font-weight:800;">ACTIVE (0 Cloud Cost)</span>
+                    </div>
+                    <div style="font-size:0.70rem;color:var(--text-sub);">
+                        Autonomous on-device Android service catches live class notices from WhatsApp status bar with 0 battery drain and zero external servers.
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;border-top:1px dashed var(--card-border);padding-top:6px;">
+                        <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">#2 Companion Engine: WhatsMeow Protocol</span>
+                        <span style="font-size:0.68rem;background:var(--card);color:var(--text-muted);padding:2px 6px;border-radius:var(--radius-sm);font-weight:700;">Multi-Device Ready</span>
+                    </div>
+                </div>
+
                 <!-- Action Tools -->
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">
-                    <button type="button" class="pill-btn" style="background:var(--card-elevated);color:var(--text-main);font-size:0.74rem;justify-content:center;padding:8px;" onclick="simulateSampleWANotification()">
-                        🧪 Test Sample Alert
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px;">
+                    <button type="button" class="pill-btn" style="background:var(--card-elevated);color:var(--red);font-size:0.74rem;justify-content:center;padding:8px;font-weight:800;" onclick="clearAllCancelledClasses()">
+                        🧹 Reset Cancellations
                     </button>
-                    <button type="button" class="pill-btn" style="background:var(--card-elevated);color:var(--blue);font-size:0.74rem;justify-content:center;padding:8px;" onclick="document.getElementById('wa-scraper-settings-modal')?.remove(); openWAScraperLogModal();">
+                    <button type="button" class="pill-btn" style="background:var(--card-elevated);color:var(--blue);font-size:0.74rem;justify-content:center;padding:8px;font-weight:800;" onclick="document.getElementById('wa-scraper-settings-modal')?.remove(); openWAScraperLogModal();">
                         📜 View Log (${_cachedScrapedMessages.length})
                     </button>
                 </div>
 
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;border-top:1px solid var(--card-border);padding-top:10px;">
-                    <button type="button" class="pill-btn" style="background:transparent;color:var(--red);font-size:0.72rem;padding:4px;" onclick="clearAllScrapedWAMessages()">
+                    <button type="button" class="pill-btn" style="background:transparent;color:var(--text-muted);font-size:0.72rem;padding:4px;" onclick="clearAllScrapedWAMessages()">
                         🗑️ Clear Message Log
                     </button>
                     <button type="button" class="pill-btn" style="background:var(--accent);color:var(--text-inverse);font-weight:800;font-size:0.75rem;padding:6px 14px;" onclick="document.getElementById('wa-scraper-settings-modal')?.remove()">
@@ -5115,18 +5205,31 @@ async function removeWAScraperKeyword(kw) {
 
 function simulateSampleWANotification() {
     const sample = {
-        id: 'wa_sim_' + Date.now(),
-        group: 'Section P1 Official',
-        sender: 'CR Rahul',
-        text: 'Tomorrow is Day 4 order. Also PPS lecture 2nd hour is cancelled by Dr. Sharma due to review meeting.',
+        id: 'wa_test_' + Date.now(),
+        group: 'Section AL1 Official',
+        sender: 'Class Representative',
+        text: 'Reminder: Academic club symposium registration opens tomorrow at 10 AM in Tech Park Auditorium.',
         timestamp: Date.now(),
-        academicCategory: 'Cancelled',
+        academicCategory: 'General',
         source: 'simulator'
     };
     handleIncomingNativeWAMessage(sample);
-    showAttendanceToast("🧪 Test alert dispatched! Schedule & notices updated.", "success");
+    showAttendanceToast("🧪 Safe test notification simulated! (No classes cancelled)", "success");
     document.getElementById('wa-scraper-settings-modal')?.remove();
 }
+
+function clearAllCancelledClasses() {
+    localStorage.removeItem('srm_cancelled_classes_v2');
+    if (typeof announcementsData !== 'undefined' && Array.isArray(announcementsData)) {
+        announcementsData = announcementsData.filter(a => !(a.id && String(a.id).startsWith('wa-cancel-')));
+        if (typeof saveUserAnnouncements === 'function') saveUserAnnouncements();
+        if (typeof renderAnnouncements === 'function') renderAnnouncements();
+    }
+    showAttendanceToast("🧹 All class cancellations cleared! Timetable restored.", "success");
+    if (typeof renderDaySchedule === 'function') renderDaySchedule(selectedDay);
+    document.getElementById('wa-scraper-settings-modal')?.remove();
+}
+window.clearAllCancelledClasses = clearAllCancelledClasses;
 
 async function clearAllScrapedWAMessages() {
     _cachedScrapedMessages = [];
@@ -7854,12 +7957,12 @@ function renderPassportHub() {
     // Academic Dept & Section
     const rawDegree = localStorage.getItem('srm_program') || prof.program || prof.degree || 'B.Tech Program';
     let degreeStr = rawDegree.replace('B.Tech.-', 'B.Tech ').split('[')[0].trim();
-    const sectionStr = (localStorage.getItem('srm_section') || prof.section || prof.batch || '').replace(/Section\s*/i, '').trim();
+    const sectionStr = (localStorage.getItem('srm_section') || prof.section || prof.batch || 'AL1').replace(/Section\s*/i, '').trim();
     document.querySelectorAll('#smart-card-dept-pill, #passport-dept-pill').forEach(el => el.textContent = degreeStr);
     document.querySelectorAll('#smart-card-sec-pill, #passport-sec-pill').forEach(el => el.textContent = sectionStr ? ('Section ' + sectionStr + ' • 1st Year') : '1st Year');
     
-    let storedBlock = localStorage.getItem('srm_user_hostel_block') || prof.hostel || 'Day Scholar / Off-Campus';
-    let storedRoom = localStorage.getItem('srm_user_room_no') || prof.room || '';
+    let storedBlock = localStorage.getItem('srm_user_hostel_block') || prof.hostel || 'Adhiyaman';
+    let storedRoom = localStorage.getItem('srm_user_room_no') || prof.room || '335';
 
     const hBlock = storedBlock;
     const hRoom = (storedRoom && storedRoom !== '-' && !/^\d{5,}$/.test(storedRoom)) ? storedRoom : '';
@@ -7908,17 +8011,18 @@ function renderPassportHub() {
     const faCabinEl = document.getElementById('fa-cabin');
     const faEmailBtn = document.getElementById('fa-email-btn');
 
-    const rawAdvisor = localStorage.getItem('srm_advisor') || prof.facultyAdvisor || 'Dr. Prithi S.';
+    const rawAdvisor = localStorage.getItem('srm_advisor') || prof.facultyAdvisor || 'Sheeba Rachel S';
     let cleanAdvisor = rawAdvisor.split('[')[0].replace(/faculty advisor/i, '').replace(/counselor/i, '').trim();
-    if (!cleanAdvisor || cleanAdvisor.length < 3) cleanAdvisor = 'Dr. Prithi S.';
+    if (!cleanAdvisor || cleanAdvisor.length < 3) cleanAdvisor = 'Sheeba Rachel S';
     cleanAdvisor = formatTitleCaseName(cleanAdvisor);
 
-    const advisorEmail = (rawAdvisor.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/) || [''])[0];
+    const advisorEmail = localStorage.getItem('srm_advisor_email') || (rawAdvisor.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/) || [''])[0] || 'sheebars@srmist.edu.in';
+    const faCabin = localStorage.getItem('srm_user_fa_cabin') || prof.orientationRoom || 'UB 6th Floor, Room 601';
 
     if (faNameEl) faNameEl.textContent = cleanAdvisor;
-    if (faDeptEl) faDeptEl.textContent = 'Department of Computer Science & Engineering';
-    if (faCabinEl) faCabinEl.innerHTML = `<b>Office Base:</b> UB 6th Floor, Room 601 &bull; <b>Section:</b> Sec ${sectionStr}`;
-    if (faEmailBtn) faEmailBtn.href = advisorEmail ? `mailto:${advisorEmail}` : `mailto:prithis@srmist.edu.in`;
+    if (faDeptEl) faDeptEl.textContent = 'Department of Computational Intelligence (CSE AIML)';
+    if (faCabinEl) faCabinEl.innerHTML = `<b>Office Base:</b> ${escapeHtml(faCabin)} &bull; <b>Section:</b> Sec ${escapeHtml(sectionStr || 'AL1')}`;
+    if (faEmailBtn) faEmailBtn.href = advisorEmail ? `mailto:${advisorEmail}` : `mailto:sheebars@srmist.edu.in`;
 
     // 4. Hostel Allocation Info
     const hostelRoomEl = document.getElementById('pass-hostel-room');
@@ -8027,28 +8131,154 @@ function calculateSimulatedSGPA() {
 
 function copyFAToClipboard() {
     const prof = (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) || {};
-    const fa = prof.facultyAdvisor || "Dr. Prithi S [prithis@srmist.edu.in]";
-    const cabin = prof.orientationRoom || "University Building (UB) 6th Floor, Room 601";
-    const text = `Faculty Advisor: ${fa}\nBase Classroom: ${cabin}\nStudent ID: ${prof.studentId || prof.regNo || localStorage.getItem('srm_reg_no') || ''}\nABC ID: ${prof.abcId || '231170705267'}`;
+    const fa = localStorage.getItem('srm_advisor') || prof.facultyAdvisor || "Sheeba Rachel S [sheebars@srmist.edu.in]";
+    const cabin = localStorage.getItem('srm_user_fa_cabin') || prof.orientationRoom || "University Building (UB) 6th Floor, Room 601";
+    const sec = localStorage.getItem('srm_section') || prof.section || 'AL1';
+    const hBlock = localStorage.getItem('srm_user_hostel_block') || prof.hostel || 'Adhiyaman';
+    const hRoom = localStorage.getItem('srm_user_room_no') || prof.room || '335';
+    const text = `Faculty Advisor: ${fa}\nCounselor Cabin: ${cabin}\nSection: ${sec}\nHostel: ${hBlock} Room ${hRoom}\nStudent ID: ${prof.studentId || prof.regNo || localStorage.getItem('srm_reg_no') || ''}`;
     navigator.clipboard.writeText(text);
-    showAttendanceToast("Faculty Advisor & Academic details copied to clipboard!", "success");
+    showAttendanceToast("Counselor & Academic details copied to clipboard!", "success");
 }
 
-function editHostelDetails() {
-    const prof = (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) || {};
-    const block = prompt("Enter your Allocated Hostel Block:\n(e.g. Adhiyaman, Paari Block, Kaari Block, Oorkavalan, Sannasi, M-Block, Day Scholar)", localStorage.getItem('srm_user_hostel_block') || prof.hostel || "Adhiyaman");
-    if (!block || !block.trim()) return;
-    const room = prompt("Enter your Room Number & Bed:\n(e.g. 335, 408 Bed B, 212 Bed A, Off-Campus)", localStorage.getItem('srm_user_room_no') || prof.room || "335");
+function openEditProfileDetailsModal(focusField = 'advisor') {
+    const prof = (typeof SRM_DATA !== 'undefined' && (SRM_DATA.studentProfile || SRM_DATA.profile)) ? (SRM_DATA.studentProfile || SRM_DATA.profile) : {};
     
-    localStorage.setItem('srm_user_hostel_block', block.trim());
-    localStorage.setItem('srm_user_room_no', (room || '').trim());
-    if (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) {
-        SRM_DATA.profile.hostel = block.trim();
-        SRM_DATA.profile.room = (room || '').trim();
+    const existing = document.getElementById('profile-edit-modal');
+    if (existing) existing.remove();
+
+    const currentBlock = localStorage.getItem('srm_user_hostel_block') || prof.hostel || 'Adhiyaman';
+    const currentRoom = localStorage.getItem('srm_user_room_no') || prof.room || '335';
+    const currentSection = (localStorage.getItem('srm_section') || prof.section || prof.batch || 'AL1').replace(/Section\s*/i, '').trim();
+    const currentAdvisor = localStorage.getItem('srm_advisor') || prof.facultyAdvisor || 'Sheeba Rachel S';
+    const currentCabin = localStorage.getItem('srm_user_fa_cabin') || prof.orientationRoom || 'UB 6th Floor, Room 601';
+    const currentEmail = localStorage.getItem('srm_advisor_email') || (currentAdvisor.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/) || [''])[0] || 'sheebars@srmist.edu.in';
+
+    const hostelBlocks = [
+        "Adhiyaman", "Paari", "Kaari", "Oorkavalan", "Sannasi", 
+        "M-Block (Girls)", "Nelson Mandela", "Meenakshi", "Bhavani", "Senbagam", "Day Scholar"
+    ];
+
+    const modal = document.createElement('div');
+    modal.id = 'profile-edit-modal';
+    modal.className = 'class-modal-backdrop';
+    modal.innerHTML = `
+        <div class="class-modal-sheet" style="max-height:88vh;overflow-y:auto;">
+            <div class="class-modal-header" style="position:sticky;top:0;background:var(--card);z-index:10;padding-bottom:12px;border-bottom:1px solid var(--card-border);">
+                <div>
+                    <span class="wa-privacy-badge">🎓 Dynamic Student Customizer</span>
+                    <h3 style="font-size:1.1rem;font-weight:800;color:var(--text-main);margin-top:4px;">Edit Academic & Hostel Profile</h3>
+                </div>
+                <button type="button" class="class-modal-close" onclick="document.getElementById('profile-edit-modal')?.remove()">&times;</button>
+            </div>
+            <div class="class-modal-body" style="display:flex;flex-direction:column;gap:14px;padding:14px 4px 6px;">
+                <!-- Hostel Info Card -->
+                <div style="background:var(--card-elevated);border:1px solid var(--card-border);border-radius:var(--radius-md);padding:12px;">
+                    <div style="font-size:0.75rem;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                        <span>🏠 Hostel & Room Allocation</span>
+                    </div>
+                    
+                    <label style="font-size:0.72rem;color:var(--text-sub);font-weight:700;display:block;margin-bottom:4px;">Hostel Block:</label>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+                        ${hostelBlocks.map(b => `
+                            <button type="button" class="pill-btn ${b.toLowerCase() === currentBlock.toLowerCase() ? 'active' : ''}" style="font-size:0.70rem;padding:4px 8px;" onclick="document.getElementById('edit-hostel-block-input').value='${b}'">${b}</button>
+                        `).join('')}
+                    </div>
+                    <input type="text" id="edit-hostel-block-input" class="ai-input-field" value="${escapeHtml(currentBlock)}" placeholder="Hostel Block Name (e.g. Adhiyaman)" style="margin-bottom:10px;">
+
+                    <label style="font-size:0.72rem;color:var(--text-sub);font-weight:700;display:block;margin-bottom:4px;">Room Number & Bed:</label>
+                    <input type="text" id="edit-room-no-input" class="ai-input-field" value="${escapeHtml(currentRoom)}" placeholder="e.g. 335, 408 Bed B, Off-Campus">
+                </div>
+
+                <!-- Faculty Advisor / Counselor Card -->
+                <div style="background:var(--card-elevated);border:1px solid var(--card-border);border-radius:var(--radius-md);padding:12px;">
+                    <div style="font-size:0.75rem;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                        <span>👨‍🏫 Official Counselor & Base</span>
+                    </div>
+
+                    <label style="font-size:0.72rem;color:var(--text-sub);font-weight:700;display:block;margin-bottom:4px;">Counselor / Faculty Advisor Name:</label>
+                    <input type="text" id="edit-advisor-name-input" class="ai-input-field" value="${escapeHtml(currentAdvisor)}" placeholder="e.g. Sheeba Rachel S / Dr. Prithi S." style="margin-bottom:10px;">
+
+                    <label style="font-size:0.72rem;color:var(--text-sub);font-weight:700;display:block;margin-bottom:4px;">Counselor Office Base / Cabin:</label>
+                    <input type="text" id="edit-fa-cabin-input" class="ai-input-field" value="${escapeHtml(currentCabin)}" placeholder="e.g. UB 6th Floor, Room 601 / TP 7th Floor" style="margin-bottom:10px;">
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <div>
+                            <label style="font-size:0.72rem;color:var(--text-sub);font-weight:700;display:block;margin-bottom:4px;">Section:</label>
+                            <input type="text" id="edit-section-input" class="ai-input-field" value="${escapeHtml(currentSection)}" placeholder="e.g. AL1, P1">
+                        </div>
+                        <div>
+                            <label style="font-size:0.72rem;color:var(--text-sub);font-weight:700;display:block;margin-bottom:4px;">Counselor Email:</label>
+                            <input type="email" id="edit-advisor-email-input" class="ai-input-field" value="${escapeHtml(currentEmail)}" placeholder="e.g. sheebars@srmist.edu.in">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save & Dismiss Controls -->
+                <div style="display:flex;gap:8px;margin-top:4px;">
+                    <button type="button" class="apex-btn" style="flex:1;background:var(--card-elevated);border:1px solid var(--card-border);color:var(--text-main);font-weight:700;padding:11px;border-radius:var(--radius-md);" onclick="document.getElementById('profile-edit-modal')?.remove()">
+                        Cancel
+                    </button>
+                    <button type="button" class="apex-btn" style="flex:2;background:var(--accent);color:var(--text-inverse);font-weight:800;padding:11px;border-radius:var(--radius-md);" onclick="saveProfileDetailsCustomizer()">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    if (focusField === 'hostel') {
+        setTimeout(() => document.getElementById('edit-room-no-input')?.focus(), 200);
+    } else if (focusField === 'advisor') {
+        setTimeout(() => document.getElementById('edit-fa-cabin-input')?.focus(), 200);
     }
+}
+window.openEditProfileDetailsModal = openEditProfileDetailsModal;
+
+function saveProfileDetailsCustomizer() {
+    const block = document.getElementById('edit-hostel-block-input')?.value?.trim() || 'Adhiyaman';
+    const room = document.getElementById('edit-room-no-input')?.value?.trim() || '335';
+    const advisor = document.getElementById('edit-advisor-name-input')?.value?.trim() || 'Sheeba Rachel S';
+    const cabin = document.getElementById('edit-fa-cabin-input')?.value?.trim() || 'UB 6th Floor, Room 601';
+    const section = document.getElementById('edit-section-input')?.value?.trim() || 'AL1';
+    const email = document.getElementById('edit-advisor-email-input')?.value?.trim() || 'sheebars@srmist.edu.in';
+
+    localStorage.setItem('srm_user_hostel_block', block);
+    localStorage.setItem('srm_user_room_no', room);
+    localStorage.setItem('srm_advisor', advisor);
+    localStorage.setItem('srm_user_fa_cabin', cabin);
+    localStorage.setItem('srm_section', section);
+    localStorage.setItem('srm_advisor_email', email);
+
+    if (typeof SRM_DATA !== 'undefined') {
+        if (SRM_DATA.profile) {
+            SRM_DATA.profile.hostel = block;
+            SRM_DATA.profile.room = room;
+            SRM_DATA.profile.section = section;
+            SRM_DATA.profile.facultyAdvisor = advisor;
+            SRM_DATA.profile.orientationRoom = cabin;
+        }
+        if (SRM_DATA.studentProfile) {
+            SRM_DATA.studentProfile.hostel = block;
+            SRM_DATA.studentProfile.room = room;
+            SRM_DATA.studentProfile.section = section;
+            SRM_DATA.studentProfile.facultyAdvisor = advisor;
+            SRM_DATA.studentProfile.orientationRoom = cabin;
+        }
+    }
+
     renderPassportHub();
-    renderMessHub();
-    showAttendanceToast("Hostel Allocation saved on your device!", "success");
+    if (typeof renderMessHub === 'function') renderMessHub();
+    
+    document.getElementById('profile-edit-modal')?.remove();
+    showAttendanceToast("🎉 Profile & Hostel details saved!", "success");
+}
+window.saveProfileDetailsCustomizer = saveProfileDetailsCustomizer;
+
+function editHostelDetails() {
+    openEditProfileDetailsModal('hostel');
 }
 
 function switchSuperTab(tabId) {
