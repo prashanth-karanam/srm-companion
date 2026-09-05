@@ -2002,8 +2002,16 @@ function purgeSimulatedCancellations() {
     } catch (_) {}
 }
 
+function getFormattedDateStr(d) {
+    if (!d || !(d instanceof Date)) d = new Date();
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return dd + '-' + mm + '-' + yyyy;
+}
+
 function applyAppVersionAndCleanStaleCaches() {
-    const currentVer = (typeof APP_BUILD_VERSION !== 'undefined') ? APP_BUILD_VERSION : '2.5.5';
+    const currentVer = (typeof APP_BUILD_VERSION !== 'undefined') ? APP_BUILD_VERSION : '2.5.6';
     const storedVer = localStorage.getItem('srm_installed_build_version');
 
     const customImg = localStorage.getItem('srm_custom_avatar_img');
@@ -2026,6 +2034,19 @@ function applyAppVersionAndCleanStaleCaches() {
     }
 
     purgeSimulatedCancellations();
+
+    // Auto-clean stale day order overrides (e.g. Day 4 stuck from earlier tests)
+    try {
+        const manualDayOrder = localStorage.getItem('srm_manual_day_order');
+        const manualDate = localStorage.getItem('srm_manual_day_order_date');
+        const todayStr = getFormattedDateStr(new Date());
+        if (manualDayOrder) {
+            if (!manualDate || manualDate !== todayStr || manualDayOrder === 'Day 4') {
+                localStorage.removeItem('srm_manual_day_order');
+                localStorage.removeItem('srm_manual_day_order_date');
+            }
+        }
+    } catch (_) {}
 
     if (storedVer !== currentVer) {
         localStorage.setItem('srm_installed_build_version', currentVer);
@@ -2665,50 +2686,150 @@ function showSubjectAttDetail(code) {
 }
 window.showSubjectAttDetail = showSubjectAttDetail;
 
-// ─── Clock, Calendar & HUD ────────────────────────────────────────────────────
+// ─── Clock, Calendar & Academic Status Telemetry ────────────────────────────
+function getTodayAcademicStatus() {
+    const now = new Date();
+    const todayStr = getFormattedDateStr(now);
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
+    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayDayName = dayNames[dayOfWeek];
+
+    // 1. Manual Override check (expires if date doesn't match today)
+    const manualOverride = localStorage.getItem('srm_manual_day_order');
+    const manualOverrideDate = localStorage.getItem('srm_manual_day_order_date');
+    if (manualOverride) {
+        if (manualOverrideDate && manualOverrideDate !== todayStr) {
+            localStorage.removeItem('srm_manual_day_order');
+            localStorage.removeItem('srm_manual_day_order_date');
+        } else if (manualOverride === 'Holiday') {
+            return {
+                isWorking: false,
+                dayOrder: '-',
+                status: 'Holiday',
+                remarks: 'Campus Holiday (Manual Override)',
+                dayName: todayDayName,
+                isManual: true
+            };
+        } else if (manualOverride.startsWith('Day')) {
+            return {
+                isWorking: true,
+                dayOrder: manualOverride,
+                status: 'Working day',
+                remarks: `SRM ${manualOverride} (Manual Override)`,
+                dayName: todayDayName,
+                isManual: true
+            };
+        }
+    }
+
+    // 2. Official Academic Calendar Lookup
+    let calEntry = null;
+    if (typeof SRM_DATA !== 'undefined' && Array.isArray(SRM_DATA.calendar)) {
+        calEntry = SRM_DATA.calendar.find(c => c.date === todayStr);
+    }
+
+    if (calEntry) {
+        if (calEntry.status === 'Holiday') {
+            return {
+                isWorking: false,
+                dayOrder: '-',
+                status: 'Holiday',
+                remarks: (calEntry.remarks && calEntry.remarks !== '-') ? calEntry.remarks : `${todayDayName} (Campus Off)`,
+                dayName: calEntry.day || todayDayName,
+                isManual: false
+            };
+        } else if (calEntry.status === 'Working day' && calEntry.day_order && calEntry.day_order.startsWith('Day')) {
+            return {
+                isWorking: true,
+                dayOrder: calEntry.day_order,
+                status: 'Working day',
+                remarks: 'Official Working Day',
+                dayName: calEntry.day || todayDayName,
+                isManual: false
+            };
+        }
+    }
+
+    // 3. Native Weekend Check: Saturdays and Sundays are holidays in SRM
+    if (isWeekend) {
+        return {
+            isWorking: false,
+            dayOrder: '-',
+            status: 'Holiday',
+            remarks: `${todayDayName} (Weekend Recess)`,
+            dayName: todayDayName,
+            isManual: false
+        };
+    }
+
+    // 4. Default Weekday Fallback
+    const weekdayMap = { 1: 'Day 1', 2: 'Day 2', 3: 'Day 3', 4: 'Day 4', 5: 'Day 5' };
+    const fallbackDay = weekdayMap[dayOfWeek] || 'Day 1';
+    return {
+        isWorking: true,
+        dayOrder: fallbackDay,
+        status: 'Working day',
+        remarks: 'Regular Academic Day',
+        dayName: todayDayName,
+        isManual: false
+    };
+}
+window.getTodayAcademicStatus = getTodayAcademicStatus;
+
 function initClockAndDate() {
     updateClock();
-    const todayStr = getFormattedDateStr(new Date());
-    const calEntry = SRM_DATA.calendar.find(c => c.date === todayStr);
-    const dayBadge = document.getElementById('current-day-badge');
-    const manualOverride = localStorage.getItem('srm_manual_day_order');
+    const acadStatus = getTodayAcademicStatus();
+    isTodayHoliday = !acadStatus.isWorking;
+    currentDayOrder = acadStatus.isWorking ? acadStatus.dayOrder : '-';
 
-    if (manualOverride) {
-        if (manualOverride === 'Holiday') {
-            isTodayHoliday = true;
-            selectedDay = 'Holiday';
-            if (dayBadge) { dayBadge.textContent = 'Holiday'; dayBadge.style.color = '#ef4444'; }
-        } else {
-            isTodayHoliday = false;
-            currentDayOrder = manualOverride;
-            selectedDay = currentDayOrder;
-            if (dayBadge) { dayBadge.textContent = manualOverride; dayBadge.style.color = '#38bdf8'; }
+    // Only update selectedDay if it is uninitialized or on Holiday/previous today
+    if (!selectedDay || selectedDay === 'Holiday' || selectedDay.startsWith('Day')) {
+        selectedDay = isTodayHoliday ? 'Holiday' : currentDayOrder;
+    }
+
+    const dayBadge = document.getElementById('current-day-badge');
+    const islandPill = document.getElementById('island-pill');
+    const statusDot = islandPill ? islandPill.querySelector('.status-dot') : null;
+
+    if (acadStatus.isWorking) {
+        // BLUE TELEMETRY: WORKING DAY
+        if (dayBadge) {
+            dayBadge.textContent = `${currentDayOrder}`;
+            dayBadge.style.color = '#3b82f6';
         }
-    } else if (calEntry) {
-        if (calEntry.status === 'Holiday') {
-            isTodayHoliday = true;
-            selectedDay = 'Holiday';
-            if (dayBadge) { dayBadge.textContent = 'Holiday'; dayBadge.style.color = '#ef4444'; }
-        } else {
-            isTodayHoliday = false;
-            currentDayOrder = calEntry.day_order;
-            selectedDay = currentDayOrder;
-            if (dayBadge) { dayBadge.textContent = calEntry.day_order; dayBadge.style.color = '#38bdf8'; }
+        if (islandPill) {
+            islandPill.style.borderColor = 'rgba(59, 130, 246, 0.45)';
+            islandPill.title = `Today: ${currentDayOrder} (Working Day) • Tap to switch`;
+        }
+        if (statusDot) {
+            statusDot.style.background = '#3b82f6';
+            statusDot.style.boxShadow = '0 0 8px #3b82f6';
         }
     } else {
-        currentDayOrder = 'Day 2';
-        selectedDay = 'Day 2';
-        if (dayBadge) dayBadge.textContent = 'Day 2';
+        // RED TELEMETRY: HOLIDAY / CAMPUS OFF
+        if (dayBadge) {
+            dayBadge.textContent = 'Off (Holiday)';
+            dayBadge.style.color = '#ef4444';
+        }
+        if (islandPill) {
+            islandPill.style.borderColor = 'rgba(239, 68, 68, 0.45)';
+            islandPill.title = `Today: ${acadStatus.remarks} (Campus Off) • Tap to switch`;
+        }
+        if (statusDot) {
+            statusDot.style.background = '#ef4444';
+            statusDot.style.boxShadow = '0 0 8px #ef4444';
+        }
     }
 
     const activeDayTitleEl = document.getElementById('schedule-active-day-title');
     if (activeDayTitleEl) {
         if (isTodayHoliday) {
-            activeDayTitleEl.textContent = 'CAMPUS HOLIDAY / OFF';
-            activeDayTitleEl.style.color = 'var(--red)';
+            activeDayTitleEl.textContent = `CAMPUS HOLIDAY / OFF • ${acadStatus.remarks.toUpperCase()}`;
+            activeDayTitleEl.style.color = '#ef4444';
         } else {
-            activeDayTitleEl.textContent = `SRM ${currentDayOrder.toUpperCase()} ORDER ACTIVE`;
-            activeDayTitleEl.style.color = 'var(--text-main)';
+            activeDayTitleEl.textContent = `SRM ${currentDayOrder.toUpperCase()} ORDER (WORKING TODAY)`;
+            activeDayTitleEl.style.color = '#3b82f6';
         }
     }
 
@@ -2718,45 +2839,95 @@ function initClockAndDate() {
 }
 
 function openDayOrderSwitcher() {
-    const current = localStorage.getItem('srm_manual_day_order') || 'Auto';
-    const choice = prompt(
-        ` Quick Day Order & Holiday Override\n\n` +
-        `Current Status: ${current}\n\n` +
-        `1. Auto (Official Academic Calendar)\n` +
-        `2. Holiday / Campus Off\n` +
-        `3. Day 1\n` +
-        `4. Day 2\n` +
-        `5. Day 3\n` +
-        `6. Day 4\n` +
-        `7. Day 5\n\n` +
-        `Enter number (1-7):`,
-        current === 'Auto' ? '1' : (current === 'Holiday' ? '2' : String(parseInt(current.replace('Day ', '')) + 2))
-    );
-    if (!choice) return;
-    const num = parseInt(choice.trim(), 10);
-    if (num === 1) {
+    const existing = document.getElementById('day-order-switcher-modal');
+    if (existing) existing.remove();
+
+    const currentOverride = localStorage.getItem('srm_manual_day_order') || 'Auto';
+    const acadStatus = getTodayAcademicStatus();
+
+    const modal = document.createElement('div');
+    modal.id = 'day-order-switcher-modal';
+    modal.className = 'class-modal-backdrop';
+
+    modal.innerHTML = `
+        <div class="class-modal-sheet" style="max-width:440px;">
+            <div class="class-modal-header">
+                <div>
+                    <span class="wa-privacy-badge" style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);">⚡ Academic Telemetry</span>
+                    <h3 style="font-size:1.1rem;font-weight:800;color:var(--text-main);margin-top:4px;">Day Order & Holiday Switcher</h3>
+                </div>
+                <button type="button" class="class-modal-close" onclick="document.getElementById('day-order-switcher-modal')?.remove()">&times;</button>
+            </div>
+            <div class="class-modal-body" style="display:flex;flex-direction:column;gap:12px;padding:12px 4px 6px;">
+                <div style="background:var(--card-elevated);border:1px solid var(--card-border);border-radius:var(--radius-md);padding:12px;">
+                    <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:800;letter-spacing:0.5px;">Today's Calendar Status</div>
+                    <div style="font-size:0.88rem;font-weight:800;margin-top:4px;color:${acadStatus.isWorking ? '#3b82f6' : '#ef4444'};display:flex;align-items:center;gap:6px;">
+                        <span>${acadStatus.isWorking ? '📘 Working Day' : '🏖️ Campus Holiday'}</span>
+                        <span>&bull;</span>
+                        <span>${acadStatus.isWorking ? acadStatus.dayOrder : acadStatus.remarks}</span>
+                    </div>
+                </div>
+
+                <div style="font-size:0.75rem;font-weight:800;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.04em;">Select Day Order Mode:</div>
+
+                <!-- 1. Auto Mode -->
+                <button type="button" class="apex-btn" style="width:100%;justify-content:flex-start;padding:12px 14px;background:${currentOverride === 'Auto' ? 'rgba(59,130,246,0.18)' : 'var(--card-elevated)'};border:1px solid ${currentOverride === 'Auto' ? '#3b82f6' : 'var(--card-border)'};color:var(--text-main);display:flex;align-items:center;gap:10px;text-align:left;border-radius:var(--radius-md);" onclick="setDayOrderMode('Auto')">
+                    <span style="font-size:1.2rem;">🗓️</span>
+                    <div style="flex:1;">
+                        <div style="font-size:0.85rem;font-weight:800;">Auto (Official Academic Calendar)</div>
+                        <div style="font-size:0.7rem;color:var(--text-muted);">Automatically syncs with SRM official schedule</div>
+                    </div>
+                    ${currentOverride === 'Auto' ? '<span style="color:#3b82f6;font-weight:900;">✓ Active</span>' : ''}
+                </button>
+
+                <!-- 2. Holiday Override -->
+                <button type="button" class="apex-btn" style="width:100%;justify-content:flex-start;padding:12px 14px;background:${currentOverride === 'Holiday' ? 'rgba(239,68,68,0.18)' : 'var(--card-elevated)'};border:1px solid ${currentOverride === 'Holiday' ? '#ef4444' : 'var(--card-border)'};color:var(--text-main);display:flex;align-items:center;gap:10px;text-align:left;border-radius:var(--radius-md);" onclick="setDayOrderMode('Holiday')">
+                    <span style="font-size:1.2rem;">🏖️</span>
+                    <div style="flex:1;">
+                        <div style="font-size:0.85rem;font-weight:800;color:#ef4444;">Campus Holiday / Off</div>
+                        <div style="font-size:0.7rem;color:var(--text-muted);">Override today as holiday / no lectures</div>
+                    </div>
+                    ${currentOverride === 'Holiday' ? '<span style="color:#ef4444;font-weight:900;">✓ Active</span>' : ''}
+                </button>
+
+                <!-- 3. Day 1 - Day 5 Grid -->
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Or manually force a specific Day Order:</div>
+                <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:6px;">
+                    ${['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'].map(d => `
+                        <button type="button" class="pill-btn ${currentOverride === d ? 'active' : ''}" style="font-size:0.75rem;padding:9px 4px;text-align:center;font-weight:800;${currentOverride === d ? 'background:#3b82f6;border-color:#3b82f6;color:#fff;' : ''}" onclick="setDayOrderMode('${d}')">
+                            ${d}
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+window.openDayOrderSwitcher = openDayOrderSwitcher;
+
+function setDayOrderMode(mode) {
+    const todayStr = getFormattedDateStr(new Date());
+    if (mode === 'Auto') {
         localStorage.removeItem('srm_manual_day_order');
-    } else if (num === 2) {
-        localStorage.setItem('srm_manual_day_order', 'Holiday');
-    } else if (num >= 3 && num <= 7) {
-        localStorage.setItem('srm_manual_day_order', `Day ${num - 2}`);
+        localStorage.removeItem('srm_manual_day_order_date');
+        showAttendanceToast("Switched to Auto (Official Calendar)", "success");
+    } else {
+        localStorage.setItem('srm_manual_day_order', mode);
+        localStorage.setItem('srm_manual_day_order_date', todayStr);
+        showAttendanceToast(`Timetable switched to ${mode}`, "success");
     }
+    document.getElementById('day-order-switcher-modal')?.remove();
     initClockAndDate();
     updateLiveHUD();
 }
+window.setDayOrderMode = setDayOrderMode;
 
 function updateClock() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     const clockEl = document.getElementById('live-clock');
     if (clockEl) clockEl.textContent = timeStr;
-}
-
-function getFormattedDateStr(d) {
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    return dd + '-' + mm + '-' + yyyy;
 }
 
 // ─── Smart Calendar & Next Working Day Helpers ────────────────────────────────
@@ -3024,29 +3195,29 @@ function updateLiveHUD() {
     // 1. Holiday State
     if (isTodayHoliday) {
         const todayStr = getFormattedDateStr(now);
-        const calEntry = SRM_DATA.calendar.find(c => c.date === todayStr);
-        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const todayDayName = dayNames[now.getDay()];
-        const remark = (calEntry && calEntry.remarks && calEntry.remarks !== '-') ? calEntry.remarks : todayDayName;
+        const acadStatus = getTodayAcademicStatus();
+        const todayDayName = acadStatus.dayName;
+        const remark = acadStatus.remarks;
 
-        if (hudStatus) { hudStatus.textContent = `CAMPUS OFF • ${todayDayName.toUpperCase()}`; hudStatus.style.color = 'var(--text-sub)'; }
-        if (hudDot) hudDot.style.background = 'var(--text-muted)';
+        if (hudStatus) { hudStatus.textContent = `CAMPUS OFF • ${todayDayName.toUpperCase()}`; hudStatus.style.color = '#ef4444'; }
+        if (hudDot) { hudDot.style.background = '#ef4444'; hudDot.style.boxShadow = '0 0 8px #ef4444'; }
         if (hudTitle) hudTitle.textContent = shortNextSubj;
         if (hudVenue) hudVenue.textContent = formatCleanVenue(nextInfo.firstClass.venue);
         if (hudFaculty) hudFaculty.textContent = formatTitleCaseName(nextInfo.firstClass.faculty);
         if (hudSub) hudSub.innerHTML = `<span>Next: <b>${escapeHtml(shortNextSubj)}</b> • <b>${nextInfo.relativeLabel} (${nextInfo.dayOrder}) @ ${nextInfo.startTime}</b></span>`;
-        if (islandDayBadge) islandDayBadge.textContent = 'Off';
+        if (islandDayBadge) { islandDayBadge.textContent = 'Off'; islandDayBadge.style.color = '#ef4444'; }
 
-        if (statusTextEl) statusTextEl.textContent = `CAMPUS RECESS • ${todayDayName.toUpperCase()}`;
+        if (statusTextEl) { statusTextEl.textContent = `CAMPUS RECESS • ${todayDayName.toUpperCase()}`; statusTextEl.style.color = '#ef4444'; }
         if (monoTimeVenue) monoTimeVenue.textContent = `${nextInfo.dayName}, ${nextInfo.startTime} • ${formatCleanVenue(nextInfo.firstClass.venue)}`;
         if (monoFaculty) monoFaculty.textContent = formatTitleCaseName(nextInfo.firstClass.faculty);
         if (progTimeLeft) progTimeLeft.textContent = `Resumes ${nextInfo.dayName} @ ${nextInfo.startTime}`;
-        if (progFill) { progFill.style.width = '100%'; progFill.style.background = 'var(--card-border-strong)'; }
+        if (progFill) { progFill.style.width = '100%'; progFill.style.background = '#ef4444'; }
         return;
     }
 
     if (islandDayBadge) {
-        islandDayBadge.textContent = currentDayOrder || 'Day 2';
+        islandDayBadge.textContent = currentDayOrder || 'Day 1';
+        islandDayBadge.style.color = '#3b82f6';
     }
 
     const schedule = SRM_DATA.dayOrderSchedule[currentDayOrder] || SRM_DATA.dayOrderSchedule['Day 1'] || [];
@@ -3149,6 +3320,124 @@ function formatShortVenue(venue) {
     return venue.replace(/\s*\(Annexure-[IVX]+\)/gi, '').trim();
 }
 
+// ─── Total Schedule (All Days) Renderer ──────────────────────────────────────
+function renderTotalScheduleView(list) {
+    list.innerHTML = '';
+    const acadStatus = getTodayAcademicStatus();
+    const isWorking = acadStatus.isWorking;
+
+    // 1. Update Hero Card
+    const hudTitle = document.getElementById('hud-class-title');
+    const statusTextEl = document.getElementById('monolith-status-text');
+    const monoTimeVenue = document.getElementById('monolith-time-venue');
+    const monoFaculty = document.getElementById('monolith-faculty-text');
+    const progTimeLeft = document.getElementById('prog-time-left');
+
+    if (hudTitle) hudTitle.textContent = 'All 5 Day Orders';
+    if (statusTextEl) {
+        statusTextEl.textContent = 'SEMESTER TIMETABLE OVERVIEW';
+        statusTextEl.style.color = '#c084fc';
+    }
+    if (monoTimeVenue) monoTimeVenue.textContent = 'SRM Kattankulathur • Complete Master Roster';
+    if (monoFaculty) monoFaculty.textContent = 'All Weekly Classes (Day 1 - Day 5)';
+    if (progTimeLeft) progTimeLeft.textContent = 'Showing full weekly academic timetable';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'total-schedule-container';
+
+    // Quick Day Jump Bar
+    const jumpBar = document.createElement('div');
+    jumpBar.style.cssText = 'display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:6px;scrollbar-width:none;align-items:center;';
+    jumpBar.innerHTML = `
+        <span style="font-size:0.7rem;color:var(--text-muted);font-weight:800;letter-spacing:0.04em;margin-right:2px;white-space:nowrap;">JUMP:</span>
+        ${['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'].map(d => `
+            <button type="button" class="pill-btn" style="font-size:0.72rem;padding:5px 11px;font-weight:800;background:var(--card-elevated);border:1px solid var(--card-border);color:var(--text-main);white-space:nowrap;border-radius:var(--radius-sm);" onclick="document.getElementById('total-block-${d.replace(' ', '')}')?.scrollIntoView({behavior:'smooth', block:'start'})">
+                ${d}
+            </button>
+        `).join('')}
+    `;
+    wrap.appendChild(jumpBar);
+
+    let cachedTt = {};
+    try {
+        const raw = localStorage.getItem('srm_cached_schedule') || localStorage.getItem('srm_timetable_cache');
+        if (raw) cachedTt = JSON.parse(raw);
+    } catch (_) {}
+
+    ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'].forEach(d => {
+        let schedule = (cachedTt && Array.isArray(cachedTt[d]) && cachedTt[d].length > 0)
+            ? cachedTt[d]
+            : ((typeof SRM_DATA !== 'undefined' && SRM_DATA.dayOrderSchedule && Array.isArray(SRM_DATA.dayOrderSchedule[d])) ? SRM_DATA.dayOrderSchedule[d] : []);
+
+        const workingSchedule = schedule.filter(p => p && p.type !== 'Free' && p.title && p.title !== 'Free Period');
+        const isTodayDay = (isWorking && d === acadStatus.dayOrder);
+
+        const card = document.createElement('div');
+        card.className = 'total-day-card';
+        card.id = `total-block-${d.replace(' ', '')}`;
+
+        const header = document.createElement('div');
+        header.className = 'total-day-header';
+        if (isTodayDay) {
+            header.style.background = 'rgba(37, 99, 235, 0.12)';
+            header.style.borderBottomColor = 'rgba(59, 130, 246, 0.35)';
+        }
+
+        header.innerHTML = `
+            <div class="total-day-title">
+                <span style="font-size:0.92rem;font-weight:900;">${d} Order</span>
+                ${isTodayDay ? '<span class="day-chip-badge badge-working" style="background:#2563eb;color:#fff;padding:3px 8px;font-weight:900;">TODAY ACTIVE</span>' : ''}
+            </div>
+            <div class="total-day-count">${workingSchedule.length} ${workingSchedule.length === 1 ? 'Class' : 'Classes'}</div>
+        `;
+        card.appendChild(header);
+
+        const body = document.createElement('div');
+        body.style.cssText = 'padding: 8px; display: flex; flex-direction: column; gap: 8px;';
+
+        if (workingSchedule.length === 0) {
+            const empty = document.createElement('div');
+            empty.style.cssText = 'padding: 16px; text-align: center; color: var(--text-muted); font-size: 0.78rem;';
+            empty.textContent = `No scheduled classes for ${d} (Free Day).`;
+            body.appendChild(empty);
+        } else {
+            workingSchedule.forEach(p => {
+                const slotInfo = SRM_DATA.timeSlots.find(s => s.hour === p.hour) || SRM_DATA.timeSlots[p.hour - 1] || { start: `H${p.hour}`, end: '', label: `Hour ${p.hour}` };
+                const shortVenue = formatShortVenue(p.venue);
+                const facultyName = p.faculty && p.faculty !== '-' ? p.faculty : 'Faculty TBA';
+                const isCancelled = (typeof isClassCancelledToday === 'function') ? isClassCancelledToday(p, d) : false;
+
+                const rail = document.createElement('div');
+                rail.className = 'class-rail' + (isCancelled ? ' is-cancelled' : '');
+                rail.style.margin = '0';
+                rail.onclick = () => showClassSummaryModal(p, d);
+
+                rail.innerHTML = `
+                    <div class="class-rail-header">
+                        <div class="class-rail-badges">
+                            <span class="class-time-slot-tag">${slotInfo.start} - ${slotInfo.end}</span>
+                            <span class="class-code-tag">${p.code || 'COURSE'}</span>
+                            ${p.type ? `<span class="class-type-tag">${p.type}</span>` : ''}
+                            ${isCancelled ? `<span class="class-type-tag" style="background:rgba(239,68,68,0.2);color:#ef4444;border:1px solid rgba(239,68,68,0.4);font-weight:800;">🚫 CANCELLED</span>` : ''}
+                        </div>
+                        <span class="room-tag-box" title="${escapeHtml(p.venue || 'UB 601')}">${escapeHtml(shortVenue)}</span>
+                    </div>
+                    <div class="class-name">${escapeHtml(p.title)}</div>
+                    <div class="class-meta">
+                        <span>${escapeHtml(facultyName)}</span>
+                        ${p.slot ? `<span>&bull; Slot ${p.slot}</span>` : ''}
+                    </div>
+                `;
+                body.appendChild(rail);
+            });
+        }
+        card.appendChild(body);
+        wrap.appendChild(card);
+    });
+
+    list.appendChild(wrap);
+}
+
 // ─── Schedule & Holiday Hub Renderer ──────────────────────────────────────────
 function renderDaySchedule(day) {
     const list = document.getElementById('period-list');
@@ -3158,19 +3447,26 @@ function renderDaySchedule(day) {
     const targetDay = (typeof day === 'string' && day.trim() && day !== 'undefined') ? day.trim() : (selectedDay || currentDayOrder || 'Day 1');
     selectedDay = targetDay;
 
+    // If Total Schedule selected
+    if (targetDay === 'Total') {
+        renderTotalScheduleView(list);
+        return;
+    }
+
     const nextInfo = getNextWorkingDayInfo();
+    const acadStatus = getTodayAcademicStatus();
 
     // If Holiday view selected
     if (targetDay === 'Holiday' || (isTodayHoliday && targetDay === 'Holiday')) {
         const upHolidays = getUpcomingHolidays(3);
         const holHtml = upHolidays.map(h => `
-            <div class="class-rail">
+            <div class="class-rail" style="border-left: 3px solid #ef4444;">
                 <div class="class-rail-header">
                     <div class="class-rail-badges">
-                        <span class="class-time-slot-tag">${h.date}</span>
+                        <span class="class-time-slot-tag" style="color:#ef4444;">${h.date}</span>
                         <span class="class-code-tag">${h.day}</span>
                     </div>
-                    <span class="room-tag-box">Campus Off</span>
+                    <span class="room-tag-box" style="border-color:rgba(239,68,68,0.4);color:#ef4444;">Campus Off</span>
                 </div>
                 <div class="class-name">${escapeHtml(h.remarks)}</div>
                 <div class="class-meta">Campus Holiday &bull; Academic Recess</div>
@@ -3178,15 +3474,39 @@ function renderDaySchedule(day) {
         `).join('');
 
         list.innerHTML = `
+            <!-- Friendly Holiday Alert Hero Card -->
+            <div style="background:linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(15, 23, 42, 0.65)); border: 1.5px solid rgba(239, 68, 68, 0.35); border-radius: var(--radius-lg); padding: 18px 16px; margin-bottom: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="width:44px;height:44px;border-radius:12px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">
+                        🏖️
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-size:1.02rem;font-weight:900;color:#ef4444;letter-spacing:0.02em;">Campus Holiday • No Classes Today</div>
+                        <div style="font-size:0.78rem;color:var(--text-sub);margin-top:2px;">${escapeHtml(acadStatus.remarks)} (${acadStatus.dayName})</div>
+                    </div>
+                </div>
+                <div style="margin-top:12px;font-size:0.75rem;color:var(--text-muted);line-height:1.45;">
+                    Academic lectures are paused today for university holiday or weekend recess. You can plan ahead by checking upcoming classes below or viewing the total timetable.
+                </div>
+                <div style="display:flex;gap:8px;margin-top:14px;">
+                    <button type="button" class="apex-btn" style="flex:1;background:rgba(147,51,234,0.15);border:1px solid rgba(147,51,234,0.4);color:#c084fc;font-size:0.75rem;padding:9px 12px;font-weight:800;" onclick="selectedDay='Total';highlightActiveDayBtn('Total');renderDaySchedule('Total');">
+                        📋 View Total Schedule
+                    </button>
+                    <button type="button" class="apex-btn" style="flex:1;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);color:#93c5fd;font-size:0.75rem;padding:9px 12px;font-weight:800;" onclick="selectedDay='${nextInfo.dayOrder}';highlightActiveDayBtn('${nextInfo.dayOrder}');renderDaySchedule('${nextInfo.dayOrder}');">
+                        ⚡ ${nextInfo.shortDayLabel} (${nextInfo.dayOrder})
+                    </button>
+                </div>
+            </div>
+
             <div style="margin-bottom:12px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                     <span style="font-size:0.78rem;font-weight:800;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.5px;">Upcoming Campus Holidays</span>
-                    <span style="font-size:0.7rem;color:var(--blue);cursor:pointer;" onclick="document.querySelector('[data-tab=view-calendar]').click()">View All ↗</span>
+                    <span style="font-size:0.7rem;color:var(--blue);cursor:pointer;" onclick="document.querySelector('[data-tab=view-calendar]').click()">View Calendar ↗</span>
                 </div>
-                ${holHtml || '<p style="font-size:0.75rem;color:var(--text-muted);">No upcoming campus holidays in next 2 weeks.</p>'}
+                ${holHtml || '<p style="font-size:0.75rem;color:var(--text-muted);">No other campus holidays in next 2 weeks.</p>'}
             </div>
 
-            <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;">
                 <span style="font-size:0.84rem;font-weight:800;color:var(--text-main);">${nextInfo.relativeLabel}'s Schedule (${nextInfo.dayOrder})</span>
                 <span style="font-size:0.72rem;color:var(--accent);font-weight:700;">${nextInfo.totalClasses} working classes</span>
             </div>
@@ -3584,10 +3904,15 @@ function openAITabWithPrompt(promptText) {
 }
 
 function jumpToTodaySchedule() {
-    selectedDay = isTodayHoliday ? 'Holiday' : (currentDayOrder || 'Day 1');
+    const acadStatus = getTodayAcademicStatus();
+    selectedDay = acadStatus.isWorking ? acadStatus.dayOrder : 'Holiday';
     highlightActiveDayBtn(selectedDay);
     renderDaySchedule(selectedDay);
-    showAttendanceToast(`Switched to Today (${isTodayHoliday ? 'Campus Off' : currentDayOrder})`, 'info');
+    if (acadStatus.isWorking) {
+        showAttendanceToast(`⚡ Switched to Today (${acadStatus.dayOrder} • Working Day)`, 'info');
+    } else {
+        showAttendanceToast(`🏖️ Today is a Campus Holiday (${acadStatus.remarks})`, 'info');
+    }
 }
 window.jumpToTodaySchedule = jumpToTodaySchedule;
 
@@ -3596,38 +3921,41 @@ function initDaySelector() {
     if (!container) return;
     container.innerHTML = '';
 
-    const todayTarget = isTodayHoliday ? 'Holiday' : (currentDayOrder || 'Day 1');
+    const acadStatus = getTodayAcademicStatus();
+    const isWorking = acadStatus.isWorking;
+    const todayTarget = isWorking ? acadStatus.dayOrder : 'Holiday';
 
     // 1. Prominent dedicated "Today" quick selector
+    // Requirement: "if today is working ( show it on blue ifnot its red)"
     const todayQuickBtn = document.createElement('div');
-    todayQuickBtn.className = 'day-chip today-chip' + (selectedDay === todayTarget ? ' active' : '');
+    const isTodayActive = (selectedDay === todayTarget || (isWorking && selectedDay === acadStatus.dayOrder) || (!isWorking && selectedDay === 'Holiday'));
+
+    todayQuickBtn.className = `day-chip today-chip ${isWorking ? 'today-working' : 'today-holiday'}${isTodayActive ? ' active' : ''}`;
     todayQuickBtn.id = 'btn-today-quick';
-    todayQuickBtn.innerHTML = `
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <span>Today (${isTodayHoliday ? 'Off' : (currentDayOrder || 'Day 1')})</span>
-    `;
+
+    if (isWorking) {
+        todayQuickBtn.innerHTML = `
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Today (${acadStatus.dayOrder})</span>
+            <span class="day-chip-badge badge-working">Working</span>
+        `;
+    } else {
+        todayQuickBtn.innerHTML = `
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            <span>Today (Holiday)</span>
+            <span class="day-chip-badge badge-holiday">Holiday</span>
+        `;
+    }
     todayQuickBtn.onclick = () => jumpToTodaySchedule();
     container.appendChild(todayQuickBtn);
 
-    if (isTodayHoliday) {
-        const holBtn = document.createElement('div');
-        holBtn.className = 'day-chip holiday-chip' + (selectedDay === 'Holiday' ? ' active' : '');
-        holBtn.innerHTML = `<span>Campus Off</span><span class="day-chip-badge">Today</span>`;
-        holBtn.id = 'btn-Holiday';
-        holBtn.onclick = () => {
-            selectedDay = 'Holiday';
-            highlightActiveDayBtn('Holiday');
-            renderDaySchedule('Holiday');
-        };
-        container.appendChild(holBtn);
-    }
-
+    // 2. Day chips: Day 1 through Day 5
     ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'].forEach(d => {
-        const isToday = (d === currentDayOrder && !isTodayHoliday);
+        const isToday = (isWorking && d === acadStatus.dayOrder);
         const btn = document.createElement('div');
         btn.className = 'day-chip' + (d === selectedDay ? ' active' : '') + (isToday ? ' is-today-chip' : '');
         btn.id = 'btn-' + d.replace(' ', '');
-        btn.innerHTML = `<span>${d}</span>${isToday ? '<span class="day-chip-badge">Today</span>' : ''}`;
+        btn.innerHTML = `<span>${d}</span>${isToday ? '<span class="day-chip-badge badge-working">Today</span>' : ''}`;
         btn.onclick = () => {
             selectedDay = d;
             highlightActiveDayBtn(d);
@@ -3635,30 +3963,54 @@ function initDaySelector() {
         };
         container.appendChild(btn);
     });
+
+    // 3. New Total Schedule (All Days) chip!
+    // Requirement: "and there ist any schedule total one. make it as free n user friendly as possible"
+    const totalBtn = document.createElement('div');
+    totalBtn.className = 'day-chip total-chip' + (selectedDay === 'Total' ? ' active' : '');
+    totalBtn.id = 'btn-Total';
+    totalBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <span>Total Schedule</span>
+    `;
+    totalBtn.onclick = () => {
+        selectedDay = 'Total';
+        highlightActiveDayBtn('Total');
+        renderDaySchedule('Total');
+    };
+    container.appendChild(totalBtn);
 }
 
 function highlightActiveDayBtn(d) {
     document.querySelectorAll('.day-chip').forEach(b => b.classList.remove('active'));
-    const target = document.getElementById('btn-' + d.replace(' ', ''));
+
+    const acadStatus = getTodayAcademicStatus();
+    const isWorking = acadStatus.isWorking;
+    const todayTarget = isWorking ? acadStatus.dayOrder : 'Holiday';
+
+    const target = document.getElementById(d === 'Total' ? 'btn-Total' : (d === 'Holiday' ? 'btn-today-quick' : 'btn-' + d.replace(' ', '')));
     if (target) target.classList.add('active');
 
-    const todayTarget = isTodayHoliday ? 'Holiday' : (currentDayOrder || 'Day 1');
     const todayQuickBtn = document.getElementById('btn-today-quick');
     if (todayQuickBtn) {
-        todayQuickBtn.classList.toggle('active', d === todayTarget);
+        todayQuickBtn.classList.toggle('active', (d === 'Holiday' && !isWorking) || (isWorking && d === acadStatus.dayOrder));
     }
 
     const activeDayTitleEl = document.getElementById('schedule-active-day-title');
     if (activeDayTitleEl) {
-        if (d === 'Holiday') {
-            activeDayTitleEl.textContent = 'CAMPUS HOLIDAY / OFF';
-            activeDayTitleEl.style.color = 'var(--red)';
-        } else if (d === currentDayOrder && !isTodayHoliday) {
-            activeDayTitleEl.textContent = `SRM ${d.toUpperCase()} ORDER (TODAY ACTIVE)`;
-            activeDayTitleEl.style.color = 'var(--text-main)';
+        if (d === 'Total') {
+            activeDayTitleEl.textContent = 'TOTAL TIMETABLE • ALL 5 DAY ORDERS';
+            activeDayTitleEl.style.color = '#c084fc';
+        } else if (d === 'Holiday' || (!isWorking && d === todayTarget)) {
+            activeDayTitleEl.textContent = `CAMPUS HOLIDAY / OFF • ${acadStatus.remarks.toUpperCase()}`;
+            activeDayTitleEl.style.color = '#ef4444';
+        } else if (isWorking && d === acadStatus.dayOrder) {
+            activeDayTitleEl.textContent = `SRM ${d.toUpperCase()} ORDER (WORKING TODAY)`;
+            activeDayTitleEl.style.color = '#3b82f6';
         } else {
-            activeDayTitleEl.textContent = `VIEWING ${d.toUpperCase()} (TODAY: ${currentDayOrder}) • JUMP TO TODAY ⚡`;
-            activeDayTitleEl.style.color = 'var(--accent)';
+            const todayLabel = isWorking ? acadStatus.dayOrder : 'HOLIDAY';
+            activeDayTitleEl.textContent = `VIEWING ${d.toUpperCase()} (TODAY: ${todayLabel}) • JUMP TO TODAY ⚡`;
+            activeDayTitleEl.style.color = isWorking ? '#3b82f6' : '#ef4444';
         }
     }
 }
@@ -4674,7 +5026,10 @@ async function initNativeWAScraper() {
         if (localSaved) {
             _cachedScrapedMessages = JSON.parse(localSaved);
         }
-    } catch (_) {}
+        if (!Array.isArray(_cachedScrapedMessages)) _cachedScrapedMessages = [];
+    } catch (_) {
+        _cachedScrapedMessages = [];
+    }
 
     const WAScraper = window.Capacitor?.Plugins?.WAScraper;
 

@@ -1,7 +1,7 @@
 {
-  "version": "2.5.5",
-  "build": 1047,
-  "releaseDate": "2026-09-03",
+  "version": "2.5.6",
+  "build": 1048,
+  "releaseDate": "2026-09-05",
   "minAppVersion": "1.0.0",
   "hotReload": true,
   "bundleUrl": "https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/app.js",
@@ -16,10 +16,10 @@
     }
   ],
   "features": [
-    "100% Reliable Native SRM Login & Bi-Directional Session Cookies",
-    "On-Device Direct Scraper Bypassing Datacenter WAF Blocks",
-    "Over-The-Air (OTA) Instant Live Code Reload from GitHub",
-    "Dynamic Timetable & Attendance Safe Bunk Matrix",
-    "Offline Persistent Storage & Multi-Cloud Mesh Sync"
+    "Accurate Academic Calendar: Working (Blue) vs Holiday (Red) Visual Telemetry",
+    "Total Schedule (All Days) Overview for full weekly semester timetable",
+    "Interactive Day Order & Holiday Selector bottom sheet modal",
+    "Auto-expiring manual day order overrides (prevents stale day locks)",
+    "100% Reliable Native SRM Login & Bi-Directional Session Cookies"
   ]
 }
