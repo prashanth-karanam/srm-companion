@@ -1,6 +1,6 @@
 {
-  "version": "2.5.6",
-  "build": 1048,
+  "version": "2.5.7",
+  "build": 1049,
   "releaseDate": "2026-09-05",
   "minAppVersion": "1.0.0",
   "hotReload": true,
@@ -16,10 +16,10 @@
     }
   ],
   "features": [
+    "Dynamic Faculty Advisor (FA) Profile Binding & Real Portal Sync",
+    "Optimized Background Telemetry & Ping Throttling (Screen-off pause, gateway cache, sync cooldown)",
+    "Interactive Counselor, Cabin, and Section Customizer with permanent storage",
     "Accurate Academic Calendar: Working (Blue) vs Holiday (Red) Visual Telemetry",
-    "Total Schedule (All Days) Overview for full weekly semester timetable",
-    "Interactive Day Order & Holiday Selector bottom sheet modal",
-    "Auto-expiring manual day order overrides (prevents stale day locks)",
-    "100% Reliable Native SRM Login & Bi-Directional Session Cookies"
+    "Total Schedule (All Days) Overview for full weekly semester timetable"
   ]
 }

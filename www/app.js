@@ -434,9 +434,10 @@ async function nativeHttp(url, options = {}) {
 }
 window.nativeHttp = nativeHttp;
 
-async function probeAndSelectFastestGateway() {
+var _lastGatewayProbeTime = 0;
+
+async function probeAndSelectFastestGateway(force = false) {
     if (_isGatewayProbing) return getApiBase();
-    _isGatewayProbing = true;
 
     const custom = localStorage.getItem('srm_custom_gateway');
     if (custom && custom.trim()) {
@@ -444,6 +445,15 @@ async function probeAndSelectFastestGateway() {
         _isGatewayProbing = false;
         return _activeGatewayUrl;
     }
+
+    const now = Date.now();
+    // Cache gateway probing for 60 minutes to eliminate repetitive background pings
+    if (!force && _activeGatewayUrl && (now - _lastGatewayProbeTime < 60 * 60 * 1000)) {
+        return _activeGatewayUrl;
+    }
+
+    _isGatewayProbing = true;
+    _lastGatewayProbeTime = now;
 
     const candidates = MULTI_CLOUD_GATEWAYS;
 
@@ -2264,22 +2274,63 @@ function _initApp() {
         pill.onclick = openDayOrderSwitcher;
     }
 
-    // On-demand background sync on launch
-    syncWithBackend();
+    // Auto-sync with throttle (skips if run < 5m ago)
+    syncWithBackend(false);
 
     if (!window._appIntervalsSet) {
         window._appIntervalsSet = true;
-        setInterval(updateLiveHUD, 15000);
-        setInterval(updateClock, 1000);
-        setInterval(scheduleClassBoundaryCheck, 30000);
+        window._liveHudInterval = setInterval(updateLiveHUD, 15000);
+        window._clockInterval = setInterval(updateClock, 1000);
+        window._classBoundaryInterval = setInterval(scheduleClassBoundaryCheck, 30000);
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Pause background intervals & mesh to stop background battery drain and ping loops
+                if (window._liveHudInterval) { clearInterval(window._liveHudInterval); window._liveHudInterval = null; }
+                if (window._clockInterval) { clearInterval(window._clockInterval); window._clockInterval = null; }
+                if (window._classBoundaryInterval) { clearInterval(window._classBoundaryInterval); window._classBoundaryInterval = null; }
+                if (_p2pMqttClient && _p2pConnected) {
+                    try { _p2pMqttClient.end(true); } catch (_) {}
+                    _p2pConnected = false;
+                }
+            } else {
+                // Resume active telemetry when app is foregrounded
+                if (!window._liveHudInterval) window._liveHudInterval = setInterval(updateLiveHUD, 15000);
+                if (!window._clockInterval) window._clockInterval = setInterval(updateClock, 1000);
+                if (!window._classBoundaryInterval) window._classBoundaryInterval = setInterval(scheduleClassBoundaryCheck, 30000);
+                updateClock();
+                updateLiveHUD();
+            }
+        });
     }
 }
 
 // ─── Sync with Backend (Stateless & On-Demand) ─────────────────────────────────
-async function syncWithBackend() {
+var _isSyncing = false;
+var _lastAutoSyncTime = 0;
+
+async function syncWithBackend(isManual = false) {
     const rawId = localStorage.getItem('srm_auto_id');
     const pass = localStorage.getItem('srm_auto_pass');
     if (!rawId) return;
+
+    if (_isSyncing) {
+        console.log('[Sync] Sync already in progress, skipping duplicate.');
+        return;
+    }
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        console.log('[Sync] Device is offline, skipping sync.');
+        return;
+    }
+    const now = Date.now();
+    // 5-minute cooldown for automatic background syncs
+    if (!isManual && (now - _lastAutoSyncTime < 5 * 60 * 1000)) {
+        console.log('[Sync] Background sync cooldown active (last synced < 5m ago).');
+        return;
+    }
+
+    _isSyncing = true;
+    _lastAutoSyncTime = now;
 
     try {
         const activeCookies = localStorage.getItem('srm_session_cookies') || localStorage.getItem('srm_live_cookies') || '';
@@ -2297,7 +2348,8 @@ async function syncWithBackend() {
                     'Cookie': activeCookies
                 };
 
-                const [attRes, ttRes] = await Promise.all([
+                const fetchProfileNeeded = !localStorage.getItem('srm_advisor_custom_saved');
+                const requests = [
                     capHttp.request({
                         url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentAttendanceDetails.jsp',
                         method: 'POST',
@@ -2310,7 +2362,22 @@ async function syncWithBackend() {
                         headers: reportHeaders,
                         data: 'iden=10&filter=&hdnFormDetails=10&csrfPreventionSalt='
                     })
-                ]);
+                ];
+                if (fetchProfileNeeded) {
+                    requests.push(
+                        capHttp.request({
+                            url: 'https://sp.srmist.edu.in/srmiststudentportal/students/report/studentProfile.jsp',
+                            method: 'POST',
+                            headers: reportHeaders,
+                            data: 'iden=1&filter=&hdnFormDetails=1&csrfPreventionSalt='
+                        })
+                    );
+                }
+
+                const responses = await Promise.all(requests);
+                const attRes = responses[0];
+                const ttRes = responses[1];
+                const profRes = responses[2];
 
                 if (attRes?.data && !attRes.data.includes('.theGR8LoginLoader')) {
                     const parser = new DOMParser();
@@ -2401,6 +2468,26 @@ async function syncWithBackend() {
                         });
                     }
 
+                    if (profRes?.data && !profRes.data.includes('.theGR8LoginLoader')) {
+                        const profDoc = parser.parseFromString(profRes.data, 'text/html');
+                        profDoc.querySelectorAll('td').forEach(td => {
+                            const txt = td.textContent.trim();
+                            const nxt = td.nextElementSibling?.textContent?.trim() || '';
+                            if (!nxt) return;
+                            if (txt.includes('Student Name') && nxt) localStorage.setItem('srm_display_name', nxt);
+                            else if (txt.includes('Register No') && nxt) localStorage.setItem('srm_reg_no', nxt);
+                            else if (txt.includes('Program') && nxt) localStorage.setItem('srm_program', nxt);
+                            else if (txt.includes('Section') && nxt) localStorage.setItem('srm_section', nxt);
+                            else if (txt.includes('Department') && nxt) localStorage.setItem('srm_department', nxt);
+                            else if (txt.includes('Faculty Advisor') && nxt) {
+                                localStorage.setItem('srm_advisor', nxt);
+                                localStorage.setItem('srm_advisor_custom_saved', 'true');
+                            }
+                            else if (txt.includes('Academic Advisor') && nxt) localStorage.setItem('srm_academic_advisor', nxt);
+                            else if ((txt.includes('Orientation Room') || txt.includes('Cabin')) && nxt) localStorage.setItem('srm_user_fa_cabin', nxt);
+                        });
+                    }
+
                     if (attendance.length > 0) {
                         res = { success: true, attendance, timetable, cookies: activeCookies };
                         console.log(`[NativeSync] Scraped ${attendance.length} subjects directly on device!`);
@@ -2437,6 +2524,21 @@ async function syncWithBackend() {
             if (program) localStorage.setItem('srm_program', program);
             if (section) localStorage.setItem('srm_section', section);
             if (email) localStorage.setItem('srm_email', email);
+            if (res.faculty_advisor || res.advisor) {
+                localStorage.setItem('srm_advisor', res.faculty_advisor || res.advisor);
+                localStorage.setItem('srm_advisor_custom_saved', 'true');
+            }
+            if (res.academic_advisor) localStorage.setItem('srm_academic_advisor', res.academic_advisor);
+            if (res.orientation_room) localStorage.setItem('srm_user_fa_cabin', res.orientation_room);
+            if (res.department) localStorage.setItem('srm_department', res.department);
+
+            if (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) {
+                if (res.faculty_advisor || res.advisor) SRM_DATA.profile.facultyAdvisor = res.faculty_advisor || res.advisor;
+                if (res.academic_advisor) SRM_DATA.profile.academicAdvisor = res.academic_advisor;
+                if (res.orientation_room) SRM_DATA.profile.orientationRoom = res.orientation_room;
+                if (res.department) SRM_DATA.profile.department = res.department;
+            }
+
             if (res.cookies) {
                 localStorage.setItem('srm_session_cookies', res.cookies);
                 localStorage.setItem('srm_live_cookies', res.cookies);
@@ -2538,6 +2640,9 @@ async function syncWithBackend() {
             }
         } catch (_) {}
     } catch (_) {}
+    finally {
+        _isSyncing = false;
+    }
 }
 
 async function triggerManualScrape() {
@@ -2550,7 +2655,7 @@ async function triggerManualScrape() {
 
     try {
         const oldAttendance = portalAttendance && portalAttendance.length ? JSON.parse(JSON.stringify(portalAttendance)) : [];
-        await syncWithBackend();
+        await syncWithBackend(true);
         
         // Mathematical Delta Detection: alert only on actual changes
         const newAttendance = portalAttendance || [];
@@ -2641,9 +2746,11 @@ function showAttendanceToast(input, type = 'info') {
 }
 
 function scheduleClassBoundaryCheck() {
-    if (isTodayHoliday) return;
+    if (document.hidden || isTodayHoliday) return;
     const now = new Date();
     const currentMins = now.getHours() * 60 + now.getMinutes();
+    // Only check between 08:00 AM (480 mins) and 17:30 PM (1050 mins) on working days
+    if (currentMins < 480 || currentMins > 1050) return;
     
     // Class end minutes: 08:50 (530), 09:40 (580), 10:35 (635), 11:30 (690), 13:15 (795), 14:05 (845), 14:55 (895), 15:45 (945), 16:30 (990), 17:00 (1020)
     const endMinutes = [530, 580, 635, 690, 795, 845, 895, 945, 990, 1020];
@@ -2654,7 +2761,7 @@ function scheduleClassBoundaryCheck() {
             if (!sessionStorage.getItem(key)) {
                 sessionStorage.setItem(key, '1');
                 console.log('[SmartSync] Class boundary reached (slot ' + em + '). Triggering 0-CAPTCHA delta sync...');
-                syncWithBackend();
+                syncWithBackend(false);
             }
             break;
         }
@@ -3143,6 +3250,46 @@ function formatTitleCaseName(name, subjectTitle = '') {
         return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
     }).join(' ').replace(/\s+/g, ' ').trim();
 }
+
+function getDepartmentFromProgram(programStr) {
+    if (!programStr) return 'Department of Computer Science & Engineering';
+    const p = programStr.toLowerCase();
+    if (p.includes('artificial intelligence') || p.includes('aiml') || p.includes('computational intelligence')) {
+        return 'Department of Computational Intelligence (CSE)';
+    }
+    if (p.includes('data science') || p.includes('business systems')) {
+        return 'Department of Data Science & Business Systems';
+    }
+    if (p.includes('networking') || p.includes('cyber') || p.includes('iot') || p.includes('cloud')) {
+        return 'Department of Networking & Communications';
+    }
+    if (p.includes('computer science') || p.includes('cse') || p.includes('computing')) {
+        return 'Department of Computing Technologies (CSE)';
+    }
+    if (p.includes('information technology') || p.includes('it')) {
+        return 'Department of Information Technology';
+    }
+    if (p.includes('electronics') || p.includes('ece')) {
+        return 'Department of Electronics & Communication Engineering';
+    }
+    if (p.includes('electrical') || p.includes('eee')) {
+        return 'Department of Electrical & Electronics Engineering';
+    }
+    if (p.includes('mechanical') || p.includes('mech')) {
+        return 'Department of Mechanical Engineering';
+    }
+    if (p.includes('biotech') || p.includes('bio')) {
+        return 'Department of Biotechnology';
+    }
+    if (p.includes('civil')) {
+        return 'Department of Civil Engineering';
+    }
+    if (p.includes('aerospace')) {
+        return 'Department of Aerospace Engineering';
+    }
+    return programStr.startsWith('Department of') ? programStr : `Department of ${programStr}`;
+}
+window.getDepartmentFromProgram = getDepartmentFromProgram;
 
 function formatCleanVenue(venue) {
     if (!venue || venue === '-' || venue.toLowerCase() === 'campus') return 'UB 601';
@@ -6250,7 +6397,7 @@ function initP2PMesh() {
                 clientId: clientId,
                 clean: true,
                 connectTimeout: 4000,
-                reconnectPeriod: 5000
+                reconnectPeriod: 0 // Do not run continuous background reconnect loops
             });
 
             _p2pMqttClient.on('connect', () => {
@@ -6275,13 +6422,8 @@ function initP2PMesh() {
 
             _p2pMqttClient.on('error', () => {
                 _p2pConnected = false;
-                // Auto-failover to next public broker
-                _p2pBrokerIdx++;
-                if (_p2pBrokerIdx < P2P_BROKERS.length * 2) {
-                    setTimeout(() => connectToMqttBroker(_p2pBrokerIdx), 2000);
-                } else {
-                    if (badge) badge.textContent = 'Mesh: Standby';
-                }
+                if (badge) badge.textContent = 'Mesh: Standby';
+                try { _p2pMqttClient.end(true); } catch (_) {}
             });
 
             _p2pMqttClient.on('close', () => {
@@ -8365,19 +8507,66 @@ function renderPassportHub() {
     const faDeptEl = document.getElementById('fa-dept');
     const faCabinEl = document.getElementById('fa-cabin');
     const faEmailBtn = document.getElementById('fa-email-btn');
+    const faBadgeEl = document.getElementById('fa-dept-badge');
 
-    const rawAdvisor = localStorage.getItem('srm_advisor') || prof.facultyAdvisor || 'Sheeba Rachel S';
+    const isCustomSaved = localStorage.getItem('srm_advisor_custom_saved') === 'true';
+    let rawAdvisor = localStorage.getItem('srm_advisor') || '';
+    if (!isCustomSaved && rawAdvisor === 'Sheeba Rachel S') {
+        // Clear stale legacy hardcoded default
+        rawAdvisor = '';
+        localStorage.removeItem('srm_advisor');
+    }
+    if (!rawAdvisor) {
+        rawAdvisor = prof.facultyAdvisor || prof.academicAdvisor || '';
+    }
+    if (!rawAdvisor && typeof SRM_DATA !== 'undefined' && SRM_DATA.courses && SRM_DATA.courses.length > 0) {
+        const anyFac = SRM_DATA.courses.find(c => c && c.theoryFaculty && c.theoryFaculty !== '-' && !c.theoryFaculty.toLowerCase().includes('faculty'))?.theoryFaculty;
+        if (anyFac) rawAdvisor = anyFac;
+    }
+
     let cleanAdvisor = rawAdvisor.split('[')[0].replace(/faculty advisor/i, '').replace(/counselor/i, '').trim();
-    if (!cleanAdvisor || cleanAdvisor.length < 3) cleanAdvisor = 'Sheeba Rachel S';
-    cleanAdvisor = formatTitleCaseName(cleanAdvisor);
+    if (cleanAdvisor && cleanAdvisor.length >= 3) {
+        cleanAdvisor = formatTitleCaseName(cleanAdvisor);
+    } else {
+        cleanAdvisor = 'Official Faculty Advisor';
+    }
 
-    const advisorEmail = localStorage.getItem('srm_advisor_email') || (rawAdvisor.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/) || [''])[0] || 'sheebars@srmist.edu.in';
-    const faCabin = localStorage.getItem('srm_user_fa_cabin') || prof.orientationRoom || 'UB 6th Floor, Room 601';
+    const studentProg = localStorage.getItem('srm_program') || prof.program || prof.degree || '';
+    const userDept = localStorage.getItem('srm_department') || localStorage.getItem('srm_advisor_dept') || getDepartmentFromProgram(studentProg);
+    const secClean = (localStorage.getItem('srm_section') || prof.section || prof.batch || '').replace(/Section\s*/i, '').trim();
+    const faCabin = localStorage.getItem('srm_user_fa_cabin') || prof.orientationRoom || (userDept.includes('Computing') || userDept.includes('Computational') ? 'UB 6th Floor' : 'University Building');
+
+    let advisorEmail = localStorage.getItem('srm_advisor_email') || (rawAdvisor.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/) || [''])[0] || '';
+    if (!advisorEmail && cleanAdvisor && cleanAdvisor !== 'Official Faculty Advisor') {
+        const parts = cleanAdvisor.toLowerCase().replace(/dr\.?|prof\.?|mr\.?|ms\.?|mrs\.?/g, '').trim().split(/\s+/);
+        if (parts.length > 0 && parts[0].length >= 3) {
+            advisorEmail = `${parts.join('')}@srmist.edu.in`;
+        }
+    }
 
     if (faNameEl) faNameEl.textContent = cleanAdvisor;
-    if (faDeptEl) faDeptEl.textContent = 'Department of Computational Intelligence (CSE AIML)';
-    if (faCabinEl) faCabinEl.innerHTML = `<b>Office Base:</b> ${escapeHtml(faCabin)} &bull; <b>Section:</b> Sec ${escapeHtml(sectionStr || 'AL1')}`;
-    if (faEmailBtn) faEmailBtn.href = advisorEmail ? `mailto:${advisorEmail}` : `mailto:sheebars@srmist.edu.in`;
+    if (faDeptEl) faDeptEl.textContent = userDept;
+    if (faCabinEl) faCabinEl.innerHTML = `<b>Office Base:</b> ${escapeHtml(faCabin)} &bull; <b>Section:</b> Sec ${escapeHtml(secClean || '1')}`;
+    if (faBadgeEl) {
+        let badgeText = 'Academic Counselor';
+        if (userDept.includes('Computational') || userDept.includes('CSE')) badgeText = 'CSE Faculty';
+        else if (userDept.includes('Information Technology') || userDept.includes('IT')) badgeText = 'IT Faculty';
+        else if (userDept.includes('Electronics') || userDept.includes('ECE')) badgeText = 'ECE Faculty';
+        else if (userDept.includes('Mechanical')) badgeText = 'Mech Faculty';
+        else if (userDept.includes('Biotech')) badgeText = 'Biotech Faculty';
+        faBadgeEl.textContent = badgeText;
+    }
+    if (faEmailBtn) {
+        if (advisorEmail) {
+            faEmailBtn.href = `mailto:${advisorEmail}`;
+            const spanText = faEmailBtn.querySelector('span');
+            if (spanText) spanText.textContent = 'Email Counselor';
+        } else {
+            faEmailBtn.href = `mailto:advisor@srmist.edu.in`;
+            const spanText = faEmailBtn.querySelector('span');
+            if (spanText) spanText.textContent = 'Contact Counselor';
+        }
+    }
 
     // 4. Hostel Allocation Info
     const hostelRoomEl = document.getElementById('pass-hostel-room');
@@ -8486,11 +8675,11 @@ function calculateSimulatedSGPA() {
 
 function copyFAToClipboard() {
     const prof = (typeof SRM_DATA !== 'undefined' && SRM_DATA.profile) || {};
-    const fa = localStorage.getItem('srm_advisor') || prof.facultyAdvisor || "Sheeba Rachel S [sheebars@srmist.edu.in]";
-    const cabin = localStorage.getItem('srm_user_fa_cabin') || prof.orientationRoom || "University Building (UB) 6th Floor, Room 601";
-    const sec = localStorage.getItem('srm_section') || prof.section || 'AL1';
-    const hBlock = localStorage.getItem('srm_user_hostel_block') || prof.hostel || 'Adhiyaman';
-    const hRoom = localStorage.getItem('srm_user_room_no') || prof.room || '335';
+    const fa = localStorage.getItem('srm_advisor') || prof.facultyAdvisor || "Official Faculty Advisor";
+    const cabin = localStorage.getItem('srm_user_fa_cabin') || prof.orientationRoom || "University Building";
+    const sec = localStorage.getItem('srm_section') || prof.section || '-';
+    const hBlock = localStorage.getItem('srm_user_hostel_block') || prof.hostel || 'Hostel Block';
+    const hRoom = localStorage.getItem('srm_user_room_no') || prof.room || 'Room';
     const text = `Faculty Advisor: ${fa}\nCounselor Cabin: ${cabin}\nSection: ${sec}\nHostel: ${hBlock} Room ${hRoom}\nStudent ID: ${prof.studentId || prof.regNo || localStorage.getItem('srm_reg_no') || ''}`;
     navigator.clipboard.writeText(text);
     showAttendanceToast("Counselor & Academic details copied to clipboard!", "success");
@@ -8504,10 +8693,25 @@ function openEditProfileDetailsModal(focusField = 'advisor') {
 
     const currentBlock = localStorage.getItem('srm_user_hostel_block') || prof.hostel || 'Adhiyaman';
     const currentRoom = localStorage.getItem('srm_user_room_no') || prof.room || '335';
-    const currentSection = (localStorage.getItem('srm_section') || prof.section || prof.batch || 'AL1').replace(/Section\s*/i, '').trim();
-    const currentAdvisor = localStorage.getItem('srm_advisor') || prof.facultyAdvisor || 'Sheeba Rachel S';
-    const currentCabin = localStorage.getItem('srm_user_fa_cabin') || prof.orientationRoom || 'UB 6th Floor, Room 601';
-    const currentEmail = localStorage.getItem('srm_advisor_email') || (currentAdvisor.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/) || [''])[0] || 'sheebars@srmist.edu.in';
+    const currentSection = (localStorage.getItem('srm_section') || prof.section || prof.batch || '').replace(/Section\s*/i, '').trim();
+    
+    const isCustomSaved = localStorage.getItem('srm_advisor_custom_saved') === 'true';
+    let currentAdvisor = localStorage.getItem('srm_advisor') || '';
+    if (!isCustomSaved && currentAdvisor === 'Sheeba Rachel S') {
+        currentAdvisor = '';
+    }
+    if (!currentAdvisor) {
+        currentAdvisor = prof.facultyAdvisor || prof.academicAdvisor || '';
+    }
+
+    const currentCabin = localStorage.getItem('srm_user_fa_cabin') || prof.orientationRoom || '';
+    let currentEmail = localStorage.getItem('srm_advisor_email') || (currentAdvisor.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/) || [''])[0] || '';
+    if (!currentEmail && currentAdvisor) {
+        const parts = currentAdvisor.toLowerCase().replace(/dr\.?|prof\.?|mr\.?|ms\.?|mrs\.?/g, '').trim().split(/\s+/);
+        if (parts.length > 0 && parts[0].length >= 3) {
+            currentEmail = `${parts.join('')}@srmist.edu.in`;
+        }
+    }
 
     const hostelBlocks = [
         "Adhiyaman", "Paari", "Kaari", "Oorkavalan", "Sannasi", 
@@ -8552,10 +8756,10 @@ function openEditProfileDetailsModal(focusField = 'advisor') {
                     </div>
 
                     <label style="font-size:0.72rem;color:var(--text-sub);font-weight:700;display:block;margin-bottom:4px;">Counselor / Faculty Advisor Name:</label>
-                    <input type="text" id="edit-advisor-name-input" class="ai-input-field" value="${escapeHtml(currentAdvisor)}" placeholder="e.g. Sheeba Rachel S / Dr. Prithi S." style="margin-bottom:10px;">
+                    <input type="text" id="edit-advisor-name-input" class="ai-input-field" value="${escapeHtml(currentAdvisor)}" placeholder="e.g. Dr. Prithi S / Faculty Advisor" style="margin-bottom:10px;">
 
                     <label style="font-size:0.72rem;color:var(--text-sub);font-weight:700;display:block;margin-bottom:4px;">Counselor Office Base / Cabin:</label>
-                    <input type="text" id="edit-fa-cabin-input" class="ai-input-field" value="${escapeHtml(currentCabin)}" placeholder="e.g. UB 6th Floor, Room 601 / TP 7th Floor" style="margin-bottom:10px;">
+                    <input type="text" id="edit-fa-cabin-input" class="ai-input-field" value="${escapeHtml(currentCabin)}" placeholder="e.g. UB 6th Floor / TP 7th Floor" style="margin-bottom:10px;">
 
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
                         <div>
@@ -8564,7 +8768,7 @@ function openEditProfileDetailsModal(focusField = 'advisor') {
                         </div>
                         <div>
                             <label style="font-size:0.72rem;color:var(--text-sub);font-weight:700;display:block;margin-bottom:4px;">Counselor Email:</label>
-                            <input type="email" id="edit-advisor-email-input" class="ai-input-field" value="${escapeHtml(currentEmail)}" placeholder="e.g. sheebars@srmist.edu.in">
+                            <input type="email" id="edit-advisor-email-input" class="ai-input-field" value="${escapeHtml(currentEmail)}" placeholder="e.g. advisor@srmist.edu.in">
                         </div>
                     </div>
                 </div>
@@ -8587,40 +8791,43 @@ function openEditProfileDetailsModal(focusField = 'advisor') {
     if (focusField === 'hostel') {
         setTimeout(() => document.getElementById('edit-room-no-input')?.focus(), 200);
     } else if (focusField === 'advisor') {
-        setTimeout(() => document.getElementById('edit-fa-cabin-input')?.focus(), 200);
+        setTimeout(() => document.getElementById('edit-advisor-name-input')?.focus(), 200);
     }
 }
 window.openEditProfileDetailsModal = openEditProfileDetailsModal;
 
 function saveProfileDetailsCustomizer() {
     const block = document.getElementById('edit-hostel-block-input')?.value?.trim() || 'Adhiyaman';
-    const room = document.getElementById('edit-room-no-input')?.value?.trim() || '335';
-    const advisor = document.getElementById('edit-advisor-name-input')?.value?.trim() || 'Sheeba Rachel S';
-    const cabin = document.getElementById('edit-fa-cabin-input')?.value?.trim() || 'UB 6th Floor, Room 601';
-    const section = document.getElementById('edit-section-input')?.value?.trim() || 'AL1';
-    const email = document.getElementById('edit-advisor-email-input')?.value?.trim() || 'sheebars@srmist.edu.in';
+    const room = document.getElementById('edit-room-no-input')?.value?.trim() || '';
+    const advisor = document.getElementById('edit-advisor-name-input')?.value?.trim() || '';
+    const cabin = document.getElementById('edit-fa-cabin-input')?.value?.trim() || '';
+    const section = document.getElementById('edit-section-input')?.value?.trim() || '';
+    const email = document.getElementById('edit-advisor-email-input')?.value?.trim() || '';
 
-    localStorage.setItem('srm_user_hostel_block', block);
-    localStorage.setItem('srm_user_room_no', room);
-    localStorage.setItem('srm_advisor', advisor);
-    localStorage.setItem('srm_user_fa_cabin', cabin);
-    localStorage.setItem('srm_section', section);
-    localStorage.setItem('srm_advisor_email', email);
+    if (block) localStorage.setItem('srm_user_hostel_block', block);
+    if (room) localStorage.setItem('srm_user_room_no', room);
+    if (advisor) {
+        localStorage.setItem('srm_advisor', advisor);
+        localStorage.setItem('srm_advisor_custom_saved', 'true');
+    }
+    if (cabin) localStorage.setItem('srm_user_fa_cabin', cabin);
+    if (section) localStorage.setItem('srm_section', section);
+    if (email) localStorage.setItem('srm_advisor_email', email);
 
     if (typeof SRM_DATA !== 'undefined') {
         if (SRM_DATA.profile) {
-            SRM_DATA.profile.hostel = block;
-            SRM_DATA.profile.room = room;
-            SRM_DATA.profile.section = section;
-            SRM_DATA.profile.facultyAdvisor = advisor;
-            SRM_DATA.profile.orientationRoom = cabin;
+            if (block) SRM_DATA.profile.hostel = block;
+            if (room) SRM_DATA.profile.room = room;
+            if (section) SRM_DATA.profile.section = section;
+            if (advisor) SRM_DATA.profile.facultyAdvisor = advisor;
+            if (cabin) SRM_DATA.profile.orientationRoom = cabin;
         }
         if (SRM_DATA.studentProfile) {
-            SRM_DATA.studentProfile.hostel = block;
-            SRM_DATA.studentProfile.room = room;
-            SRM_DATA.studentProfile.section = section;
-            SRM_DATA.studentProfile.facultyAdvisor = advisor;
-            SRM_DATA.studentProfile.orientationRoom = cabin;
+            if (block) SRM_DATA.studentProfile.hostel = block;
+            if (room) SRM_DATA.studentProfile.room = room;
+            if (section) SRM_DATA.studentProfile.section = section;
+            if (advisor) SRM_DATA.studentProfile.facultyAdvisor = advisor;
+            if (cabin) SRM_DATA.studentProfile.orientationRoom = cabin;
         }
     }
 
@@ -8628,7 +8835,7 @@ function saveProfileDetailsCustomizer() {
     if (typeof renderMessHub === 'function') renderMessHub();
     
     document.getElementById('profile-edit-modal')?.remove();
-    showAttendanceToast("🎉 Profile & Hostel details saved!", "success");
+    showAttendanceToast("🎉 Profile & Counselor details saved!", "success");
 }
 window.saveProfileDetailsCustomizer = saveProfileDetailsCustomizer;
 

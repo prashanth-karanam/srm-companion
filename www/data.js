@@ -1,8 +1,8 @@
 // SRM Student Companion - Offline-First Persistent Data Store
 // Automatically verified against SRMIST Student Portal
 
-var APP_BUILD_VERSION = "2.5.6";
-var APP_BUILD_TIMESTAMP = "2026-09-05T19:00:00";
+var APP_BUILD_VERSION = "2.5.7";
+var APP_BUILD_TIMESTAMP = "2026-09-05T19:30:00";
 if (typeof window !== 'undefined') {
     window.APP_BUILD_VERSION = APP_BUILD_VERSION;
     window.APP_BUILD_TIMESTAMP = APP_BUILD_TIMESTAMP;
