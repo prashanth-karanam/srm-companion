@@ -24,10 +24,10 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: 🟢 Set up Node.js 20
+      - name: 🟢 Set up Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: 📦 Install Node Dependencies
@@ -38,8 +38,12 @@ jobs:
         run: |
           mkdir -p android/app/src/main/assets/public
           mkdir -p www
-          cp -rf app.js index.html style.css data.js gallery.html manifest.json version.json android/app/src/main/assets/public/
-          cp -rf app.js index.html style.css data.js gallery.html manifest.json version.json www/
+          cp -rf app.js index.html style.css data.js manifest.json version.json android/app/src/main/assets/public/
+          cp -rf app.js index.html style.css data.js manifest.json version.json www/
+          if [ -f "gallery.html" ]; then
+            cp -f gallery.html android/app/src/main/assets/public/
+            cp -f gallery.html www/
+          fi
           if [ -d "assets" ]; then
             cp -rf assets android/app/src/main/assets/public/
             cp -rf assets www/
@@ -74,10 +78,10 @@ jobs:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🟢 Set up Node.js 20
+      - name: 🟢 Set up Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: 📦 Install Node Dependencies
@@ -87,7 +91,10 @@ jobs:
       - name: 🔄 Sync Web Assets to iOS Platform
         run: |
           mkdir -p www
-          cp -rf app.js index.html style.css data.js gallery.html manifest.json version.json www/
+          cp -rf app.js index.html style.css data.js manifest.json version.json www/
+          if [ -f "gallery.html" ]; then
+            cp -f gallery.html www/
+          fi
           if [ -d "assets" ]; then
             cp -rf assets www/
           fi
