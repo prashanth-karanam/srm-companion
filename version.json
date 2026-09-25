@@ -1,7 +1,7 @@
 {
-  "version": "2.5.7",
-  "build": 1049,
-  "releaseDate": "2026-09-05",
+  "version": "2.6.0",
+  "build": 1060,
+  "releaseDate": "2026-09-25",
   "minAppVersion": "1.0.0",
   "hotReload": true,
   "bundleUrl": "https://raw.githubusercontent.com/prashanth-karanam/srm-companion/master/app.js",
@@ -16,10 +16,11 @@
     }
   ],
   "features": [
+    "Official SRM Academic Calendar 140-day matrix synced from sp.srmist.edu.in",
+    "Official Boys Mess Menu (Sannasi A & B Block) updated from physical board notice",
+    "Accurate Day Order 5 & real registered schedule for Section P1",
     "Dynamic Faculty Advisor (FA) Profile Binding & Real Portal Sync",
     "Optimized Background Telemetry & Ping Throttling (Screen-off pause, gateway cache, sync cooldown)",
-    "Interactive Counselor, Cabin, and Section Customizer with permanent storage",
-    "Accurate Academic Calendar: Working (Blue) vs Holiday (Red) Visual Telemetry",
-    "Total Schedule (All Days) Overview for full weekly semester timetable"
+    "Interactive Counselor, Cabin, and Section Customizer with permanent storage"
   ]
 }

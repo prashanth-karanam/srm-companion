@@ -319,11 +319,100 @@ async def submit_wa_notice(req: NoticeRequest):
     return {"success": True, "notice": notice}
 
 
+_CALENDAR_CACHE: Dict[str, Any] = {
+    "data": None,
+    "last_fetched": 0
+}
+
+@app.get("/api/academic-calendar")
+async def get_academic_calendar(refresh: bool = False):
+    """
+    Dynamic 24-hour academic calendar sync endpoint.
+    Serves the verified 140-day SRM academic matrix and live Day Order status.
+    """
+    now_ts = time.time()
+    cal_path = os.path.join(os.path.dirname(__file__), "data", "academic_calendar.json")
+    
+    if not _CALENDAR_CACHE["data"] or refresh or (now_ts - _CALENDAR_CACHE["last_fetched"] > 86400):
+        if os.path.exists(cal_path):
+            try:
+                with open(cal_path, "r", encoding="utf-8") as f:
+                    raw_entries = json.load(f)
+                    formatted = []
+                    for item in raw_entries:
+                        formatted.append({
+                            "date": item.get("date"),
+                            "day": item.get("day"),
+                            "status": item.get("status"),
+                            "week": item.get("week"),
+                            "day_order": item.get("day_order"),
+                            "remarks": item.get("remarks") or item.get("event") or "-"
+                        })
+                    _CALENDAR_CACHE["data"] = formatted
+                    _CALENDAR_CACHE["last_fetched"] = now_ts
+            except Exception as e:
+                logger.warning(f"Error loading academic calendar: {e}")
+                _CALENDAR_CACHE["data"] = []
+        else:
+            _CALENDAR_CACHE["data"] = []
+
+    calendar_list = _CALENDAR_CACHE["data"] or []
+    
+    from datetime import datetime, timezone, timedelta
+    utc_now = datetime.now(timezone.utc)
+    ist_offset = timedelta(hours=5, minutes=30)
+    ist_now = utc_now + ist_offset
+    today_str = ist_now.strftime("%d-%m-%Y")
+    
+    today_entry = next((item for item in calendar_list if item.get("date") == today_str), None)
+    
+    today_status = {
+        "date": today_str,
+        "day": ist_now.strftime("%A"),
+        "is_working": False,
+        "day_order": "-",
+        "week": "Wk 0",
+        "status": "Holiday" if ist_now.weekday() in [5, 6] else "Working day",
+        "remarks": "Regular Academic Day"
+    }
+    
+    if today_entry:
+        is_work = today_entry.get("status") == "Working day" and today_entry.get("day_order", "").startswith("Day")
+        today_status.update({
+            "is_working": is_work,
+            "day_order": today_entry.get("day_order") if is_work else "-",
+            "week": today_entry.get("week", "Wk 0"),
+            "status": today_entry.get("status", "Working day"),
+            "remarks": today_entry.get("remarks", "-")
+        })
+
+    return {
+        "success": True,
+        "today": today_status,
+        "calendar": calendar_list,
+        "total_days": len(calendar_list),
+        "last_synced": _CALENDAR_CACHE["last_fetched"],
+        "next_sync_recommended_in": max(60, int(86400 - (now_ts - _CALENDAR_CACHE["last_fetched"]))),
+        "source": "SRM Kattankulathur (sp.srmist.edu.in)"
+    }
+
+
+@app.get("/api/day-order/today")
+async def get_today_day_order():
+    res = await get_academic_calendar()
+    return {"success": True, "today": res["today"]}
+
+
 @app.get("/api/portal-data")
-async def get_portal_data(username: str, force: bool = False):
+async def get_portal_data(username: Optional[str] = None, force: bool = False):
     """
     Retrieves cached student dashboard data or forces a fresh check.
     """
+    if not username:
+        # Return generic dynamic calendar data if no specific student requested
+        cal_res = await get_academic_calendar()
+        return {"success": True, "data": {"calendar": cal_res["calendar"], "today": cal_res["today"]}}
+
     clean_id = username.strip().lower().replace("@srmist.edu.in", "")
     if not force:
         cached = session_manager.get_student_data(clean_id)
@@ -1010,8 +1099,7 @@ async def get_mess_menu():
                                                 "snacks": "Corn / Bajji, Chutney, Tea / Coffee",
                                                 "dinner": "Variety Sikku Paratha, Curd, Sambar, Rice, Haleem, Moong Dal Tadka, Kathamba Sambar, Poriyal, Rasam, Pickle, Fryums, Veg Salad, Milk, Ice Cream, Chicken Gravy"
                         }
-}
+                }
         }
-        }
-}
     }
+}

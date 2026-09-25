@@ -78,3 +78,15 @@ SRM_Companion_v2.5.1.apk
 *.apk
 .vercel
 .env*
+
+# iOS build outputs & archives
+ios/App/build/
+ios/App/Pods/
+ios/App/.build/
+*.xcarchive
+*.ipa
+*.zip
+passport_*.png
+audit_phone_storage.py
+monitor_and_install.py
+

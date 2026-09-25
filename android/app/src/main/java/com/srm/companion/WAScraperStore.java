@@ -100,14 +100,26 @@ public class WAScraperStore {
     }
 
     public static boolean isGroupMonitored(Context context, String groupName, String messageText) {
+        return isGroupMonitored(context, groupName, "", messageText);
+    }
+
+    public static boolean isGroupMonitored(Context context, String groupName, String sender, String messageText) {
         if (groupName == null) groupName = "";
+        if (sender == null) sender = "";
         if (messageText == null) messageText = "";
         String gLow = groupName.toLowerCase();
+        String sLow = sender.toLowerCase();
         String mLow = messageText.toLowerCase();
 
         Set<String> keywords = getMonitoredKeywords(context);
+        if (keywords.contains("*") || keywords.contains("all") || keywords.contains("any")) {
+            return true;
+        }
+
         for (String kw : keywords) {
-            if (gLow.contains(kw)) {
+            String kLow = kw.toLowerCase().trim();
+            if (kLow.isEmpty()) continue;
+            if (gLow.contains(kLow) || sLow.contains(kLow)) {
                 return true;
             }
         }

@@ -1,4 +1,4 @@
-name: Build & Release SRM Companion APK
+name: Build & Release OneSRM (Android & iOS)
 
 on:
   push:
@@ -11,13 +11,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-apk:
-    name: 🤖 Compile Android APK & Publish Release
+  build-android:
+    name: 🤖 Compile Android APK
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
@@ -34,16 +30,11 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: 🐍 Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
       - name: 📦 Install Node Dependencies
         run: |
           npm ci --prefer-offline || npm install
 
-      - name: 🔄 Sync Web Assets to Android Public Directory
+      - name: 🔄 Sync Web Assets to Android
         run: |
           mkdir -p android/app/src/main/assets/public
           mkdir -p www
@@ -65,42 +56,142 @@ jobs:
           cd android
           ./gradlew assembleDebug --stacktrace
 
+      - name: 📦 Save APK
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk SRM_Companion.apk
+
+      - name: 📤 Upload Android Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: SRM_Companion.apk
+          retention-days: 7
+
+  build-ios:
+    name: 🍎 Compile iOS IPA & Xcode Archive
+    runs-on: macos-14
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 📦 Install Node Dependencies
+        run: |
+          npm ci --prefer-offline || npm install
+
+      - name: 🔄 Sync Web Assets to iOS Platform
+        run: |
+          mkdir -p www
+          cp -rf app.js index.html style.css data.js gallery.html manifest.json version.json www/
+          if [ -d "assets" ]; then
+            cp -rf assets www/
+          fi
+          npx cap sync ios
+
+      - name: 🍎 Select Xcode Version
+        run: |
+          sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+
+      - name: 🛠️ Build iOS App (Archive)
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace \
+                     -scheme App \
+                     -configuration Release \
+                     -destination 'generic/platform=iOS' \
+                     -archivePath ./build/OneSRM.xcarchive \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGNING_ALLOWED=NO \
+                     archive
+
+      - name: 📦 Package .ipa for Sideloading (AltStore / Sideloadly / TrollStore)
+        run: |
+          cd ios/App/build/OneSRM.xcarchive/Products/Applications
+          mkdir -p Payload
+          cp -r App.app Payload/OneSRM.app
+          zip -r ../../../../OneSRM.ipa Payload
+          cd ../../../..
+
+      - name: 📦 Package Full Xcode Workspace Zip
+        run: |
+          zip -r OneSRM-iOS-Xcode.zip ios/ -x "*.git*"
+
+      - name: 📤 Upload iOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: |
+            OneSRM.ipa
+            OneSRM-iOS-Xcode.zip
+          retention-days: 7
+
+  publish-release:
+    name: 🎉 Publish Multi-Platform Release
+    needs: [build-android, build-ios]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 📥 Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+
+      - name: 📥 Download iOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-ipa
+
       - name: 🏷️ Extract Version Metadata
         id: version_info
         run: |
-          VERSION=$(python3 -c "import json; print(json.load(open('version.json'))['version'])" 2>/dev/null || echo "2.5.0")
+          VERSION=$(node -e "try{console.log(require('./version.json').version)}catch(e){console.log('2.6.0')}")
           BUILD_DATE=$(date +'%Y-%m-%d')
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_OUTPUT
-          cp android/app/build/outputs/apk/debug/app-debug.apk SRM_Companion.apk
 
-      - name: 📦 Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: SRM_Companion-v${{ steps.version_info.outputs.VERSION }}
-          path: SRM_Companion.apk
-          retention-days: 30
-
-      - name: 🎉 Create / Update GitHub Release
+      - name: 🚀 Create / Update GitHub Release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         with:
           tag_name: v${{ steps.version_info.outputs.VERSION }}
-          name: SRM Companion v${{ steps.version_info.outputs.VERSION }} (${{ steps.version_info.outputs.BUILD_DATE }})
+          name: OneSRM v${{ steps.version_info.outputs.VERSION }} (${{ steps.version_info.outputs.BUILD_DATE }})
           body: |
-            ## 🚀 SRM Companion v${{ steps.version_info.outputs.VERSION }}
-            Automated production build generated by GitHub Actions.
+            ## 🚀 OneSRM v${{ steps.version_info.outputs.VERSION }} (Multi-Platform: Android & iOS)
+
+            Automated multi-platform production build generated by GitHub Actions.
 
             ### ✨ What's New:
-            - **Omni-User Dynamic Scraper**: Dynamic multi-student authentication & extraction.
-            - **Zero Data Bleed**: Isolated session & cache clearing on login/logout.
-            - **Live 360° AI Copilot**: Dynamic student identity, timetable, and attendance injection.
-            - **Instant OTA In-App Updates**: Auto-checks GitHub for latest version.
+            - **🍎 Full Native iOS Support**: iOS 15.0+ Xcode Workspace & SPM architecture.
+            - **📅 140-Day SRM Academic Calendar**: Live dynamic synchronization and 24-hour rollover.
+            - **⚡ Dynamic Day Order Engine**: Automatically resolves Day 1–5 working order with holiday detection.
+            - **📱 Zero Data Bleed & Multi-Student Engine**: Section P1 timetable integration and isolated attendance caching.
+            - **🖼️ Retina Icons & Notch Safe-Areas**: Edge-to-edge UI layout with deep obsidian theme.
 
-            ### 📲 Direct APK Download:
-            - **[Download SRM_Companion.apk](https://github.com/${{ github.repository }}/releases/download/v${{ steps.version_info.outputs.VERSION }}/SRM_Companion.apk)**
+            ---
+
+            ### 📲 Downloads:
+            - 🍎 **[Download OneSRM.ipa (iOS Sideload)](https://github.com/${{ github.repository }}/releases/download/v${{ steps.version_info.outputs.VERSION }}/OneSRM.ipa)**
+            - 🤖 **[Download SRM_Companion.apk (Android)](https://github.com/${{ github.repository }}/releases/download/v${{ steps.version_info.outputs.VERSION }}/SRM_Companion.apk)**
+            - 🛠️ **[Download OneSRM-iOS-Xcode.zip (Xcode Project)](https://github.com/${{ github.repository }}/releases/download/v${{ steps.version_info.outputs.VERSION }}/OneSRM-iOS-Xcode.zip)**
+
+            ### 💡 Installation Instructions:
+            - **iOS**: Sideload `OneSRM.ipa` using **AltStore**, **Sideloadly**, **Scarlet**, or **TrollStore**. Alternatively, open Safari and tap **Share $\rightarrow$ Add to Home Screen** for instant PWA.
+            - **Android**: Install `SRM_Companion.apk` directly on your phone.
           files: |
             SRM_Companion.apk
+            OneSRM.ipa
+            OneSRM-iOS-Xcode.zip
           draft: false
           prerelease: false
         env:

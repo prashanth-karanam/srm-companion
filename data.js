@@ -1,8 +1,8 @@
 // SRM Student Companion - Offline-First Persistent Data Store
 // Automatically verified against SRMIST Student Portal
 
-var APP_BUILD_VERSION = "2.5.7";
-var APP_BUILD_TIMESTAMP = "2026-09-05T19:30:00";
+var APP_BUILD_VERSION = "2.6.0";
+var APP_BUILD_TIMESTAMP = "2026-09-06T09:42:00";
 if (typeof window !== 'undefined') {
     window.APP_BUILD_VERSION = APP_BUILD_VERSION;
     window.APP_BUILD_TIMESTAMP = APP_BUILD_TIMESTAMP;
@@ -10,27 +10,27 @@ if (typeof window !== 'undefined') {
 
 var SRM_DATA = {
     profile: {
-        "name": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_display_name')) || "SRM Student",
-        "studentId": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_auto_id')) || "",
-        "regNo": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_reg_no')) || "",
-        "email": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_email')) || "",
-        "personalEmail": "",
+        "name": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_display_name')) || "KARANAM SAI PRASANTH",
+        "studentId": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_auto_id')) || "734184",
+        "regNo": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_reg_no')) || "RA2611026010283",
+        "email": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_email')) || "sk1325@srmist.edu.in",
+        "personalEmail": "karanamprasanth@gmail.com",
         "mobile": "",
         "altMobile": "",
         "institution": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_institution')) || "SRM Institute of Science and Technology",
         "campus": "Kattankulathur Campus",
-        "program": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_program')) || "Undergraduate Program",
-        "batch": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_batch')) || "",
-        "semester": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_semester')) || "",
-        "section": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_section')) || "",
-        "abcId": "",
+        "program": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_program')) || "B.Tech Computer Science and Engineering with specialization in Artificial Intelligence and Machine Learning",
+        "batch": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_batch')) || "2026-2030",
+        "semester": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_semester')) || "2",
+        "section": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_section')) || "P1",
+        "abcId": "231170705267",
         "dob": "",
-        "gender": "",
-        "bloodGroup": "",
+        "gender": "Male",
+        "bloodGroup": "O+",
         "nationality": "Indian",
         "facultyAdvisor": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_advisor')) || "",
-        "academicAdvisor": "",
-        "orientationRoom": "",
+        "academicAdvisor": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_academic_advisor')) || "",
+        "orientationRoom": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_user_fa_cabin')) || "",
         "enrollmentDate": "",
         "parents": {
             "fatherName": "",
@@ -48,7 +48,7 @@ var SRM_DATA = {
         "room": (typeof localStorage !== 'undefined' && localStorage.getItem('srm_user_room_no')) || "",
         "residence": "",
         "hostelAllocatedDate": "",
-        "academicYear": "2026-2027",
+        "academicYear": "",
         "examResultsStatus": "active_semester",
         "officialCGPA": null,
         "feeDetails": {
@@ -60,50 +60,14 @@ var SRM_DATA = {
     },
     courses: [
         {
-                "code": "26CSE1002J",
-                "title": "PROGRAMMING FOR PROBLEM SOLVING",
-                "credits": 3,
-                "theorySlot": "P31, P32",
-                "labSlot": "P31, P32",
-                "theoryFaculty": "DR. ARUN PRASATH S",
-                "labFaculty": "DR. ARUN PRASATH S",
-                "theoryLocation": "7th Floor - UB712 Blockchain Laboratory",
-                "labLocation": "7th Floor - UB712 Blockchain Laboratory",
-                "category": "Core Professional Engineering"
-        },
-        {
-                "code": "26MAB1001T",
-                "title": "CALCULUS AND LINEAR ALGEBRA",
-                "credits": 4,
-                "theorySlot": "D",
-                "labSlot": null,
-                "theoryFaculty": "DR. N. PARVATHI",
-                "labFaculty": null,
-                "theoryLocation": "UB 9th Floor, Room 901",
-                "labLocation": null,
-                "category": "Basic Sciences"
-        },
-        {
-                "code": "26CYB1002J",
-                "title": "CHEMISTRY FOR COMPUTER SCIENCE",
-                "credits": 4,
-                "theorySlot": "P29, P30",
-                "labSlot": "P29, P30",
-                "theoryFaculty": "DR. MIHIR GHOSH",
-                "labFaculty": "DR. MIHIR GHOSH",
-                "theoryLocation": "Ground Floor - CL-1C Chemistry Laboratory 3",
-                "labLocation": "Ground Floor - CL-1C Chemistry Laboratory 3",
-                "category": "Basic Sciences"
-        },
-        {
                 "code": "26BTB1001T",
                 "title": "INTRODUCTION TO COMPUTATIONAL BIOLOGY",
                 "credits": 2,
-                "theorySlot": "G",
+                "theorySlot": "A",
                 "labSlot": null,
-                "theoryFaculty": "SAILESHWAR M",
+                "theoryFaculty": "SIVASANKARESWARI E [ 104015 ]",
                 "labFaculty": null,
-                "theoryLocation": "UB 9th Floor, Room 901",
+                "theoryLocation": "UNIVERSITY BUILDING, 6th Floor, Room 601",
                 "labLocation": null,
                 "category": "Basic Sciences"
         },
@@ -112,35 +76,71 @@ var SRM_DATA = {
                 "title": "WORKSHOP PRACTICE",
                 "credits": 2,
                 "theorySlot": null,
-                "labSlot": "P47, P48, P49, P50",
+                "labSlot": "P27, P28, P29, P30",
                 "theoryFaculty": null,
-                "labFaculty": "DR. ANUSUYA K",
+                "labFaculty": "DR. MANOJ SAMSON R [ 101614 ]",
                 "theoryLocation": null,
-                "labLocation": "Ground Floor - BEL101 Sheet Metal Lab",
+                "labLocation": "BASIC ENGINEERING LAB (BEL), Ground Floor, BEL101 Sheet Metal Lab",
                 "category": "Engineering Sciences / Practical"
         },
         {
-                "code": "26LCA1006J",
-                "title": "KOREAN",
-                "credits": 2,
-                "theorySlot": "X",
+                "code": "26CYB1002J",
+                "title": "CHEMISTRY FOR COMPUTER SCIENCE",
+                "credits": 4,
+                "theorySlot": "D",
+                "labSlot": "P7, P8",
+                "theoryFaculty": "DR. JOHN BOSCO A [ 101727 ]",
+                "labFaculty": "DR. JOHN BOSCO A [ 101727 ]",
+                "theoryLocation": "UNIVERSITY BUILDING, 6th Floor, Room 601",
+                "labLocation": "CHEMISTRY LAB BLOCK, 1st Floor, PGA101 Chem Lab 4",
+                "category": "Basic Sciences"
+        },
+        {
+                "code": "26CSE1002J",
+                "title": "PROGRAMMING FOR PROBLEM SOLVING",
+                "credits": 3,
+                "theorySlot": "E",
+                "labSlot": "P13, P14",
+                "theoryFaculty": "SHEEBA RACHEL S [ 103905 ]",
+                "labFaculty": "SHEEBA RACHEL S [ 103905 ]",
+                "theoryLocation": "UNIVERSITY BUILDING, 6th Floor, Room 601",
+                "labLocation": "TECH PARK, 3rd Floor, TP 310 Integrative Programming Lab",
+                "category": "Professional Core"
+        },
+        {
+                "code": "26MAB1001T",
+                "title": "CALCULUS AND LINEAR ALGEBRA",
+                "credits": 4,
+                "theorySlot": "B",
                 "labSlot": null,
-                "theoryFaculty": "JASMINE ANKITA BAGE",
+                "theoryFaculty": "DR. N. PARVATHI [ 100429 ]",
                 "labFaculty": null,
-                "theoryLocation": "Main Campus",
+                "theoryLocation": "UNIVERSITY BUILDING, 6th Floor, Room 601",
+                "labLocation": null,
+                "category": "Basic Sciences"
+        },
+        {
+                "code": "26LCA1005J",
+                "title": "JAPANESE",
+                "credits": 3,
+                "theorySlot": "C",
+                "labSlot": null,
+                "theoryFaculty": "REKHAA P R [ 100336 ]",
+                "labFaculty": null,
+                "theoryLocation": "UNIVERSITY BUILDING, 6th Floor, Room 609",
                 "labLocation": null,
                 "category": "Foreign Language Elective"
         },
         {
                 "code": "26GNN1007J",
                 "title": "PHYSICAL AND MENTAL HEALTH USING YOGA",
-                "credits": 1,
-                "theorySlot": "P7, P8, P9",
-                "labSlot": null,
-                "theoryFaculty": "DR. DHANALAKSHMI K",
-                "labFaculty": null,
-                "theoryLocation": "6th Floor - 601 AVVAI HALL",
-                "labLocation": null,
+                "credits": 2,
+                "theorySlot": null,
+                "labSlot": "P32, P33, P34",
+                "theoryFaculty": null,
+                "labFaculty": "DR. REVATHY A [ 103796 ]",
+                "theoryLocation": null,
+                "labLocation": "HI-TECH, 6th Floor, Room 603 THIRUMOOLAR HALL",
                 "category": "Mandatory Non-Credit / Health Course"
         }
 ],
@@ -219,556 +219,556 @@ var SRM_DATA = {
     }
 ],
     dayOrderSchedule: {
-    "Day 1": [
-        {
-            "hour": 1,
-            "code": "26BTB1001T",
-            "title": "Computational Biology",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "A",
-            "faculty": "Sivasankareswari E"
-        },
-        {
-            "hour": 2,
-            "code": "26BTB1001T",
-            "title": "Computational Biology",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "A",
-            "faculty": "Sivasankareswari E"
-        },
-        {
-            "hour": 3,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "F",
-            "faculty": "-"
-        },
-        {
-            "hour": 4,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "F",
-            "faculty": "-"
-        },
-        {
-            "hour": 5,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "G",
-            "faculty": "-"
-        },
-        {
-            "hour": 6,
-            "code": null,
-            "title": "Lunch / Free",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P6",
-            "faculty": "-"
-        },
-        {
-            "hour": 7,
-            "code": "26CYB1002J",
-            "title": "Chemistry Lab",
-            "type": "Lab",
-            "venue": "Chem Lab Block, 1st Fl, Lab 4",
-            "slot": "P7",
-            "faculty": "Dr. John Bosco A"
-        },
-        {
-            "hour": 8,
-            "code": "26CYB1002J",
-            "title": "Chemistry Lab",
-            "type": "Lab",
-            "venue": "Chem Lab Block, 1st Fl, Lab 4",
-            "slot": "P8",
-            "faculty": "Dr. John Bosco A"
-        },
-        {
-            "hour": 9,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P9",
-            "faculty": "-"
-        },
-        {
-            "hour": 10,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P10",
-            "faculty": "-"
-        },
-        {
-            "hour": 11,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "L11",
-            "faculty": "-"
-        },
-        {
-            "hour": 12,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "L12",
-            "faculty": "-"
-        }
-    ],
-    "Day 2": [
-        {
-            "hour": 1,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P11",
-            "faculty": "-"
-        },
-        {
-            "hour": 2,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P12",
-            "faculty": "-"
-        },
-        {
-            "hour": 3,
-            "code": "26CSE1002J",
-            "title": "Programming Lab (PPS)",
-            "type": "Lab",
-            "venue": "Tech Park 3rd Fl, Integrative Lab",
-            "slot": "P13",
-            "faculty": "Sheeba Rachel S"
-        },
-        {
-            "hour": 4,
-            "code": "26CSE1002J",
-            "title": "Programming Lab (PPS)",
-            "type": "Lab",
-            "venue": "Tech Park 3rd Fl, Integrative Lab",
-            "slot": "P14",
-            "faculty": "Sheeba Rachel S"
-        },
-        {
-            "hour": 5,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P15",
-            "faculty": "-"
-        },
-        {
-            "hour": 6,
-            "code": "26MAB1001T",
-            "title": "Calculus & Linear Algebra",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "B",
-            "faculty": "Dr. N. Parvathi"
-        },
-        {
-            "hour": 7,
-            "code": "26MAB1001T",
-            "title": "Calculus & Linear Algebra",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "B",
-            "faculty": "Dr. N. Parvathi"
-        },
-        {
-            "hour": 8,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "G",
-            "faculty": "-"
-        },
-        {
-            "hour": 9,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "G",
-            "faculty": "-"
-        },
-        {
-            "hour": 10,
-            "code": "26BTB1001T",
-            "title": "Computational Biology",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "A",
-            "faculty": "Sivasankareswari E"
-        },
-        {
-            "hour": 11,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "L21",
-            "faculty": "-"
-        },
-        {
-            "hour": 12,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "L22",
-            "faculty": "-"
-        }
-    ],
-    "Day 3": [
-        {
-            "hour": 1,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "C",
-            "faculty": "-"
-        },
-        {
-            "hour": 2,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "C",
-            "faculty": "-"
-        },
-        {
-            "hour": 3,
-            "code": "26BTB1001T",
-            "title": "Computational Biology",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "A",
-            "faculty": "Sivasankareswari E"
-        },
-        {
-            "hour": 4,
-            "code": "26CYB1002J",
-            "title": "Chemistry Theory",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "D",
-            "faculty": "Dr. John Bosco A"
-        },
-        {
-            "hour": 5,
-            "code": "26MAB1001T",
-            "title": "Calculus & Linear Algebra",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "B",
-            "faculty": "Dr. N. Parvathi"
-        },
-        {
-            "hour": 6,
-            "code": null,
-            "title": "Lunch / Free",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P26",
-            "faculty": "-"
-        },
-        {
-            "hour": 7,
-            "code": "26MEE1001L",
-            "title": "Workshop Practice",
-            "type": "Lab",
-            "venue": "BEL Ground Floor, Sheet Metal Lab",
-            "slot": "P27",
-            "faculty": "Dr. Manoj Samson R"
-        },
-        {
-            "hour": 8,
-            "code": "26MEE1001L",
-            "title": "Workshop Practice",
-            "type": "Lab",
-            "venue": "BEL Ground Floor, Sheet Metal Lab",
-            "slot": "P28",
-            "faculty": "Dr. Manoj Samson R"
-        },
-        {
-            "hour": 9,
-            "code": "26MEE1001L",
-            "title": "Workshop Practice",
-            "type": "Lab",
-            "venue": "BEL Ground Floor, Sheet Metal Lab",
-            "slot": "P29",
-            "faculty": "Dr. Manoj Samson R"
-        },
-        {
-            "hour": 10,
-            "code": "26MEE1001L",
-            "title": "Workshop Practice",
-            "type": "Lab",
-            "venue": "BEL Ground Floor, Sheet Metal Lab",
-            "slot": "P30",
-            "faculty": "Dr. Manoj Samson R"
-        },
-        {
-            "hour": 11,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "L31",
-            "faculty": "-"
-        },
-        {
-            "hour": 12,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "L32",
-            "faculty": "-"
-        }
-    ],
-    "Day 4": [
-        {
-            "hour": 1,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P31",
-            "faculty": "-"
-        },
-        {
-            "hour": 2,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P32",
-            "faculty": "-"
-        },
-        {
-            "hour": 3,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P33",
-            "faculty": "-"
-        },
-        {
-            "hour": 4,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P34",
-            "faculty": "-"
-        },
-        {
-            "hour": 5,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P35",
-            "faculty": "-"
-        },
-        {
-            "hour": 6,
-            "code": "26CYB1002J",
-            "title": "Chemistry Theory",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "D",
-            "faculty": "Dr. John Bosco A"
-        },
-        {
-            "hour": 7,
-            "code": "26CYB1002J",
-            "title": "Chemistry Theory",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "D",
-            "faculty": "Dr. John Bosco A"
-        },
-        {
-            "hour": 8,
-            "code": "26MAB1001T",
-            "title": "Calculus & Linear Algebra",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "B",
-            "faculty": "Dr. N. Parvathi"
-        },
-        {
-            "hour": 9,
-            "code": "26CSE1002J",
-            "title": "Programming Theory (PPS)",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "E",
-            "faculty": "Sheeba Rachel S"
-        },
-        {
-            "hour": 10,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "C",
-            "faculty": "-"
-        },
-        {
-            "hour": 11,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "L41",
-            "faculty": "-"
-        },
-        {
-            "hour": 12,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "L42",
-            "faculty": "-"
-        }
-    ],
-    "Day 5": [
-        {
-            "hour": 1,
-            "code": "26CSE1002J",
-            "title": "Programming Theory (PPS)",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "E",
-            "faculty": "Sheeba Rachel S"
-        },
-        {
-            "hour": 2,
-            "code": "26CSE1002J",
-            "title": "Programming Theory (PPS)",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "E",
-            "faculty": "Sheeba Rachel S"
-        },
-        {
-            "hour": 3,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "C",
-            "faculty": "-"
-        },
-        {
-            "hour": 4,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "F",
-            "faculty": "-"
-        },
-        {
-            "hour": 5,
-            "code": "26CYB1002J",
-            "title": "Chemistry Theory",
-            "type": "Theory",
-            "venue": "UB 601",
-            "slot": "D",
-            "faculty": "Dr. John Bosco A"
-        },
-        {
-            "hour": 6,
-            "code": null,
-            "title": "Lunch / Free",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P46",
-            "faculty": "-"
-        },
-        {
-            "hour": 7,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P47",
-            "faculty": "-"
-        },
-        {
-            "hour": 8,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P48",
-            "faculty": "-"
-        },
-        {
-            "hour": 9,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P49",
-            "faculty": "-"
-        },
-        {
-            "hour": 10,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "P50",
-            "faculty": "-"
-        },
-        {
-            "hour": 11,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "L51",
-            "faculty": "-"
-        },
-        {
-            "hour": 12,
-            "code": null,
-            "title": "Free Period",
-            "type": "Free",
-            "venue": "-",
-            "slot": "L52",
-            "faculty": "-"
-        }
-    ]
+        "Day 1": [
+                {
+                        "hour": 1,
+                        "code": "26BTB1001T",
+                        "title": "Intro to Computational Biology",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "A",
+                        "faculty": "SIVASANKARESWARI E"
+                },
+                {
+                        "hour": 2,
+                        "code": "26BTB1001T",
+                        "title": "Intro to Computational Biology",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "A",
+                        "faculty": "SIVASANKARESWARI E"
+                },
+                {
+                        "hour": 3,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "F",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 4,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "F",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 5,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "G",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 6,
+                        "code": null,
+                        "title": "Lunch / Free",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "Lunch",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 7,
+                        "code": "26CYB1002J",
+                        "title": "Chemistry Lab",
+                        "type": "Lab",
+                        "venue": "Chem Lab Block 1st Fl PGA101",
+                        "slot": "P7",
+                        "faculty": "DR. JOHN BOSCO A"
+                },
+                {
+                        "hour": 8,
+                        "code": "26CYB1002J",
+                        "title": "Chemistry Lab",
+                        "type": "Lab",
+                        "venue": "Chem Lab Block 1st Fl PGA101",
+                        "slot": "P8",
+                        "faculty": "DR. JOHN BOSCO A"
+                },
+                {
+                        "hour": 9,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "P9",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 10,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "P10",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 11,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "L11",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 12,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "L12",
+                        "faculty": "-"
+                }
+        ],
+        "Day 2": [
+                {
+                        "hour": 1,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "A",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 2,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "A",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 3,
+                        "code": "26CSE1002J",
+                        "title": "Programming Lab (PPS)",
+                        "type": "Lab",
+                        "venue": "Tech Park 3rd Fl TP 310",
+                        "slot": "P13",
+                        "faculty": "SHEEBA RACHEL S"
+                },
+                {
+                        "hour": 4,
+                        "code": "26CSE1002J",
+                        "title": "Programming Lab (PPS)",
+                        "type": "Lab",
+                        "venue": "Tech Park 3rd Fl TP 310",
+                        "slot": "P14",
+                        "faculty": "SHEEBA RACHEL S"
+                },
+                {
+                        "hour": 5,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "B",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 6,
+                        "code": "26MAB1001T",
+                        "title": "Calculus and Linear Algebra",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "B",
+                        "faculty": "DR. N. PARVATHI"
+                },
+                {
+                        "hour": 7,
+                        "code": "26MAB1001T",
+                        "title": "Calculus and Linear Algebra",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "B",
+                        "faculty": "DR. N. PARVATHI"
+                },
+                {
+                        "hour": 8,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "P18",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 9,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "P19",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 10,
+                        "code": "26BTB1001T",
+                        "title": "Intro to Computational Biology",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "A",
+                        "faculty": "SIVASANKARESWARI E"
+                },
+                {
+                        "hour": 11,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "L21",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 12,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "L22",
+                        "faculty": "-"
+                }
+        ],
+        "Day 3": [
+                {
+                        "hour": 1,
+                        "code": "26LCA1005J",
+                        "title": "Japanese",
+                        "type": "Theory",
+                        "venue": "UB 609",
+                        "slot": "C",
+                        "faculty": "REKHAA P R"
+                },
+                {
+                        "hour": 2,
+                        "code": "26LCA1005J",
+                        "title": "Japanese",
+                        "type": "Theory",
+                        "venue": "UB 609",
+                        "slot": "C",
+                        "faculty": "REKHAA P R"
+                },
+                {
+                        "hour": 3,
+                        "code": "26BTB1001T",
+                        "title": "Intro to Computational Biology",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "A",
+                        "faculty": "SIVASANKARESWARI E"
+                },
+                {
+                        "hour": 4,
+                        "code": "26CYB1002J",
+                        "title": "Chemistry Theory",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "D",
+                        "faculty": "DR. JOHN BOSCO A"
+                },
+                {
+                        "hour": 5,
+                        "code": "26MAB1001T",
+                        "title": "Calculus and Linear Algebra",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "B",
+                        "faculty": "DR. N. PARVATHI"
+                },
+                {
+                        "hour": 6,
+                        "code": null,
+                        "title": "Lunch / Free",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "Lunch",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 7,
+                        "code": "26MEE1001L",
+                        "title": "Workshop Practice",
+                        "type": "Lab",
+                        "venue": "BEL Ground Fl BEL101",
+                        "slot": "P27",
+                        "faculty": "DR. MANOJ SAMSON R"
+                },
+                {
+                        "hour": 8,
+                        "code": "26MEE1001L",
+                        "title": "Workshop Practice",
+                        "type": "Lab",
+                        "venue": "BEL Ground Fl BEL101",
+                        "slot": "P28",
+                        "faculty": "DR. MANOJ SAMSON R"
+                },
+                {
+                        "hour": 9,
+                        "code": "26MEE1001L",
+                        "title": "Workshop Practice",
+                        "type": "Lab",
+                        "venue": "BEL Ground Fl BEL101",
+                        "slot": "P29",
+                        "faculty": "DR. MANOJ SAMSON R"
+                },
+                {
+                        "hour": 10,
+                        "code": "26MEE1001L",
+                        "title": "Workshop Practice",
+                        "type": "Lab",
+                        "venue": "BEL Ground Fl BEL101",
+                        "slot": "P30",
+                        "faculty": "DR. MANOJ SAMSON R"
+                },
+                {
+                        "hour": 11,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "L31",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 12,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "L32",
+                        "faculty": "-"
+                }
+        ],
+        "Day 4": [
+                {
+                        "hour": 1,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "E",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 2,
+                        "code": "26GNN1007J",
+                        "title": "Physical and Mental Health Using Yoga",
+                        "type": "Lab",
+                        "venue": "Hi-Tech 6th Fl 603",
+                        "slot": "P32",
+                        "faculty": "DR. REVATHY A"
+                },
+                {
+                        "hour": 3,
+                        "code": "26GNN1007J",
+                        "title": "Physical and Mental Health Using Yoga",
+                        "type": "Lab",
+                        "venue": "Hi-Tech 6th Fl 603",
+                        "slot": "P33",
+                        "faculty": "DR. REVATHY A"
+                },
+                {
+                        "hour": 4,
+                        "code": "26GNN1007J",
+                        "title": "Physical and Mental Health Using Yoga",
+                        "type": "Lab",
+                        "venue": "Hi-Tech 6th Fl 603",
+                        "slot": "P34",
+                        "faculty": "DR. REVATHY A"
+                },
+                {
+                        "hour": 5,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "D",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 6,
+                        "code": "26CYB1002J",
+                        "title": "Chemistry Theory",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "D",
+                        "faculty": "DR. JOHN BOSCO A"
+                },
+                {
+                        "hour": 7,
+                        "code": "26CYB1002J",
+                        "title": "Chemistry Theory",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "D",
+                        "faculty": "DR. JOHN BOSCO A"
+                },
+                {
+                        "hour": 8,
+                        "code": "26MAB1001T",
+                        "title": "Calculus and Linear Algebra",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "B",
+                        "faculty": "DR. N. PARVATHI"
+                },
+                {
+                        "hour": 9,
+                        "code": "26CSE1002J",
+                        "title": "Programming Theory (PPS)",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "E",
+                        "faculty": "SHEEBA RACHEL S"
+                },
+                {
+                        "hour": 10,
+                        "code": "26LCA1005J",
+                        "title": "Japanese",
+                        "type": "Theory",
+                        "venue": "UB 609",
+                        "slot": "C",
+                        "faculty": "REKHAA P R"
+                },
+                {
+                        "hour": 11,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "L41",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 12,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "L42",
+                        "faculty": "-"
+                }
+        ],
+        "Day 5": [
+                {
+                        "hour": 1,
+                        "code": "26CSE1002J",
+                        "title": "Programming Theory (PPS)",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "E",
+                        "faculty": "SHEEBA RACHEL S"
+                },
+                {
+                        "hour": 2,
+                        "code": "26CSE1002J",
+                        "title": "Programming Theory (PPS)",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "E",
+                        "faculty": "SHEEBA RACHEL S"
+                },
+                {
+                        "hour": 3,
+                        "code": "26LCA1005J",
+                        "title": "Japanese",
+                        "type": "Theory",
+                        "venue": "UB 609",
+                        "slot": "C",
+                        "faculty": "REKHAA P R"
+                },
+                {
+                        "hour": 4,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "F",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 5,
+                        "code": "26CYB1002J",
+                        "title": "Chemistry Theory",
+                        "type": "Theory",
+                        "venue": "UB 601",
+                        "slot": "D",
+                        "faculty": "DR. JOHN BOSCO A"
+                },
+                {
+                        "hour": 6,
+                        "code": null,
+                        "title": "Lunch / Free",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "Lunch",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 7,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "P47",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 8,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "P48",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 9,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "P49",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 10,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "P50",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 11,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "L51",
+                        "faculty": "-"
+                },
+                {
+                        "hour": 12,
+                        "code": null,
+                        "title": "Free Period",
+                        "type": "Free",
+                        "venue": "-",
+                        "slot": "L52",
+                        "faculty": "-"
+                }
+        ]
 },
     calendar: [
     {
@@ -996,7 +996,7 @@ var SRM_DATA = {
         "remarks": "-"
     },
     {
-        "date": "18-08-2026Today",
+        "date": "18-08-2026",
         "day": "Tuesday",
         "status": "Working day",
         "week": "Wk 5",
@@ -1049,7 +1049,7 @@ var SRM_DATA = {
         "status": "Holiday",
         "week": "Wk 0",
         "day_order": "-",
-        "remarks": "Declared Campus Holiday"
+        "remarks": "Classes Suspended"
     },
     {
         "date": "25-08-2026",
@@ -1119,7 +1119,7 @@ var SRM_DATA = {
         "date": "02-09-2026",
         "day": "Wednesday",
         "status": "Working day",
-        "week": "Wk 7",
+        "week": "Wk 6",
         "day_order": "Day 5",
         "remarks": "-"
     },
@@ -1183,7 +1183,7 @@ var SRM_DATA = {
         "date": "10-09-2026",
         "day": "Thursday",
         "status": "Working day",
-        "week": "Wk 8",
+        "week": "Wk 7",
         "day_order": "Day 5",
         "remarks": "-"
     },
@@ -1224,7 +1224,7 @@ var SRM_DATA = {
         "day": "Tuesday",
         "status": "Working day",
         "week": "Wk 8",
-        "day_order": "Day 3",
+        "day_order": "Day 2",
         "remarks": "-"
     },
     {
@@ -1232,7 +1232,7 @@ var SRM_DATA = {
         "day": "Wednesday",
         "status": "Working day",
         "week": "Wk 8",
-        "day_order": "Day 4",
+        "day_order": "Day 3",
         "remarks": "-"
     },
     {
@@ -1240,15 +1240,15 @@ var SRM_DATA = {
         "day": "Thursday",
         "status": "Working day",
         "week": "Wk 8",
-        "day_order": "Day 5",
+        "day_order": "Day 4",
         "remarks": "-"
     },
     {
         "date": "18-09-2026",
         "day": "Friday",
         "status": "Working day",
-        "week": "Wk 9",
-        "day_order": "Day 1",
+        "week": "Wk 8",
+        "day_order": "Day 5",
         "remarks": "-"
     },
     {
@@ -1272,7 +1272,7 @@ var SRM_DATA = {
         "day": "Monday",
         "status": "Working day",
         "week": "Wk 9",
-        "day_order": "Day 2",
+        "day_order": "Day 1",
         "remarks": "-"
     },
     {
@@ -1280,7 +1280,7 @@ var SRM_DATA = {
         "day": "Tuesday",
         "status": "Working day",
         "week": "Wk 9",
-        "day_order": "Day 3",
+        "day_order": "Day 2",
         "remarks": "-"
     },
     {
@@ -1288,7 +1288,7 @@ var SRM_DATA = {
         "day": "Wednesday",
         "status": "Working day",
         "week": "Wk 9",
-        "day_order": "Day 4",
+        "day_order": "Day 3",
         "remarks": "-"
     },
     {
@@ -1296,15 +1296,15 @@ var SRM_DATA = {
         "day": "Thursday",
         "status": "Working day",
         "week": "Wk 9",
-        "day_order": "Day 5",
+        "day_order": "Day 4",
         "remarks": "-"
     },
     {
         "date": "25-09-2026",
         "day": "Friday",
         "status": "Working day",
-        "week": "Wk 10",
-        "day_order": "Day 1",
+        "week": "Wk 9",
+        "day_order": "Day 5",
         "remarks": "-"
     },
     {
@@ -1328,7 +1328,7 @@ var SRM_DATA = {
         "day": "Monday",
         "status": "Working day",
         "week": "Wk 10",
-        "day_order": "Day 2",
+        "day_order": "Day 1",
         "remarks": "-"
     },
     {
@@ -1336,7 +1336,7 @@ var SRM_DATA = {
         "day": "Tuesday",
         "status": "Working day",
         "week": "Wk 10",
-        "day_order": "Day 3",
+        "day_order": "Day 2",
         "remarks": "-"
     },
     {
@@ -1344,7 +1344,7 @@ var SRM_DATA = {
         "day": "Wednesday",
         "status": "Working day",
         "week": "Wk 10",
-        "day_order": "Day 4",
+        "day_order": "Day 3",
         "remarks": "-"
     },
     {
@@ -1352,7 +1352,7 @@ var SRM_DATA = {
         "day": "Thursday",
         "status": "Working day",
         "week": "Wk 10",
-        "day_order": "Day 5",
+        "day_order": "Day 4",
         "remarks": "-"
     },
     {
@@ -1383,8 +1383,8 @@ var SRM_DATA = {
         "date": "05-10-2026",
         "day": "Monday",
         "status": "Working day",
-        "week": "Wk 11",
-        "day_order": "Day 1",
+        "week": "Wk 10",
+        "day_order": "Day 5",
         "remarks": "-"
     },
     {
@@ -1392,7 +1392,7 @@ var SRM_DATA = {
         "day": "Tuesday",
         "status": "Working day",
         "week": "Wk 11",
-        "day_order": "Day 2",
+        "day_order": "Day 1",
         "remarks": "-"
     },
     {
@@ -1400,7 +1400,7 @@ var SRM_DATA = {
         "day": "Wednesday",
         "status": "Working day",
         "week": "Wk 11",
-        "day_order": "Day 3",
+        "day_order": "Day 2",
         "remarks": "-"
     },
     {
@@ -1408,7 +1408,7 @@ var SRM_DATA = {
         "day": "Thursday",
         "status": "Working day",
         "week": "Wk 11",
-        "day_order": "Day 4",
+        "day_order": "Day 3",
         "remarks": "-"
     },
     {
@@ -1416,7 +1416,7 @@ var SRM_DATA = {
         "day": "Friday",
         "status": "Working day",
         "week": "Wk 11",
-        "day_order": "Day 5",
+        "day_order": "Day 4",
         "remarks": "-"
     },
     {
@@ -1439,8 +1439,8 @@ var SRM_DATA = {
         "date": "12-10-2026",
         "day": "Monday",
         "status": "Working day",
-        "week": "Wk 12",
-        "day_order": "Day 1",
+        "week": "Wk 11",
+        "day_order": "Day 5",
         "remarks": "-"
     },
     {
@@ -1448,7 +1448,7 @@ var SRM_DATA = {
         "day": "Tuesday",
         "status": "Working day",
         "week": "Wk 12",
-        "day_order": "Day 2",
+        "day_order": "Day 1",
         "remarks": "-"
     },
     {
@@ -1456,7 +1456,7 @@ var SRM_DATA = {
         "day": "Wednesday",
         "status": "Working day",
         "week": "Wk 12",
-        "day_order": "Day 3",
+        "day_order": "Day 2",
         "remarks": "-"
     },
     {
@@ -1464,7 +1464,7 @@ var SRM_DATA = {
         "day": "Thursday",
         "status": "Working day",
         "week": "Wk 12",
-        "day_order": "Day 4",
+        "day_order": "Day 3",
         "remarks": "-"
     },
     {
@@ -1472,7 +1472,7 @@ var SRM_DATA = {
         "day": "Friday",
         "status": "Working day",
         "week": "Wk 12",
-        "day_order": "Day 5",
+        "day_order": "Day 4",
         "remarks": "-"
     },
     {
@@ -1511,8 +1511,8 @@ var SRM_DATA = {
         "date": "21-10-2026",
         "day": "Wednesday",
         "status": "Working day",
-        "week": "Wk 13",
-        "day_order": "Day 1",
+        "week": "Wk 12",
+        "day_order": "Day 5",
         "remarks": "-"
     },
     {
@@ -1520,7 +1520,7 @@ var SRM_DATA = {
         "day": "Thursday",
         "status": "Working day",
         "week": "Wk 13",
-        "day_order": "Day 2",
+        "day_order": "Day 1",
         "remarks": "-"
     },
     {
@@ -1528,7 +1528,7 @@ var SRM_DATA = {
         "day": "Friday",
         "status": "Working day",
         "week": "Wk 13",
-        "day_order": "Day 3",
+        "day_order": "Day 2",
         "remarks": "-"
     },
     {
@@ -1552,7 +1552,7 @@ var SRM_DATA = {
         "day": "Monday",
         "status": "Working day",
         "week": "Wk 13",
-        "day_order": "Day 4",
+        "day_order": "Day 3",
         "remarks": "-"
     },
     {
@@ -1560,15 +1560,15 @@ var SRM_DATA = {
         "day": "Tuesday",
         "status": "Working day",
         "week": "Wk 13",
-        "day_order": "Day 5",
+        "day_order": "Day 4",
         "remarks": "-"
     },
     {
         "date": "28-10-2026",
         "day": "Wednesday",
         "status": "Working day",
-        "week": "Wk 14",
-        "day_order": "Day 1",
+        "week": "Wk 13",
+        "day_order": "Day 5",
         "remarks": "-"
     },
     {
@@ -1576,7 +1576,7 @@ var SRM_DATA = {
         "day": "Thursday",
         "status": "Working day",
         "week": "Wk 14",
-        "day_order": "Day 2",
+        "day_order": "Day 1",
         "remarks": "-"
     },
     {
@@ -1584,7 +1584,7 @@ var SRM_DATA = {
         "day": "Friday",
         "status": "Working day",
         "week": "Wk 14",
-        "day_order": "Day 3",
+        "day_order": "Day 2",
         "remarks": "-"
     },
     {
@@ -1608,7 +1608,7 @@ var SRM_DATA = {
         "day": "Monday",
         "status": "Working day",
         "week": "Wk 14",
-        "day_order": "Day 4",
+        "day_order": "Day 3",
         "remarks": "-"
     },
     {
@@ -1616,15 +1616,15 @@ var SRM_DATA = {
         "day": "Tuesday",
         "status": "Working day",
         "week": "Wk 14",
-        "day_order": "Day 5",
+        "day_order": "Day 4",
         "remarks": "-"
     },
     {
         "date": "04-11-2026",
         "day": "Wednesday",
         "status": "Working day",
-        "week": "Wk 15",
-        "day_order": "Day 1",
+        "week": "Wk 14",
+        "day_order": "Day 5",
         "remarks": "-"
     },
     {
@@ -1632,7 +1632,7 @@ var SRM_DATA = {
         "day": "Thursday",
         "status": "Working day",
         "week": "Wk 15",
-        "day_order": "Day 2",
+        "day_order": "Day 1",
         "remarks": "-"
     },
     {
@@ -1640,7 +1640,7 @@ var SRM_DATA = {
         "day": "Friday",
         "status": "Working day",
         "week": "Wk 15",
-        "day_order": "Day 3",
+        "day_order": "Day 2",
         "remarks": "-"
     },
     {
@@ -1664,7 +1664,7 @@ var SRM_DATA = {
         "day": "Monday",
         "status": "Working day",
         "week": "Wk 15",
-        "day_order": "Day 4",
+        "day_order": "Day 3",
         "remarks": "-"
     },
     {
@@ -1672,15 +1672,15 @@ var SRM_DATA = {
         "day": "Tuesday",
         "status": "Working day",
         "week": "Wk 15",
-        "day_order": "Day 5",
+        "day_order": "Day 4",
         "remarks": "-"
     },
     {
         "date": "11-11-2026",
         "day": "Wednesday",
         "status": "Working day",
-        "week": "Wk 16",
-        "day_order": "Day 1",
+        "week": "Wk 15",
+        "day_order": "Day 5",
         "remarks": "-"
     },
     {
@@ -1688,7 +1688,7 @@ var SRM_DATA = {
         "day": "Thursday",
         "status": "Working day",
         "week": "Wk 16",
-        "day_order": "Day 2",
+        "day_order": "Day 1",
         "remarks": "-"
     },
     {
@@ -1696,7 +1696,7 @@ var SRM_DATA = {
         "day": "Friday",
         "status": "Working day",
         "week": "Wk 16",
-        "day_order": "Day 3",
+        "day_order": "Day 2",
         "remarks": "-"
     },
     {
@@ -1720,7 +1720,7 @@ var SRM_DATA = {
         "day": "Monday",
         "status": "Working day",
         "week": "Wk 16",
-        "day_order": "Day 4",
+        "day_order": "Day 3",
         "remarks": "-"
     },
     {
@@ -1728,15 +1728,15 @@ var SRM_DATA = {
         "day": "Tuesday",
         "status": "Working day",
         "week": "Wk 16",
-        "day_order": "Day 5",
+        "day_order": "Day 4",
         "remarks": "-"
     },
     {
         "date": "18-11-2026",
         "day": "Wednesday",
         "status": "Working day",
-        "week": "Wk 17",
-        "day_order": "Day 1",
+        "week": "Wk 16",
+        "day_order": "Day 5",
         "remarks": "-"
     },
     {
@@ -1744,7 +1744,7 @@ var SRM_DATA = {
         "day": "Thursday",
         "status": "Working day",
         "week": "Wk 17",
-        "day_order": "Day 2",
+        "day_order": "Day 1",
         "remarks": "-"
     },
     {
@@ -1752,7 +1752,7 @@ var SRM_DATA = {
         "day": "Friday",
         "status": "Working day",
         "week": "Wk 17",
-        "day_order": "Day 3",
+        "day_order": "Day 2",
         "remarks": "Last Working Day - PG"
     },
     {
@@ -1776,7 +1776,7 @@ var SRM_DATA = {
         "day": "Monday",
         "status": "Working day",
         "week": "Wk 17",
-        "day_order": "Day 4",
+        "day_order": "Day 3",
         "remarks": "-"
     },
     {
@@ -1784,15 +1784,15 @@ var SRM_DATA = {
         "day": "Tuesday",
         "status": "Working day",
         "week": "Wk 17",
-        "day_order": "Day 5",
+        "day_order": "Day 4",
         "remarks": "-"
     },
     {
         "date": "25-11-2026",
         "day": "Wednesday",
         "status": "Working day",
-        "week": "Wk 18",
-        "day_order": "Day 1",
+        "week": "Wk 17",
+        "day_order": "Day 5",
         "remarks": "-"
     },
     {
@@ -1800,7 +1800,7 @@ var SRM_DATA = {
         "day": "Thursday",
         "status": "Working day",
         "week": "Wk 18",
-        "day_order": "Day 2",
+        "day_order": "Day 1",
         "remarks": "-"
     },
     {
@@ -1808,7 +1808,7 @@ var SRM_DATA = {
         "day": "Friday",
         "status": "Working day",
         "week": "Wk 18",
-        "day_order": "Day 3",
+        "day_order": "Day 2",
         "remarks": "-"
     },
     {
@@ -1832,7 +1832,7 @@ var SRM_DATA = {
         "day": "Monday",
         "status": "Working day",
         "week": "Wk 18",
-        "day_order": "Day 4",
+        "day_order": "Day 3",
         "remarks": "-"
     },
     {
@@ -1840,15 +1840,15 @@ var SRM_DATA = {
         "day": "Tuesday",
         "status": "Working day",
         "week": "Wk 18",
-        "day_order": "Day 5",
+        "day_order": "Day 4",
         "remarks": "-"
     },
     {
         "date": "02-12-2026",
         "day": "Wednesday",
         "status": "Working day",
-        "week": "Wk 19",
-        "day_order": "Day 1",
+        "week": "Wk 18",
+        "day_order": "Day 5",
         "remarks": "-"
     },
     {
@@ -1856,7 +1856,7 @@ var SRM_DATA = {
         "day": "Thursday",
         "status": "Working day",
         "week": "Wk 19",
-        "day_order": "Day 2",
+        "day_order": "Day 1",
         "remarks": "-"
     },
     {
@@ -1864,7 +1864,7 @@ var SRM_DATA = {
         "day": "Friday",
         "status": "Working day",
         "week": "Wk 19",
-        "day_order": "Day 3",
+        "day_order": "Day 2",
         "remarks": "-"
     },
     {
@@ -1888,42 +1888,42 @@ var SRM_DATA = {
         "day": "Monday",
         "status": "Working day",
         "week": "Wk 19",
-        "day_order": "Day 4",
+        "day_order": "Day 3",
         "remarks": "Last Working Day - UG First Year"
     }
 ]
 ,
     passport: {
         facultyAdvisor: {
-            name: "DR. PRITHI S",
-            empId: "103905",
-            designation: "Faculty Advisor & Academic Counselor",
-            department: "Department of Computer Science & Engineering",
-            cabin: "University Building (UB) 6th Floor, Room 601 (Annexure-II)",
-            email: "prithis@srmist.edu.in",
-            phone: "+91 44 2741 7000"
+            name: "",
+            empId: "",
+            designation: "Faculty Advisor",
+            department: "",
+            cabin: "",
+            email: "",
+            phone: ""
         },
-        subBatch: "Section P1 • Batch 1",
+        subBatch: "",
         curriculum: {
             regulation: "Regulation 2021 (NEP Model)",
             totalCreditsReq: 160,
-            earnedCredits: 22,
+            earnedCredits: 0,
             cgpaGoal: 9.00
         },
         creditCategories: [
-            { category: "Basic Science Courses (BSC)", completed: 10, total: 28, color: "#38bdf8" },
-            { category: "Engineering Science Courses (ESC)", completed: 8, total: 24, color: "#a855f7" },
-            { category: "Professional Core Courses (PCC)", completed: 4, total: 68, color: "#22c55e" },
+            { category: "Basic Science Courses (BSC)", completed: 0, total: 28, color: "#38bdf8" },
+            { category: "Engineering Science Courses (ESC)", completed: 0, total: 24, color: "#a855f7" },
+            { category: "Professional Core Courses (PCC)", completed: 0, total: 68, color: "#22c55e" },
             { category: "Professional Electives (PEC)", completed: 0, total: 18, color: "#f59e0b" },
             { category: "Open Electives (OEC)", completed: 0, total: 12, color: "#ec4899" },
-            { category: "Mandatory Non-Credit (MC)", completed: 2, total: 10, color: "#14b8a6" }
+            { category: "Mandatory Non-Credit (MC)", completed: 0, total: 10, color: "#14b8a6" }
         ],
         hostel: {
-            allocatedBlock: "Adhiyaman",
-            roomNumber: "Room 335",
-            bed: "Allotted",
-            allocatedDate: "24-Jun-2026",
-            academicYear: "2026-2027",
+            allocatedBlock: "",
+            roomNumber: "",
+            bed: "",
+            allocatedDate: "",
+            academicYear: "",
             ambulanceHotline: "044-27453140 / 108 (SRM Hospital Casualty)"
         },
         clearances: {
@@ -1935,14 +1935,14 @@ var SRM_DATA = {
     },
     hostelMess: {
         "hostels": [
-                "M Block Mess (Girls Dining Hall)",
                 "Sannasi Mess (Boys Dining Hall)",
                 "Paari Block Mess (Boys Dining Hall)",
                 "Kaveri Block Mess (Boys Dining Hall)",
                 "Agasthya Mess (Boys Dining Hall)",
+                "M Block Mess (Girls Dining Hall)",
                 "Senbagam Mess (Girls Dining Hall)",
                 "Kalpana Chawla Mess (Girls Dining Hall)"
-],
+        ],
         "timings": {
                 "breakfast": {
                         "label": "Breakfast",
@@ -1970,7 +1970,7 @@ var SRM_DATA = {
                 }
         },
         "menus": {
-                "SANNASI_BOYS": {
+                "M_BLOCK_GIRLS": {
                         "Monday": {
                                 "breakfast": "Ven Pongal, Tiffin Sambar, Coconut Chutney, Medu Vada, Masala Omelette / Whole Wheat Bread Omelette (1 No), Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
                                 "lunch": "Methi Chappathi, Black Channa Masala, Lemon Rice / Tamarind Rice, Dal Fry Tadka, Steamed Rice, Arachuvitta Sambar, Keerai Kootu, Lemon Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Appalam, Pickle, Buttermilk, Payasam",
@@ -2014,94 +2014,94 @@ var SRM_DATA = {
                                 "dinner": "Dal Kitchadi, Chappathi, Veg Kurma, Poriyal, Steamed Rice, Kadamba Sambar, Rasam, Buttermilk, Pickle, Green Salad, Milk, Chicken Gravy (Non-Veg)"
                         }
                 },
-                "M_BLOCK_GIRLS": {
+                "SANNASI_BOYS": {
                         "Monday": {
-                                                "breakfast": "Sweet, Bread, Butter, Jam, Idly, Sambar, Spl Chutney, Poori, Aloo Dal Masala, Tea / Coffee / Milk, Boiled Egg, Banana",
-                                                "lunch": "Chapathi, Chana Salna, Jeera Pulao, Steamed Rice, Masala Sambar, Bagara Dal, Mix Veg Usal, Lemon Rasam, Pickle, Butter Milk, Fryums",
-                                                "snacks": "Pav Baji, Tea / Coffee",
-                                                "dinner": "Punjabi Paratha, Rajma Masala Wala, Dosa, Idly Podi, Oil, Special Chutney, Steamed Rice, Vegetable Dal, Rasam, Pickle, Fryums, Veg Salad, Chicken Gravy"
+                                "breakfast": "Bread, Butter, Jam, Ghee Pongal, Sambar, Coconut Chutney, Vadai, Tea / Coffee / Milk / Boiled Egg ( 1 Piece ), Chappathi, Aloo Rajma Masala",
+                                "lunch": "Payasam, Chappathi, Aloo Palak, Variety Rice, Steamed Rice, Kathamba Sambar, Dal Lasooni, Tomato Rasam, Kadai Vegetable, Raw Banana Chops, Special Fryums, Butter Milk, Pickle",
+                                "snacks": "Pav Bajji, Tea / Coffee",
+                                "dinner": "Malabar Paratha / Veech Paratha , Channa Panneer Kuruma, Millet Dosa, Idly Podi, Oil, Special Chutney, Steamed Rice, Vegetable Dal, Rasam, Aloo Capsicum, Pickle, Fryums, Veg --Salad, Banana, milk, ** Mutton salna**"
                         },
                         "Tuesday": {
-                                                "breakfast": "Bread, Butter, Jam, Ghee Pongu, Vadai, Veg Kosthu, Coconut Chutney, Puttu, Mint Chutney, Tea / Coffee / Milk, Masala Omlet",
-                                                "lunch": "Sweet, Poori, Muttar Mughlai, Variety Rice, Steamed Rice, Sambar, Dal Lauki, Tomato Rasam, Curd, 65 / Bhindi Jaipuri, Fryums, Butter Milk, Pickle",
-                                                "snacks": "Boiled Peanut / Black Channa Sundal, Tea / Coffee",
-                                                "dinner": "Chapathi, Mix Veg Khurma, Fried Rice / Noodles, Manchurian Dry / Crispy Vegetable, Steamed Rice, Rasam, Dal Fry, Pickle, Fryums, Veg Salad, Milk, Spl Fruits, Chicken Gravy"
+                                "breakfast": "Bread, Butter, Jam, Idly, Veg Kosthu, Spl Chutney, Poha, Mint Chutney, Tea / Coffee / Milk , Masala Omlet ( 1 Piece )",
+                                "lunch": "Millet Sweet, Ghee Chappathi, Mix Veg Sabji, Gobi Mattar Masala, Bahara Pulao, Steamed Rice, Masala Sambar, Jeera Dal, Cabbage Toran, Pepper Rasam, Pickle, Butter Milk, Fryums",
+                                "snacks": "masala Peanut / Black Channa Sundal, Tea / Coffee",
+                                "dinner": "Chappathi, Chole Aloo Masala, Fried Rice / Noodles / Pastha ,Manchurian Gravy / Crispy Vegetable, Steamed Rice, Rasam, Dal Fry, Pickle, Fryums, Veg -Salad , Milk , Spl Fruits, *** Chicken Gravy***"
                         },
                         "Wednesday": {
-                                                "breakfast": "Bread, Butter, Jam, Dosa, Idly, Podi, Oil, Arachuvitta Sambar, Chutney, Coconut Aloo Poriyal, Milagai, Tea / Coffee / Milk, Banana",
-                                                "lunch": "Butter Roti, Aloo Palak, Peas Pulao, Dal Makhni, Kadi Vegetable, Steamed Rice, Drumstick Bhajiya Sambar, Ghee Rasam, Pickle, Fryums, Butter Milk",
-                                                "snacks": "Veg Puff / Sweet Bun, Juice (or) Tea / Coffee",
-                                                "dinner": "Chapathi, Steamed Rice, Dal Tadka, Chicken Masala (Non-Veg) / Paneer Butter Masala, Rasam, Pickle, Fryums, Veg Salad, Milk, Ice Cream, Chicken Gravy"
+                                "breakfast": "Bread, Butter , Jam, Rava Pongal, Coconut Chutney , Poori, Potato Masala, Tea/ Coffee / Milk,",
+                                "lunch": "Chappathi, Soya Kasa, Jeera Pulav, Steamed Rice, Mysore Dal Fry, Masala Sambar, Garlic Rasam, Cabbage Sabji, Aviyal, Pickle, Fryums, Butter Milk",
+                                "snacks": "Veg Puff / Sweet Bun /Tea/Coffee",
+                                "dinner": "Chappathi, Steamed Rice, Dal Tadka, Chicken Masala / Chilli Chicken (Non-Veg) / Panneer Butter Masala , Rasam, Pickle, Fryums,Veg Salad , Milk , Banana, *** Chicken Gravy***"
                         },
                         "Thursday": {
-                                                "breakfast": "Bread, Butter, Jam, Chapathi, Aloo Meal Maker Masala, Veg Salna, Kootu, Coconut Chutney, Boiled Egg, Tea / Coffee / Milk",
-                                                "lunch": "Luchi, Kashmiri Dum Aloo, Onion Pulao, Steamed Rice, Moong Dal Fry, Kadi Pakoda, Pepper Rasam, Poriyal, Pickle, Fryums, Butter Milk",
-                                                "snacks": "Parle-G Pori / Chunda Naka, Tea / Coffee",
-                                                "dinner": "Ghee Pulao / Kaju Pulao (Basmati Rice), Chapathi, Muttar Paneer, Steamed Rice, Dal Tadka, Rasam, Aloo Peanut Masala, Fryums, Pickle, Veg Salad, Milk, Ice Cream, Mutton Gravy"
+                                "breakfast": "Bread, Butter, Jam, BREAD OMLET( 1 piece), Idly, Udupi Sambar, Chutney, Banana, Tea / Coffee / Milk",
+                                "lunch": "Luchi, Kashmiri Dum Aloo, tomato Pulao , Punjabi Dal Tadka, Bindi Topiaza, Steamed Rice, Mor Kuzhambu , Arbi Roast, Garlic Rasam, Beetroot Poriyal ,Pickle , Fryums,Butter Milk",
+                                "snacks": "Pani Poori (or) Mixture / Tea / Coffee",
+                                "dinner": "mint Pulao / Kaju Pulao (Basmati Rice), Chappathi , Palak Panneer Makhanwala, Steamed Rice, Chole Dal Fry, Rasam, Aloo Gobi Peanut Masala, Fryums, Pickle, Veg Salad, Milk , Ice Cream, *** Chicken Gravy***"
                         },
                         "Friday": {
-                                                "breakfast": "Bread, Butter, Jam, Podi Dosa, Idly Podi, Oil, Chilli Sambar, Chutney, Chapathi, Matar Masala, Tea / Coffee / Milk, Boiled Egg, Banana",
-                                                "lunch": "Dry Jamun / Bread Halwa, Veg Biryani, Mix Raitha, Bisibeleabath, Gourd Rice, Steamed Rice, Tomato Rasam, Aloo Gobi Aadrak, Moongdal Tadka, Pickle, Fryums",
-                                                "snacks": "Bonda / Vada, Chutney, Tea / Coffee",
-                                                "dinner": "Chole Bhatura, Steamed Rice, Tomato Dal, Sambar, Rava Upma, Coconut Chutney, Rasam, Cabbage Poriyal, Pickle, Fryums, Veg Salad, Milk, Chicken Gravy"
+                                "breakfast": "Bread , Butter, Jam, Podi Uthappam, Oil, Chilli Sambar, Kara Chutney, Ghee Chappathi, Dal Aloo Masala, Tea / Coffee / Milk, Boiled Egg( 1 Piece )",
+                                "lunch": "Spl Dry Jamun / Bread Halwa, Veg Briyani, Mix Raitha, Bisebelabath, Curd Rice, Steamed Rice, Tomato Rasam, Gobi 65, Moongdal Tadka, Pickle , Potato Chips",
+                                "snacks": "Bonda / Keera Vada, Chutney, Tea / Coffee",
+                                "dinner": "Chole Bhatura, Steamed Rice, Tomato Dal , Samba Rava Upma, Coconut Chutney, Rasam, Mix veg Poriyal, Pickle, Fryums, Banana , Veg Salad, Milk , ***Mutton Gravy***"
                         },
                         "Saturday": {
-                                                "breakfast": "Bread, Butter, Jam, Chapathi, Veg Khurma, Idiyappam (Lemon or Masala), Coconut Chutney, Tea / Coffee / Milk, Boiled Egg",
-                                                "lunch": "Poori, Dal Aloo Masala, Veg Pulao, Steamed Rice, Punjabi Dal Tadka, Bhindi Do Pyasa, Kara Kuzhambu, Kootu, Jeera Rasam, Pickle, Special Fryums, Butter Milk",
-                                                "snacks": "Cake (or) Brownie, Tea / Coffee",
-                                                "dinner": "Sweet, Malabar Chapathi, Meal Maker Curry, Mix Vegetable Sabji, Steamed Rice, Dal Makhni, Idly, Idly Podi, Oil, Chutney, Tiffin Sambar, Rasam, Pickle, Fryums, Veg Salad, Special Fruit, Fried Fish"
+                                "breakfast": "Bread, Butter, Jam, Chappathi, Aloo Meal Maker Kasa, Semiya Kichadi, Coconut Chutney, Tea / Coffee / Milk, Boiled egg(1 piece),",
+                                "lunch": "Sweet, Poori, White Peas Masala, Veg Pulao, Steamed Rice, Jeera Dal , Aloo Tindili, Parupu Urundai Kuzhambu, Keerai Masiyal, Jeera Rasam, Pickle, Special Fryums , Butter Milk",
+                                "snacks": "Cake(or) Browni / Murfin, Tea / Coffee",
+                                "dinner": "Panjabi Paratha , Mix Veg Kuruma, French Fry, Steamed Rice, Mysore Dal Fry,Veg Idly, Idly Podi, Oil, Chutney, Tiffen Sambar, Rasam, Pickle, Fryums, Veg Salad, Milk, Special Fruit, *** Fish Gravy***"
                         },
                         "Sunday": {
-                                                "breakfast": "Bread, Butter, Jam, Onion Poori, Veg Upma, Coconut Chutney, Tea / Coffee / Milk",
-                                                "lunch": "Chapathi, Chicken (Pepper / Kadai), Paneer Butter Masala (or) Kadai Paneer, Dal Dhadka, Mint Pulao, Steamed Rice, Garlic Rasam, Poriyal, Pickle, Fryums, Butter Milk, Chicken Gravy",
-                                                "snacks": "Corn / Bajji, Chutney, Tea / Coffee",
-                                                "dinner": "Variety Sikku Paratha, Curd, Sambar, Rice, Haleem, Moong Dal Tadka, Kathamba Sambar, Poriyal, Rasam, Pickle, Fryums, Veg Salad, Milk, Ice Cream, Chicken Gravy"
+                                "breakfast": "Bread, Butter , Jam, Chole Poori, Veg Upma, Coconut Chutney, Tea / Coffee / Milk, Herbal Kanji",
+                                "lunch": "Chappathi, Chicken (Pepper / Kadai), Panneer Butter Masala (or) Kadai Panneer, Dal tadka, Ghee Pulao , Steamed Rice, Garlic Rasam, Poriyal, Pickle, Fryums, Butter Milk, *** Chicken Gravy***",
+                                "snacks": "Corn / Baji Chutney (OR) Juice, Tea / Coffee",
+                                "dinner": "Variety Stuffing Paratha, Curd, Steamed Rice, Hara Moong Dal Tadka, Drumstic Brinjal Sambar, Poriyal, Rasam, Pickle, Fryums, Veg Salad, Milk, Ice Cream, ***Chicken Gravy***"
                         }
-}
+                }
         },
-        "specialNotes": "MONTHLY TWICE (or) 4th WEDNESDAY WE PROVIDE CHICKEN BIRYANI & PANNEER BIRYANI\nNote: Special Items (Chicken, Egg, Fruit, Ice Cream, Sweet) are limited & menu is planned based on seasonal vegetable availability.",
+        "specialNotes": "MONTHLY TWICE (2nd & 4th Wednesday ) WE PROVIDE CHICKEN BRIYANI & PANNEER BRIYANI\nNote : Special Items (Limited & Menu is planned based on Availability of seasonal vegetables & Planned by Mess Management on Time to time",
         "weeklyMenu": {
                 "Monday": {
-                        "breakfast": "Ven Pongal, Tiffin Sambar, Coconut Chutney, Medu Vada, Masala Omelette / Whole Wheat Bread Omelette (1 No), Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
-                        "lunch": "Methi Chappathi, Black Channa Masala, Lemon Rice / Tamarind Rice, Dal Fry Tadka, Steamed Rice, Arachuvitta Sambar, Keerai Kootu, Lemon Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Appalam, Pickle, Buttermilk, Payasam",
-                        "snacks": "Samosa / Veg Roll (1 No), Tea, Whole Wheat Bread, Butter, Jam",
-                        "dinner": "Bagara Pulao / Idli, Raita / Chutney, Chappathi, Paneer Gravy / Baby Corn Gravy, Steamed Rice, Pumpkin Sambar, Rasam, Buttermilk, Pickle, Green Salad, Milk, Andhra Chicken Curry (120 gm) / Fish Fry (1 No) & Fish Gravy (Non-Veg)"
+                        "breakfast": "Bread, Butter, Jam, Ghee Pongal, Sambar, Coconut Chutney, Vadai, Tea / Coffee / Milk / Boiled Egg ( 1 Piece ), Chappathi, Aloo Rajma Masala",
+                        "lunch": "Payasam, Chappathi, Aloo Palak, Variety Rice, Steamed Rice, Kathamba Sambar, Dal Lasooni, Tomato Rasam, Kadai Vegetable, Raw Banana Chops, Special Fryums, Butter Milk, Pickle",
+                        "snacks": "Pav Bajji, Tea / Coffee",
+                        "dinner": "Malabar Paratha / Veech Paratha , Channa Panneer Kuruma, Millet Dosa, Idly Podi, Oil, Special Chutney, Steamed Rice, Vegetable Dal, Rasam, Aloo Capsicum, Pickle, Fryums, Veg --Salad, Banana, milk, ** Mutton salna**"
                 },
                 "Tuesday": {
-                        "breakfast": "Veg Rava Kitchadi / Vegetable Upma, Vegetable Sambar, Red Chilli Coconut Chutney, Poori, Aloo Masala, Boiled Egg (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Seasonal Fruits",
-                        "lunch": "Chappathi, White Peas Curry, Jeera Pulao, Dal Fry Tadka, Steamed Rice, Karakuzhambu / More Kuzhambu, Urulai Kara Curry, Tomato Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Appalam, Pickle, Buttermilk, Sweet (Gulab Jamun)",
-                        "snacks": "Pani Puri (5 Nos) / Pav Bhaji (1 No), Tea, Whole Wheat Bread, Butter, Jam",
-                        "dinner": "Onion Uthappam, Kara Chutney, Millet Chappathi, Dal Pancharathan, Idli Podi, Steamed Rice, Radish Sambar, Lemon Rasam, Buttermilk, Pickle, Green Salad, Milk, Egg Gravy (Non-Veg)"
+                        "breakfast": "Bread, Butter, Jam, Idly, Veg Kosthu, Spl Chutney, Poha, Mint Chutney, Tea / Coffee / Milk , Masala Omlet ( 1 Piece )",
+                        "lunch": "Millet Sweet, Ghee Chappathi, Mix Veg Sabji, Gobi Mattar Masala, Bahara Pulao, Steamed Rice, Masala Sambar, Jeera Dal, Cabbage Toran, Pepper Rasam, Pickle, Butter Milk, Fryums",
+                        "snacks": "masala Peanut / Black Channa Sundal, Tea / Coffee",
+                        "dinner": "Chappathi, Chole Aloo Masala, Fried Rice / Noodles / Pastha ,Manchurian Gravy / Crispy Vegetable, Steamed Rice, Rasam, Dal Fry, Pickle, Fryums, Veg -Salad , Milk , Spl Fruits, *** Chicken Gravy***"
                 },
                 "Wednesday": {
-                        "breakfast": "Idiyappam, Vada Curry / Veg Stew, Poha, Mint Chutney, Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
-                        "lunch": "Beetroot Chappathi, Rajma Masala, Corn / Mint / Tomato Rice, Dal Fry, Steamed Rice, Sambar, Veg Poriyal / Kootu, Garlic Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Appalam, Pickle, Buttermilk, Payasam",
-                        "snacks": "Cream Bun (1 No) / Osmania Biscuits (2 Nos), Rose Milk / Badam Milk, Tea, Whole Wheat Bread, Butter, Jam",
-                        "dinner": "Kal Dosa, Tomato Chutney, Chappathi, Paneer Butter Masala, Steamed Rice, Kathirikai Sambar, Garlic Rasam, Buttermilk, Pickle, Green Salad, Milk, Arun Choco Bar / Cone Ice Cream (1 No), Chicken Gravy / Chicken Biryani (with Boiled Egg - 1 No) (Non-Veg)"
+                        "breakfast": "Bread, Butter , Jam, Rava Pongal, Coconut Chutney , Poori, Potato Masala, Tea/ Coffee / Milk,",
+                        "lunch": "Chappathi, Soya Kasa, Jeera Pulav, Steamed Rice, Mysore Dal Fry, Masala Sambar, Garlic Rasam, Cabbage Sabji, Aviyal, Pickle, Fryums, Butter Milk",
+                        "snacks": "Veg Puff / Sweet Bun /Tea/Coffee",
+                        "dinner": "Chappathi, Steamed Rice, Dal Tadka, Chicken Masala / Chilli Chicken (Non-Veg) / Panneer Butter Masala , Rasam, Pickle, Fryums,Veg Salad , Milk , Banana, *** Chicken Gravy***"
                 },
                 "Thursday": {
-                        "breakfast": "Idli, Urad Sambar, Groundnut Chutney, Medu Vada, Corn Flakes, Idli Podi, Oil, Boiled Egg (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
-                        "lunch": "Chappathi, Vegetable Jalfrezi, Tomato Pulao, Tomato Dal Fry, Steamed Rice, Vathakuzhambu, Vegetable Kootu, Ginger Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Appalam, Pickle, Buttermilk, Sweet (Boondi)",
-                        "snacks": "Masala Sundal (100 ml), Filter Coffee, Tea, Whole Wheat Bread, Butter, Jam",
-                        "dinner": "Uthappam, Vegetable Chutney, Chole Poori, Channa Masala, Steamed Rice, Drumstick Sambar, Tomato Rasam, Buttermilk, Pickle, Green Salad, Milk, Chettinadu Mutton Kuzhambu / Flavored Gravy (Non-Veg)"
+                        "breakfast": "Bread, Butter, Jam, BREAD OMLET( 1 piece), Idly, Udupi Sambar, Chutney, Banana, Tea / Coffee / Milk",
+                        "lunch": "Luchi, Kashmiri Dum Aloo, tomato Pulao , Punjabi Dal Tadka, Bindi Topiaza, Steamed Rice, Mor Kuzhambu , Arbi Roast, Garlic Rasam, Beetroot Poriyal ,Pickle , Fryums,Butter Milk",
+                        "snacks": "Pani Poori (or) Mixture / Tea / Coffee",
+                        "dinner": "mint Pulao / Kaju Pulao (Basmati Rice), Chappathi , Palak Panneer Makhanwala, Steamed Rice, Chole Dal Fry, Rasam, Aloo Gobi Peanut Masala, Fryums, Pickle, Veg Salad, Milk , Ice Cream, *** Chicken Gravy***"
                 },
                 "Friday": {
-                        "breakfast": "Kal Dosa, Tiffin Sambar, Onion / Tomato Chutney, Semiya Bath, Boiled Omelette / Whole Wheat Bread Omelette (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
-                        "lunch": "Chappathi, Aloo Palak, Methi Pulao / Tamarind Rice, Dal Tadka, Steamed Rice, Sambar, Beetroot Poriyal, Jeera Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Appalam, Pickle, Buttermilk, Sweet (Kesari)",
-                        "snacks": "Murukku (2 Nos), Mint Lemon Juice, Filter Coffee, Tea, Whole Wheat Bread, Butter, Jam",
-                        "dinner": "Pasta (Bechamel / Arrabiata) / Veg Schezwan Fried Rice, Manchurian, Soup, Chappathi, Kadai Vegetables, Steamed Rice, Pepper Rasam, Buttermilk, Pickle, Green Salad, Milk, Chicken Gravy (Non-Veg)"
+                        "breakfast": "Bread , Butter, Jam, Podi Uthappam, Oil, Chilli Sambar, Kara Chutney, Ghee Chappathi, Dal Aloo Masala, Tea / Coffee / Milk, Boiled Egg( 1 Piece )",
+                        "lunch": "Spl Dry Jamun / Bread Halwa, Veg Briyani, Mix Raitha, Bisebelabath, Curd Rice, Steamed Rice, Tomato Rasam, Gobi 65, Moongdal Tadka, Pickle , Potato Chips",
+                        "snacks": "Bonda / Keera Vada, Chutney, Tea / Coffee",
+                        "dinner": "Chole Bhatura, Steamed Rice, Tomato Dal , Samba Rava Upma, Coconut Chutney, Rasam, Mix veg Poriyal, Pickle, Fryums, Banana , Veg Salad, Milk , ***Mutton Gravy***"
                 },
                 "Saturday": {
-                        "breakfast": "Idli, Chinna Vengaya Sambar, Groundnut Chutney, Aloo Paratha, Curd (100 ml), Idli Podi, Oil, Boiled Egg (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
-                        "lunch": "Chappathi, Vegetable Kurma, Soya Mattar Dum Biryani, Raita, Dal Fry, Steamed Rice, Chettinad Sambar, Keerai Kootu, Tomato Rasam, Curd (100 ml), Paruppu Podi, Ghee, Oil, Frymes, Appalam, Pickle, Buttermilk, Sweet (Gulab Jamun / Badusha)",
-                        "snacks": "Eggless Cake / Brownie (1 No), Filter Coffee, Tea, Whole Wheat Bread, Butter, Jam",
-                        "dinner": "Kal Dosa, Chutney, Parotta, Veg Kurma, Idli Podi, Steamed Rice, Karakuzhambu, Garlic Rasam, Buttermilk, Pickle, Green Salad, Milk, Chicken Gravy (Non-Veg)"
+                        "breakfast": "Bread, Butter, Jam, Chappathi, Aloo Meal Maker Kasa, Semiya Kichadi, Coconut Chutney, Tea / Coffee / Milk, Boiled egg(1 piece),",
+                        "lunch": "Sweet, Poori, White Peas Masala, Veg Pulao, Steamed Rice, Jeera Dal , Aloo Tindili, Parupu Urundai Kuzhambu, Keerai Masiyal, Jeera Rasam, Pickle, Special Fryums , Butter Milk",
+                        "snacks": "Cake(or) Browni / Murfin, Tea / Coffee",
+                        "dinner": "Panjabi Paratha , Mix Veg Kuruma, French Fry, Steamed Rice, Mysore Dal Fry,Veg Idly, Idly Podi, Oil, Chutney, Tiffen Sambar, Rasam, Pickle, Fryums, Veg Salad, Milk, Special Fruit, *** Fish Gravy***"
                 },
                 "Sunday": {
-                        "breakfast": "Chole Bhature, Channa Masala, Kal Dosa, Coconut Chutney, Sambar, Idli Podi, Oil, Egg Kal Dosa (1 No), Whole Wheat Bread, Butter, Jam, Milk, Filter Coffee, Plain Tea, Banana",
-                        "lunch": "Chappathi, Chicken Curry (with 120 gm Chicken) (Non-Veg) / Paneer Gravy (Veg), Steamed Rice, Beetroot Poriyal, Dal Rasam, Curd (100 ml), Frymes, Pickle, Buttermilk, Arun Cup Ice Cream (1 No)",
-                        "snacks": "Channa Sundal (White / Black - 100 ml), Filter Coffee, Tea, Whole Wheat Bread, Butter, Jam",
-                        "dinner": "Dal Kitchadi, Chappathi, Veg Kurma, Poriyal, Steamed Rice, Kadamba Sambar, Rasam, Buttermilk, Pickle, Green Salad, Milk, Chicken Gravy (Non-Veg)"
+                        "breakfast": "Bread, Butter , Jam, Chole Poori, Veg Upma, Coconut Chutney, Tea / Coffee / Milk, Herbal Kanji",
+                        "lunch": "Chappathi, Chicken (Pepper / Kadai), Panneer Butter Masala (or) Kadai Panneer, Dal tadka, Ghee Pulao , Steamed Rice, Garlic Rasam, Poriyal, Pickle, Fryums, Butter Milk, *** Chicken Gravy***",
+                        "snacks": "Corn / Baji Chutney (OR) Juice, Tea / Coffee",
+                        "dinner": "Variety Stuffing Paratha, Curd, Steamed Rice, Hara Moong Dal Tadka, Drumstic Brinjal Sambar, Poriyal, Rasam, Pickle, Fryums, Veg Salad, Milk, Ice Cream, ***Chicken Gravy***"
                 }
         }
 },

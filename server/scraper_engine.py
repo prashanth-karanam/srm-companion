@@ -161,8 +161,8 @@ async def login_and_scrape_all(
             cf_name = sec_config.get('captchaFieldName')
             rd = sec_config.get('randomDelimiter', '')
             if cf_name:
-                created_at = session_data.get('created_at', time.time())
-                elapsed_sec = max(1, int(time.time() - created_at))
+                created_at = session_data.get('created_at', 0)
+                elapsed_sec = max(3, int(time.time() - created_at)) if created_at > 0 else 3
                 trap_payload = f"{elapsed_sec}{rd}5"
                 login_payload[cf_name] = base64.b64encode(trap_payload.encode('utf-8')).decode('utf-8')
 
@@ -194,16 +194,18 @@ async def login_and_scrape_all(
         login_html = r_login.text
 
         logger.info(f"LOGIN ATTEMPT for {clean_username}: HTTP {r_login.status_code}, response length={len(login_html)}")
-        logger.info(f"LOGIN RESPONSE PREVIEW: {login_html[:800]}")
 
         # Validate Authentication Response
         soup_login = BeautifulSoup(login_html, 'html.parser')
-        alert_el = soup_login.find(class_=re.compile(r'alert', re.I))
-        if alert_el:
-            err_msg = alert_el.get_text(strip=True)
-            logger.warning(f"LOGIN ALERT DETECTED: '{err_msg}'")
-            if any(k in err_msg.lower() for k in ['invalid', 'incorrect', 'remaining', 'fail', 'mismatch']):
-                return {"success": False, "error": err_msg}
+        login_form = soup_login.find('form', id='login_form')
+        if login_form is not None:
+            alert_el = soup_login.find(class_=re.compile(r'alert', re.I))
+            err_msg = alert_el.get_text(separator=' ', strip=True) if alert_el else ""
+            err_msg = re.sub(r'(?i)alert\s*', '', err_msg).strip()
+            if not err_msg:
+                err_msg = "Invalid NetID, Password, or CAPTCHA. Please try again."
+            logger.warning(f"LOGIN REJECTED: '{err_msg}'")
+            return {"success": False, "error": err_msg}
 
         if "Invalid User Name or Password" in login_html or "No of tries remaining" in login_html:
             logger.warning("LOGIN FAILED: 'Invalid User Name or Password' or 'No of tries remaining' in response")
@@ -249,14 +251,42 @@ async def login_and_scrape_all(
                 logger.warning(f"Error fetching {jsp_name}: {e}")
                 return ""
 
+        async def fetch_calendar():
+            try:
+                res = await client.post(
+                    f"{BASE_REPORT}AcademicCalenderDetailsInner.jsp",
+                    data={
+                        'hdnCurrentAcademicYearId': '26',
+                        'selTemplate': '1',
+                        'hdnDayOrderTemplateId': '1',
+                        'hdnFromDate': '21-07-2026',
+                        'hdnToDate': '07-12-2026',
+                        'ids': '1',
+                        'filter': ''
+                    },
+                    headers=report_headers,
+                    timeout=12.0
+                )
+                return res.text if res.status_code == 200 else ""
+            except Exception as e:
+                logger.warning(f"Error fetching AcademicCalenderDetailsInner: {e}")
+                return ""
+
         import asyncio
-        html_prof, html_pers, html_att, html_tt, html_hostel = await asyncio.gather(
+        html_prof, html_pers, html_att, html_tt, html_hostel, html_cal = await asyncio.gather(
             fetch_tab('studentProfile.jsp', '1'),
             fetch_tab('studentPersonalDetails.jsp', '17'),
             fetch_tab('studentAttendanceDetails.jsp', '9'),
             fetch_tab('studentTimeTableDetails.jsp', '10'),
-            fetch_tab('studentHostelDetails.jsp', '11')
+            fetch_tab('studentHostelDetails.jsp', '11'),
+            fetch_calendar()
         )
+
+        try:
+            with open(r"C:\Users\Praashu\.gemini\antigravity\brain\ff616937-18f0-475f-b2d1-0059ce213e0b\scratch\studentTimeTableDetails_live.html", "w", encoding="utf-8") as f:
+                f.write(html_tt)
+        except Exception:
+            pass
 
         # 4. Parse Student Profile
         profile_data = _parse_profile(html_prof, clean_username)
@@ -273,6 +303,9 @@ async def login_and_scrape_all(
         # 8. Parse Hostel Details
         hostel_details = _parse_hostel(html_hostel)
 
+        # 9. Parse Academic Calendar
+        calendar_data = _parse_calendar(html_cal)
+
         return {
             "success": True,
             "srm_id": clean_username,
@@ -282,14 +315,19 @@ async def login_and_scrape_all(
             "section": profile_data.get("section", ""),
             "email": profile_data.get("email") or f"{clean_username}@srmist.edu.in",
             "faculty_advisor": profile_data.get("faculty_advisor", ""),
+            "faculty_advisor_email": profile_data.get("faculty_advisor_email", ""),
             "academic_advisor": profile_data.get("academic_advisor", ""),
+            "academic_advisor_email": profile_data.get("academic_advisor_email", ""),
             "semester": profile_data.get("semester", ""),
             "batch": profile_data.get("batch", ""),
             "orientation_room": profile_data.get("orientation_room", ""),
+            "fa_cabin": profile_data.get("orientation_room", ""),
+            "classroom_details": profile_data.get("classroom_details", ""),
             "personal_info": personal_info,
             "hostel_details": hostel_details,
             "attendance": attendance_list,
             "timetable": timetable_schedule,
+            "calendar": calendar_data,
             "scraped_at": int(time.time()),
             "cookies": "; ".join([f"{c.name}={c.value}" for c in client.cookies.jar])
         }
@@ -301,29 +339,77 @@ def _parse_profile(html: str, default_id: str) -> Dict[str, str]:
     data = {
         "name": "", "student_id": default_id, "reg_no": "", "program": "",
         "section": "", "email": "", "semester": "", "batch": "",
-        "faculty_advisor": "", "academic_advisor": "", "orientation_room": ""
+        "faculty_advisor": "", "faculty_advisor_email": "",
+        "academic_advisor": "", "academic_advisor_email": "",
+        "orientation_room": "", "classroom_details": ""
     }
     if not html:
         return data
 
     soup = BeautifulSoup(html, 'html.parser')
-    for td in soup.find_all('td'):
-        txt = td.get_text(strip=True)
-        nxt = td.find_next_sibling('td')
-        val = nxt.get_text(strip=True) if nxt else ""
+    for tr in soup.find_all('tr'):
+        cells = tr.find_all(['td', 'th'])
+        if len(cells) < 2:
+            continue
+        txt = cells[0].get_text(strip=True)
+        val = cells[1].get_text(strip=True)
         if not val:
             continue
-        if 'Student Name' in txt: data["name"] = val
-        elif 'Student ID' in txt: data["student_id"] = val
-        elif 'Register No' in txt: data["reg_no"] = val
-        elif 'Program' in txt: data["program"] = val
-        elif 'Section' in txt: data["section"] = val
-        elif 'Email ID' in txt: data["email"] = val
-        elif 'Semester' in txt: data["semester"] = val
-        elif 'Batch' in txt: data["batch"] = val
-        elif 'Faculty Advisor' in txt: data["faculty_advisor"] = val
-        elif 'Academic Advisor' in txt: data["academic_advisor"] = val
-        elif 'Orientation Room' in txt: data["orientation_room"] = val
+        
+        if 'Student Name' in txt:
+            data["name"] = val
+        elif 'Student ID' in txt:
+            data["student_id"] = val
+        elif 'Register No' in txt:
+            data["reg_no"] = val
+        elif 'Program' in txt:
+            data["program"] = val
+        elif 'Section' in txt:
+            data["section"] = val
+        elif 'Email ID' in txt:
+            data["email"] = val
+        elif 'Semester' in txt:
+            data["semester"] = val
+        elif 'Batch' in txt:
+            data["batch"] = val
+        elif 'Faculty Advisor' in txt:
+            # E.g. 'Dr. Prithi  S [prithis@srmist.edu.in]'
+            m_mail = re.search(r'\[([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\]', val)
+            if m_mail:
+                data["faculty_advisor_email"] = m_mail.group(1).strip()
+            clean_name = re.sub(r'\[.*?\]', '', val).strip()
+            clean_name = re.sub(r'\s+', ' ', clean_name)
+            data["faculty_advisor"] = clean_name
+        elif 'Academic Advisor' in txt:
+            m_mail = re.search(r'\[([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\]', val)
+            if m_mail:
+                data["academic_advisor_email"] = m_mail.group(1).strip()
+            clean_name = re.sub(r'\[.*?\]', '', val).strip()
+            clean_name = re.sub(r'\s+', ' ', clean_name)
+            data["academic_advisor"] = clean_name
+        elif any(k in txt.lower() for k in ['class room', 'orientation room', 'cabin']):
+            data["classroom_details"] = val
+            # Format: 'Building : UNIVERSITY BUILDINGFloor    : 6th FloorRoom     : 601'
+            b_m = re.search(r'Building\s*:\s*(.*?)(?=Floor\s*:|$)', val, re.I)
+            f_m = re.search(r'Floor\s*:\s*(.*?)(?=Room\s*:|$)', val, re.I)
+            r_m = re.search(r'Room\s*:\s*(.*?)$', val, re.I)
+            parts = []
+            if b_m and b_m.group(1).strip():
+                b_raw = b_m.group(1).strip()
+                b_str = 'UB' if 'university building' in b_raw.lower() else b_raw.title()
+                parts.append(b_str)
+            if f_m and f_m.group(1).strip():
+                f_raw = f_m.group(1).strip()
+                f_str = f_raw.title() if 'floor' in f_raw.lower() else f"{f_raw} Floor"
+                parts.append(f_str)
+            if r_m and r_m.group(1).strip():
+                r_raw = r_m.group(1).strip()
+                r_str = r_raw if r_raw.lower().startswith('room') else f"Room {r_raw}"
+                parts.append(r_str)
+            if parts:
+                data["orientation_room"] = ", ".join(parts)
+            else:
+                data["orientation_room"] = val
     return data
 
 
@@ -491,15 +577,21 @@ def _parse_timetable(html: str) -> Dict[str, list]:
                     info = course_map.get(f"{code_clean}_LAB") if (is_lab_period and f"{code_clean}_LAB" in course_map) else course_map.get(code_clean, {})
                     
                     course_title = info.get("title") or code_clean
-                    is_lab = 'LAB' in course_title.upper() or 'PRACTICE' in course_title.upper() or code_clean.endswith('L')
+                    slot_val = info.get("slot") or ""
+                    venue_val = info.get("venue") or ""
+                    is_lab = ('LAB' in course_title.upper() or 
+                              'PRACTICE' in course_title.upper() or 
+                              code_clean.endswith('L') or 
+                              'LAB' in venue_val.upper() or 
+                              any(s.strip().startswith('P') for s in slot_val.split(',')))
                     
                     day_periods.append({
                         "hour": hour_idx,
                         "type": "Lab" if is_lab else "Theory",
                         "title": course_title,
                         "code": code_clean,
-                        "slot": info.get("slot") or "",
-                        "venue": info.get("venue") or "University Building",
+                        "slot": slot_val,
+                        "venue": venue_val or "University Building",
                         "faculty": info.get("faculty") or "-"
                     })
             schedule[day_key] = day_periods
@@ -507,19 +599,96 @@ def _parse_timetable(html: str) -> Dict[str, list]:
     return schedule
 
 
-def _parse_hostel(html: str) -> Dict[str, str]:
-    details = {"block": "", "room": "", "mess": ""}
+def _parse_hostel(html: str) -> Dict[str, Any]:
+    details = {
+        "block": "",
+        "room": "",
+        "allocated_date": "",
+        "academic_year": "",
+        "fee_paid": "",
+        "payment_status": "",
+        "mess": ""
+    }
     if not html:
         return details
 
     soup = BeautifulSoup(html, 'html.parser')
-    for td in soup.find_all('td'):
-        txt = td.get_text(strip=True)
-        nxt = td.find_next_sibling('td')
-        val = nxt.get_text(strip=True) if nxt else ""
-        if not val:
-            continue
-        if 'Hostel' in txt or 'Block' in txt: details["block"] = val
-        elif 'Room' in txt: details["room"] = val
-        elif 'Mess' in txt: details["mess"] = val
+    for tbl in soup.find_all('table'):
+        headers = [th.get_text(strip=True).lower() for th in tbl.find_all('th')]
+
+        # 1. Parse Allocation Table
+        hostel_idx = next((i for i, h in enumerate(headers) if 'hostel' in h), -1)
+        room_idx = next((i for i, h in enumerate(headers) if 'room' in h), -1)
+        date_idx = next((i for i, h in enumerate(headers) if 'allocated date' in h or 'date' in h), -1)
+        year_idx = next((i for i, h in enumerate(headers) if 'academic year' in h or 'year' in h), -1)
+
+        if hostel_idx != -1 and room_idx != -1:
+            for row in tbl.find_all('tr'):
+                tds = [td.get_text(strip=True) for td in row.find_all('td')]
+                if len(tds) > max(hostel_idx, room_idx):
+                    val_block = tds[hostel_idx]
+                    val_room = tds[room_idx]
+                    if val_block and not val_block.lower().startswith('hostel'):
+                        details["block"] = val_block
+                    if val_room and not val_room.lower().startswith('room'):
+                        details["room"] = val_room
+                    if date_idx != -1 and len(tds) > date_idx and not tds[date_idx].lower().startswith('alloc'):
+                        details["allocated_date"] = tds[date_idx]
+                    if year_idx != -1 and len(tds) > year_idx and not tds[year_idx].lower().startswith('acad'):
+                        details["academic_year"] = tds[year_idx]
+
+        # 2. Parse Payment Transaction Table
+        amount_idx = next((i for i, h in enumerate(headers) if 'amount' in h), -1)
+        status_idx = next((i for i, h in enumerate(headers) if 'status' in h), -1)
+        if amount_idx != -1 and status_idx != -1:
+            for row in tbl.find_all('tr'):
+                tds = [td.get_text(strip=True) for td in row.find_all('td')]
+                if len(tds) > max(amount_idx, status_idx):
+                    if 'success' in tds[status_idx].lower():
+                        details["payment_status"] = tds[status_idx]
+                        details["fee_paid"] = tds[amount_idx]
+
+    # Fallback to horizontal key-value if table structure is different
+    if not details["block"] and not details["room"]:
+        for td in soup.find_all('td'):
+            txt = td.get_text(strip=True)
+            nxt = td.find_next_sibling('td')
+            val = nxt.get_text(strip=True) if nxt else ""
+            if not val:
+                continue
+            if 'Hostel' in txt or 'Block' in txt: details["block"] = val
+            elif 'Room' in txt: details["room"] = val
+    details["type"] = "Hosteller" if (details["block"] or details["room"]) else "Day Scholar"
+    if details["type"] == "Day Scholar":
+        details["block"] = "Day Scholar / Off-Campus"
+        details["room"] = ""
+
     return details
+
+
+def _parse_calendar(html: str) -> list:
+    if not html:
+        return []
+    soup = BeautifulSoup(html, 'html.parser')
+    rows = soup.find_all('tr')
+    calendar_entries = []
+    for r in rows:
+        tds = r.find_all('td')
+        if len(tds) >= 5:
+            date_str = tds[0].get_text(strip=True)
+            day_str = tds[1].get_text(strip=True)
+            status_str = tds[2].get_text(strip=True)
+            week_str = tds[3].get_text(strip=True)
+            order_str = tds[4].get_text(strip=True)
+            event_str = tds[5].get_text(strip=True) if len(tds) > 5 else "-"
+            calendar_entries.append({
+                "date": date_str,
+                "day": day_str,
+                "status": status_str,
+                "week": week_str,
+                "day_order": order_str,
+                "remarks": event_str
+            })
+    return calendar_entries
+
+

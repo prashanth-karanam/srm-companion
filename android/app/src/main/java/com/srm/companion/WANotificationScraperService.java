@@ -105,8 +105,8 @@ public class WANotificationScraperService extends NotificationListenerService {
                 return;
             }
 
-            // Check if group is monitored or has academic keywords
-            if (!WAScraperStore.isGroupMonitored(this, groupName, messageText)) {
+            // Check if group or contact sender is monitored or has academic keywords
+            if (!WAScraperStore.isGroupMonitored(this, groupName, sender, messageText)) {
                 return;
             }
 

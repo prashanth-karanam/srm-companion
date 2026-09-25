@@ -85,6 +85,24 @@ if os.path.exists(apk_build_path):
     shutil.copyfile(apk_build_path, legacy1)
     shutil.copyfile(apk_build_path, legacy2)
     
+    # 6. Check for connected ADB device and auto-install
+    adb_path = os.path.join(SDK_ROOT, "platform-tools", "adb.exe")
+    if os.path.exists(adb_path):
+        try:
+            adb_devices = subprocess.run([adb_path, "devices"], capture_output=True, text=True)
+            lines = [l.strip() for l in adb_devices.stdout.splitlines() if l.strip() and not l.startswith("List of")]
+            if any("\tdevice" in l for l in lines):
+                print("\n[3/3] Connected physical device detected! Installing APK directly via ADB...")
+                install_proc = subprocess.run([adb_path, "install", "-r", "-d", dest1], capture_output=True, text=True)
+                if "Success" in install_proc.stdout:
+                    print("      ✅ Successfully installed & updated OneSRM on connected phone!")
+                else:
+                    print(f"      [ADB Install Notice] {install_proc.stdout.strip() or install_proc.stderr.strip()}")
+            else:
+                print("\n[3/3] No active ADB device connected. APK is ready in Downloads folder.")
+        except Exception as e:
+            print(f"\n[3/3] ADB check skipped: {e}")
+
     size_mb = os.path.getsize(dest2) / (1024 * 1024)
     print("\n" + "=" * 60)
     print("🎉 APK COMPILED & DELIVERED SUCCESSFULLY!")

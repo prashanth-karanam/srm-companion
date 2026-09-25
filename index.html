@@ -15,13 +15,14 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#090a10">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="OneSRM">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
     <!-- Capacitor Native Bridge Support -->
     <script src="capacitor.js"></script>
-    <!-- Zero-Cost Realtime P2P WebRTC Device-to-Device Mesh -->
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-    <script src="https://unpkg.com/mqtt@5.3.5/dist/mqtt.min.js"></script>
     <!-- Instant In-App Live OTA Code Hot-Reload Engine (Zero APK Download) -->
     <script>
     (function() {
@@ -143,7 +144,7 @@
             <!-- Hostel Block Selector -->
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                 <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Hostel Block</span>
-                <span id="hub-hostel-assigned-badge" style="font-size:0.68rem;color:var(--accent);font-weight:700;">Paari (Assigned)</span>
+                <span id="hub-hostel-assigned-badge" style="font-size:0.68rem;color:var(--accent);font-weight:700;">Adhiyaman (Allotted Block)</span>
             </div>
             <div class="filter-chips-scroll" id="hub-mess-hostel-scroll" style="margin-bottom:12px;"></div>
 
@@ -192,6 +193,15 @@
                     <div class="hub-action-text">
                         <div class="hub-action-title">Classroom Mesh</div>
                         <div class="hub-action-desc">Zero-server device mesh</div>
+                    </div>
+                </button>
+                <button class="hub-action-card" onclick="closeCommandCenterModal(); openFacultySearchModal()">
+                    <div class="hub-action-icon" style="color:#38bdf8;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    </div>
+                    <div class="hub-action-text">
+                        <div class="hub-action-title">Faculty Directory</div>
+                        <div class="hub-action-desc">Live search, cabins & profiles</div>
                     </div>
                 </button>
                 <button class="hub-action-card" onclick="closeCommandCenterModal(); triggerManualScrape()">
@@ -444,7 +454,18 @@
 
         <div class="vertical-menu-section-label">CAMPUS & SYSTEM</div>
 
-        <!-- 3. Student Help & Guidelines Modal -->
+        <!-- 3. Student Passport & Digital Profile -->
+        <button type="button" class="vertical-menu-item" onclick="closeVerticalSideMenu(); toggleProfileView();">
+            <div class="vertical-menu-item-icon" style="color:var(--accent);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:0.82rem;font-weight:800;color:var(--text-main);">Student Passport</div>
+                <div style="font-size:0.68rem;color:var(--text-muted);">Faculty Advisor, Hostel & KYC</div>
+            </div>
+        </button>
+
+        <!-- 4. Student Help & Guidelines Modal -->
         <button type="button" class="vertical-menu-item" onclick="closeVerticalSideMenu(); openStudentHelpModal();">
             <div class="vertical-menu-item-icon" style="color:var(--accent);">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
@@ -507,6 +528,31 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:16px;height:16px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
             <span>Sign Out</span>
         </button>
+    </div>
+</div>
+
+<!-- Faculty Directory & Search Modal -->
+<div id="modal-faculty-search" class="class-modal-backdrop" style="display:none;" onclick="if(event.target===this)closeFacultySearchModal()">
+    <div class="class-modal-sheet" style="max-height:88vh;display:flex;flex-direction:column;padding-bottom:10px;">
+        <div class="class-modal-header" style="flex-shrink:0;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="status-dot" style="background:#38bdf8;"></span>
+                <span style="font-size:0.98rem;font-weight:900;color:var(--text-main);letter-spacing:-0.01em;">SRM Faculty Directory</span>
+            </div>
+            <button class="class-modal-close" onclick="closeFacultySearchModal()">&times;</button>
+        </div>
+
+        <div style="padding:8px 16px 4px;flex-shrink:0;">
+            <div style="position:relative;">
+                <input type="text" id="faculty-search-input" placeholder="🔍 Search faculty by name, cabin, dept (e.g. Prithi, Kumar, CSE)..." oninput="debounceFacultySearch(this.value)" style="width:100%;padding:10px 12px 10px 36px;border-radius:var(--radius-sm);background:var(--card-elevated);border:1px solid var(--card-border);color:var(--text-main);font-size:0.85rem;outline:none;font-weight:600;">
+                <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:0.9rem;color:var(--text-muted);pointer-events:none;">👤</span>
+            </div>
+            <div id="faculty-search-status" style="font-size:0.7rem;color:var(--text-muted);margin-top:6px;font-family:var(--font-mono);">Type a name to search 1,500+ SRM faculty members</div>
+        </div>
+
+        <div id="faculty-results-container" style="flex:1;overflow-y:auto;padding:8px 16px 14px;display:flex;flex-direction:column;gap:10px;">
+            <!-- Rendered dynamically by JS -->
+        </div>
     </div>
 </div>
 
@@ -962,8 +1008,9 @@
                         <span id="wa-status-dot" class="status-dot" style="background:#10b981;"></span>
                         <span style="font-size:0.88rem;font-weight:800;color:var(--text-main);">Class WhatsApp Intelligence</span>
                     </div>
-                    <span id="wa-live-badge" class="wa-privacy-badge" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);">
-                        ⚡ Native Scraper
+                    <span id="wa-live-badge" class="wa-privacy-badge" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);gap:4px;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                        <span>Native Scraper</span>
                     </span>
                 </div>
 
@@ -971,30 +1018,36 @@
                 <div id="wa-native-status-banner" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
                     <div style="min-width:0;">
                         <div id="wa-native-status-title" style="font-size:0.82rem;font-weight:800;color:var(--text-main);display:flex;align-items:center;gap:6px;">
-                            <span>🟢 Autonomous Scraper Active</span>
+                            <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;flex-shrink:0;"></span>
+                            <span>Autonomous Scraper Active</span>
                         </div>
                         <div id="wa-native-status-sub" style="font-size:0.72rem;color:var(--text-sub);margin-top:2px;">
                             Monitoring class groups in background for cancellations & day orders.
                         </div>
                     </div>
-                    <button id="wa-native-action-btn" type="button" class="pill-btn" style="background:var(--card-elevated);color:var(--accent);font-size:0.72rem;font-weight:700;padding:6px 10px;white-space:nowrap;border:1px solid var(--card-border);" onclick="openWAScraperSettingsModal()">
-                        ⚙️ Configure
+                    <button id="wa-native-action-btn" type="button" class="pill-btn" style="background:var(--card-elevated);color:var(--accent);font-size:0.72rem;font-weight:700;padding:6px 10px;white-space:nowrap;border:1px solid var(--card-border);gap:4px;" onclick="openWAScraperSettingsModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        <span>Configure</span>
                     </button>
                 </div>
 
                 <!-- Action Buttons Row -->
                 <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:6px;margin-bottom:10px;">
-                    <button class="pill-btn" style="justify-content:center;color:var(--accent);font-size:0.72rem;padding:7px 4px;font-weight:800;" onclick="triggerAISummaryFromScraped()">
-                        <span>⚡ AI Digest</span>
+                    <button class="pill-btn" style="justify-content:center;color:var(--accent);font-size:0.72rem;padding:7px 4px;font-weight:800;gap:4px;" onclick="triggerAISummaryFromScraped()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                        <span>AI Digest</span>
                     </button>
-                    <button class="pill-btn" style="justify-content:center;color:var(--blue);font-size:0.72rem;padding:7px 4px;font-weight:700;" onclick="openWAScraperSettingsModal()">
-                        <span>🔍 Monitored</span>
+                    <button class="pill-btn" style="justify-content:center;color:var(--blue);font-size:0.72rem;padding:7px 4px;font-weight:700;gap:4px;" onclick="openWAScraperSettingsModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <span>Monitored</span>
                     </button>
-                    <button class="pill-btn" style="justify-content:center;color:var(--text-main);font-size:0.72rem;padding:7px 4px;" onclick="openPasteChatModal()">
-                        <span>📋 Paste</span>
+                    <button class="pill-btn" style="justify-content:center;color:var(--text-main);font-size:0.72rem;padding:7px 4px;gap:4px;" onclick="openPasteChatModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+                        <span>Paste</span>
                     </button>
-                    <button class="pill-btn" style="justify-content:center;font-size:0.72rem;padding:7px 4px;" onclick="openCreateNoticeModal()">
-                        <span>➕ Notice</span>
+                    <button class="pill-btn" style="justify-content:center;font-size:0.72rem;padding:7px 4px;gap:4px;" onclick="openCreateNoticeModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        <span>Notice</span>
                     </button>
                 </div>
 
@@ -1149,15 +1202,15 @@
                     <div class="discord-academic-grid">
                         <div class="discord-info-item full-width">
                             <span class="discord-info-label">PROGRAM</span>
-                            <span class="discord-info-val" id="passport-dept-pill">B.Tech Computer Science & Engineering (AIML)</span>
+                            <span class="discord-info-val" id="passport-dept-pill">-</span>
                         </div>
                         <div class="discord-info-item">
                             <span class="discord-info-label">SECTION</span>
-                            <span class="discord-info-val" id="passport-sec-pill">Section P1 &bull; 1st Year</span>
+                            <span class="discord-info-val" id="passport-sec-pill">-</span>
                         </div>
                         <div class="discord-info-item">
                             <span class="discord-info-label">HOSTEL</span>
-                            <span class="discord-info-val" id="passport-hostel-pill" style="cursor:pointer;" onclick="openEditProfileDetailsModal('hostel')" title="Tap to edit hostel & room">Adhiyaman Block &bull; Room 335</span>
+                            <span class="discord-info-val" id="passport-hostel-pill" style="cursor:pointer;" onclick="openEditProfileDetailsModal('hostel')" title="Tap to edit hostel & room">Day Scholar / Off-Campus</span>
                         </div>
                     </div>
                 </div>
@@ -1170,53 +1223,48 @@
                     <span>Overview</span>
                 </button>
                 <button type="button" class="passport-tab-btn" id="pass-sub-btn-credits" onclick="switchPassportSubTab('pass-sub-credits', this)">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                    <span>Curriculum</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                    <span>Courses</span>
                 </button>
                 <button type="button" class="passport-tab-btn" id="pass-sub-btn-counselor" onclick="switchPassportSubTab('pass-sub-counselor', this)">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                     <span>Counselor & Hostel</span>
                 </button>
                 <button type="button" class="passport-tab-btn" id="pass-sub-btn-grades" onclick="switchPassportSubTab('pass-sub-grades', this)">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-                    <span>SGPA & Clearances</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                    <span>Grades / SGPA</span>
                 </button>
             </div>
 
-            <!-- Sub-Pane 1: Overview -->
-            <div id="pass-sub-overview" class="passport-sub-pane" style="display:block;">
-                <!-- Degree Credits Completion Gauge -->
-                <div style="background:var(--card-elevated);border-radius:var(--radius-md);padding:10px 12px;border:1px solid var(--card-border);margin-bottom:14px;">
+            <!-- Sub-Pane 1: Overview & Passport Details -->
+            <div id="pass-sub-overview" class="passport-sub-pane">
+                <!-- Registration & Program Details Card -->
+                <div class="fa-advisor-card" style="margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Academic Profile</span>
+                        <span style="font-size:0.68rem;background:var(--accent-subtle);color:var(--accent);padding:2px 8px;border-radius:var(--radius-sm);font-weight:800;">SRMIST Direct</span>
+                    </div>
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                        <span style="font-size:0.72rem;font-weight:800;color:var(--text-main);">Degree Credits (NEP 2021)</span>
-                        <span id="pass-credits-ratio" style="font-size:0.72rem;font-weight:800;color:var(--accent);font-family:var(--font-mono);">22 / 160 Credits (13.7%)</span>
+                        <span style="font-size:0.86rem;font-weight:800;color:var(--text-main);" id="pass-full-name">KARANAM SAI PRASANTH</span>
+                        <span style="font-size:0.74rem;color:var(--text-muted);font-family:var(--font-mono);" id="pass-reg-num">RA2611026010283</span>
                     </div>
-                    <div style="width:100%;height:7px;background:var(--card);border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--card-border);">
-                        <div id="pass-credit-progress-bar" style="width:13.7%;height:100%;background:var(--accent);border-radius:var(--radius-sm);"></div>
-                    </div>
+                    <div style="font-size:0.74rem;color:var(--text-sub);line-height:1.4;margin-bottom:4px;" id="pass-program-name">B.Tech.-Computer Science and Engineering with specialization in Artificial Intelligence and Machine Learning</div>
+                    <div style="font-size:0.72rem;color:var(--text-muted);font-family:var(--font-mono);" id="pass-official-email">sk1325@srmist.edu.in</div>
                 </div>
 
-                <!-- Faculty Advisor Quick Card -->
-                <div class="fa-advisor-card">
+                <!-- Counselor & Hostel Overview Quick Card -->
+                <div class="fa-advisor-card" style="cursor:pointer;" onclick="switchPassportSubTab('pass-sub-counselor', document.querySelector('[onclick*=\'pass-sub-counselor\']'))">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                        <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Official Faculty Advisor</span>
-                        <div style="display:flex;gap:6px;align-items:center;">
-                            <span id="fa-dept-badge" style="font-size:0.68rem;background:var(--card-elevated);color:var(--accent);padding:2px 8px;border-radius:var(--radius-sm);border:1px solid var(--card-border);font-weight:700;">Academic Counselor</span>
-                            <button type="button" class="pill-btn" onclick="openEditProfileDetailsModal('advisor')" style="font-size:0.68rem;padding:2px 7px;color:var(--accent);font-weight:800;border:1px solid var(--accent-subtle);" title="Edit Counselor & Hostel Details">✏️ Edit Info</button>
-                        </div>
+                        <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Advisor & Hostel Summary</span>
+                        <span style="font-size:0.68rem;color:var(--accent);font-weight:800;">View Details &rarr;</span>
                     </div>
-                    <div style="font-size:0.95rem;font-weight:800;color:var(--text-main);margin-bottom:2px;" id="fa-name">Faculty Advisor</div>
-                    <div style="font-size:0.74rem;color:var(--text-sub);margin-bottom:6px;" id="fa-dept">SRM Institute of Science and Technology</div>
-                    <div style="font-size:0.74rem;color:var(--text-main);background:var(--card-elevated);border:1px solid var(--card-border);padding:8px 10px;border-radius:var(--radius-md);margin-bottom:10px;" id="fa-cabin">
-                        <b>Office Base:</b> Assigned Cabin &bull; <b>Section:</b> -
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                        <span style="font-size:0.86rem;font-weight:800;color:var(--text-main);" id="overview-fa-name">Not Assigned</span>
+                        <span id="overview-fa-badge" style="font-size:0.68rem;background:var(--card-elevated);color:var(--accent);padding:2px 8px;border-radius:var(--radius-sm);border:1px solid var(--card-border);font-weight:700;">Academic Counselor</span>
                     </div>
-                    <div style="display:flex;gap:8px;">
-                        <a id="fa-email-btn" href="#" class="fa-action-btn" style="flex:1;text-decoration:none;justify-content:center;">
-                            <span>Email Counselor</span>
-                        </a>
-                        <button class="fa-action-btn" onclick="copyFAToClipboard()">
-                            <span>Copy Details</span>
-                        </button>
+                    <div style="font-size:0.74rem;color:var(--text-sub);margin-bottom:6px;" id="overview-fa-cabin">Classroom: UB, 6th Floor, Room 601 &bull; Section: -</div>
+                    <div style="font-size:0.74rem;color:var(--text-main);background:var(--card-elevated);border:1px solid var(--card-border);padding:6px 10px;border-radius:var(--radius-md);" id="overview-hostel-pill">
+                        <b>Hostel:</b> Adhiyaman Block • Room 335
                     </div>
                 </div>
 
@@ -1232,11 +1280,11 @@
                 <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
                     <button type="button" class="apex-btn" style="width:100%;padding:11px;background:var(--card-elevated);border:1px solid var(--card-border);color:var(--text-main);display:flex;align-items:center;justify-content:center;gap:6px;font-size:0.80rem;font-weight:800;border-radius:var(--radius-md);" onclick="openSyncQRCodeModal()">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                        <span>📱 My Sync QR</span>
+                        <span>My Sync QR</span>
                     </button>
                     <button type="button" class="apex-btn" style="width:100%;padding:11px;background:var(--card-elevated);border:1px solid var(--card-border);color:var(--text-main);display:flex;align-items:center;justify-content:center;gap:6px;font-size:0.80rem;font-weight:800;border-radius:var(--radius-md);" onclick="openAccountSwitcherModal()">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                        <span>👥 Switch User</span>
+                        <span>Switch User</span>
                     </button>
                 </div>
                 <div style="margin-top:8px;">
@@ -1257,19 +1305,76 @@
 
             <!-- Sub-Pane 3: Counselor & Hostel -->
             <div id="pass-sub-counselor" class="passport-sub-pane" style="display:none;">
+                <!-- Faculty Advisor Quick Card -->
+                <div class="fa-advisor-card" style="margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Faculty Advisor / Counselor</span>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <span id="fa-dept-badge" style="font-size:0.68rem;background:var(--card-elevated);color:var(--accent);padding:2px 8px;border-radius:var(--radius-sm);border:1px solid var(--card-border);font-weight:700;">Academic Counselor</span>
+                            <button type="button" class="pill-btn" onclick="openEditProfileDetailsModal('advisor')" style="font-size:0.68rem;padding:2px 7px;color:var(--accent);font-weight:800;border:1px solid var(--accent-subtle);gap:4px;" title="Edit Counselor & Hostel Details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg> Edit Info</button>
+                        </div>
+                    </div>
+                    <div style="font-size:0.95rem;font-weight:800;color:var(--text-main);margin-bottom:2px;" id="fa-name">Not Assigned in Portal</div>
+                    <div style="font-size:0.74rem;color:var(--text-sub);margin-bottom:6px;" id="fa-dept">SRM Institute of Science and Technology</div>
+                    <div style="font-size:0.74rem;color:var(--text-main);background:var(--card-elevated);border:1px solid var(--card-border);padding:8px 10px;border-radius:var(--radius-md);margin-bottom:10px;" id="fa-cabin">
+                        <b>Section Classroom:</b> Not Specified &bull; <b>Section:</b> -
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <a id="fa-email-btn" href="#" class="fa-action-btn" style="flex:1;text-decoration:none;justify-content:center;">
+                            <span>Email Counselor</span>
+                        </a>
+                        <a id="fa-whatsapp-btn" href="#" target="_blank" class="fa-action-btn" style="flex:1;text-decoration:none;justify-content:center;background:rgba(37,211,102,0.14);border:1px solid rgba(37,211,102,0.35);color:#22c55e;display:none;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                            <span>WhatsApp FA</span>
+                        </a>
+                        <button class="fa-action-btn" onclick="copyFAToClipboard()">
+                            <span>Copy</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Academic Advisor Card (Dynamic) -->
+                <div id="academic-advisor-card" class="fa-advisor-card" style="margin-bottom:12px;display:none;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Academic Advisor</span>
+                        <span style="font-size:0.68rem;background:var(--card-elevated);color:var(--accent);padding:2px 8px;border-radius:var(--radius-sm);border:1px solid var(--card-border);font-weight:700;">Academic Mentor</span>
+                    </div>
+                    <div style="font-size:0.95rem;font-weight:800;color:var(--text-main);margin-bottom:2px;" id="acad-fa-name">-</div>
+                    <div style="font-size:0.74rem;color:var(--text-sub);margin-bottom:6px;" id="acad-fa-dept">SRM Institute of Science and Technology</div>
+                    <div style="display:flex;gap:8px;">
+                        <a id="acad-fa-email-btn" href="#" class="fa-action-btn" style="flex:1;text-decoration:none;justify-content:center;">
+                            <span>Email Academic Advisor</span>
+                        </a>
+                    </div>
+                </div>
+
                 <!-- Hostel Allocation Card -->
-                <div class="fa-advisor-card">
+                <div class="fa-advisor-card" style="margin-bottom:12px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                         <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Hostel Allocation</span>
-                        <button class="pill-btn" onclick="openEditProfileDetailsModal('hostel')" style="color:var(--accent);font-weight:800;">✏️ Edit Block</button>
+                        <button class="pill-btn" onclick="openEditProfileDetailsModal('hostel')" style="color:var(--accent);font-weight:800;gap:4px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg> Edit Block</button>
                     </div>
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                        <span style="font-size:0.82rem;font-weight:800;color:var(--text-main);" id="pass-hostel-room">Not Linked &bull; Tap 'Set Block'</span>
-                        <span style="font-size:0.68rem;background:var(--card-elevated);color:var(--text-muted);padding:2px 6px;border-radius:var(--radius-sm);" id="pass-hostel-type">Custom</span>
+                        <span style="font-size:0.82rem;font-weight:800;color:var(--text-main);" id="pass-hostel-room">Adhiyaman Block • Room 335</span>
+                        <span style="font-size:0.68rem;background:var(--card-elevated);color:var(--accent);padding:2px 6px;border-radius:var(--radius-sm);font-weight:700;" id="pass-hostel-type">Allotted / Registered</span>
                     </div>
                     <div style="font-size:0.74rem;color:var(--text-sub);margin-bottom:4px;" id="pass-hostel-warden">Campus: Kattankulathur Main Campus</div>
                     <div style="font-size:0.72rem;color:var(--red);background:var(--red-subtle);border:1px solid var(--red-border);padding:6px 10px;border-radius:var(--radius-md);margin-top:6px;">
                         <b>Emergency Hotline:</b> 044-27453140 / 108 (24/7 SRM Hospital)
+                    </div>
+                </div>
+
+                <!-- Course Teachers & Venues Card (Dynamic) -->
+                <div class="fa-advisor-card" id="course-teachers-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:0.72rem;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Registered Faculty & Instructors</span>
+                        <span style="font-size:0.68rem;background:var(--card-elevated);color:var(--accent);padding:2px 8px;border-radius:var(--radius-sm);border:1px solid var(--card-border);font-weight:700;" id="teachers-count-badge">Official Portal</span>
+                    </div>
+                    <div style="font-size:0.74rem;color:var(--text-sub);margin-bottom:10px;">
+                        Assigned course instructors, employee IDs, and classroom/lab venues:
+                    </div>
+                    <div id="course-teachers-list" style="display:flex;flex-direction:column;gap:8px;">
+                        <!-- Populated dynamically by JS -->
                     </div>
                 </div>
             </div>
