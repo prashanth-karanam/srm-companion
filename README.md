@@ -1,90 +1,104 @@
 ﻿# SRM Companion
 
-A cross-platform campus workflow and utility application engineered with Capacitor, featuring a containerized Node.js bridge service for session-isolated WhatsApp notifications and academic schedule sync.
+> **Open-Source Campus Utility & Android App**  
+> An open client engineered for students to manage campus schedules, access timetable utilities, and run a self-hosted offline/online companion.
 
-[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web-3DDC84?style=flat)](https://capacitorjs.com)
-[![Capacitor](https://img.shields.io/badge/Capacitor-8.5-53B9EA?style=flat&logo=capacitor)](https://capacitorjs.com)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=flat&logo=nodedotjs)](https://nodejs.org)
-[![Docker](https://img.shields.io/badge/Container-Docker-2496ED?style=flat&logo=docker)](https://www.docker.com)
+[![Open Source](https://img.shields.io/badge/Open%20Source-Community-2ea44f?style=flat)](https://github.com/prashanth-karanam/srm-companion)
+[![Android](https://img.shields.io/badge/Target-Android%20APK-3DDC84?style=flat&logo=android)](https://github.com/prashanth-karanam/srm-companion/releases)
+[![Build Tool](https://img.shields.io/badge/Engine-Capacitor%208.5-53B9EA?style=flat&logo=capacitor)](https://capacitorjs.com)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg?style=flat)](LICENSE)
 
 ---
 
-## Overview
+## Notice & Philosophy
 
-**SRM Companion** is a mobile and web application built to streamline everyday campus routines for university students. It bridges academic schedules, course resources, and an optional real-time communication notification microservice via a containerized Node.js daemon.
+This project is an **independent, open-source community tool**. It is:
+- **Non-promoted**: Distributed purely as an open code repository and direct build target for peers and students who want local utility.
+- **Self-contained**: All core timetables, iCalendar formats, and offline scheduling logic run on-device with zero telemetry or tracking.
+- **Open for Inspection**: The complete source code—from the mobile web shell to the build scripts—is available for anyone to audit, compile, or fork.
 
-## Key Features
+---
 
-- **Cross-Platform Client**: Built using web standards and packaged for native Android and iOS via Capacitor.
-- **Timetable & Schedule Sync**: Native `.ics` iCalendar parser for synchronizing academic timetables directly into student devices.
-- **Session-Isolated Communication Bridge**: Standalone Node.js microservice (`wa_bridge.js`) utilizing WebSocket connections with isolated user sessions and QR-authenticated pairings.
-- **Containerized Deployment**: Includes ready-to-run `Dockerfile` and `docker-compose.yml` for zero-friction cloud deployment (Railway, Render, or self-hosted VPS).
+## How to Install the APK
 
-## System Architecture
+### Option A: Direct APK Install (Recommended for Users)
+1. Head over to the [**Releases**](https://github.com/prashanth-karanam/srm-companion/releases) section.
+2. Download the latest `SRM_Companion_Release.apk` (or debug build).
+3. On your Android phone, open the downloaded APK file.
+4. If prompted, toggle **"Allow installation from unknown sources"** for your browser/file manager.
+5. Tap **Install** and launch the app.
+
+---
+
+### Option B: Build the APK from Source (For Developers)
+
+If you want to build the APK yourself from the source tree:
+
+#### Prerequisites
+- **Git**
+- **Node.js** (v18+)
+- **Android SDK** (API 33 or 34)
+- **JDK 17 or JDK 21**
+
+#### Build Steps
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/prashanth-karanam/srm-companion.git
+   cd srm-companion
+   ```
+
+2. **Install frontend and Capacitor dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Synchronize web assets into Android project:**
+   ```bash
+   npx cap sync android
+   ```
+
+4. **Build APK via Gradle:**
+   ```bash
+   cd android
+   ./gradlew assembleRelease
+   ```
+   *Your compiled APK will be generated at:*  
+   `android/app/build/outputs/apk/release/app-release-unsigned.apk`
+
+   *(Alternatively, run `python compile_apk.py` if running locally on Windows with configured environment paths).*
+
+---
+
+## Features
+
+- **Academic Timetable Sync**: Automatically parse `.ics` university calendars directly into system calendars and native reminder alerts.
+- **Zero-Ad / Clean Dashboard**: Instant access to course timetables, schedules, and daily class order with zero trackers or external ads.
+- **Optional Background Bridge**: Includes an optional decoupled Node.js bridge (`wa_bridge.js`) for self-hosted schedule dispatching.
+
+---
+
+## Project Structure
 
 ```
-+-------------------------------------------------------------+
-|                     Client Application                      |
-|                                                             |
-|   +-----------------------+     +-----------------------+   |
-|   |   Web UI / Dashboard  | <-> |  Capacitor Native API |   |
-|   |   (Timetable, Tools)  |     |  (Android / iOS Shell)|   |
-|   +-----------------------+     +-----------------------+   |
-+-------------------------------------------------------------+
-                              | (HTTP / WebSocket)
-                              v
-+-------------------------------------------------------------+
-|             Backend Microservice (Docker / Node.js)         |
-|                                                             |
-|   +-----------------------+     +-----------------------+   |
-|   |   Multi-User Session  | <-> | Baileys Socket Engine |   |
-|   |   Storage (wa_auth/)  |     | (QR Stream & Handshake|   |
-|   +-----------------------+     +-----------------------+   |
-+-------------------------------------------------------------+
+srm-companion/
+├── android/               # Native Android Gradle workspace (Capacitor)
+├── www/                   # Packaged client-side assets
+├── compile_apk.py         # Automated APK build & sync script
+├── app.js                 # Core client application logic
+├── index.html             # Application entrypoint
+├── SRM_Semester_Timetable.ics  # Reference academic schedule
+├── wa_bridge.js           # Decoupled backend utility microservice
+├── Dockerfile             # Container configuration for backend services
+└── package.json           # Dependencies and scripts
 ```
 
-## Tech Stack
+---
 
-- **Client Runtime**: Vanilla JavaScript (ES6+), HTML5, CSS3
-- **Mobile Engine**: Capacitor (`@capacitor/android`, `@capacitor/ios` v8.5)
-- **Backend Service**: Node.js, `@whiskeysockets/baileys`, `pino` logger, `qrcode`
-- **Deployment**: Docker, Docker Compose, Railway / Render manifests
+## Contributing & Auditing
 
-## Getting Started
-
-### 1. Prerequisites
-- Node.js (v18 or higher)
-- npm or yarn
-- Android Studio / Xcode (optional, only for native mobile builds)
-
-### 2. Client Setup
-```bash
-git clone https://github.com/prashanth-karanam/srm-companion.git
-cd srm-companion
-
-# Install dependencies
-npm install
-
-# Run web version locally
-npx serve .
-```
-
-### 3. Running the WhatsApp Bridge Microservice
-```bash
-# Start backend bridge locally
-node index.js
-```
-The server will start on port `8001` (or your defined `$PORT`).
-
-### 4. Running with Docker
-```bash
-docker-compose up --build -d
-```
-
-## Security & Privacy Notice
-All authentication tokens and session payloads are stored in the local `wa_auth/` directory. Never commit session tokens or personal keys to version control.
+Contributions, bug reports, and pull requests are welcome. Feel free to open an Issue if you encounter schedule parsing bugs or UI layout defects across specific Android screen densities.
 
 ## License
 
-This project is licensed under the [ISC License](LICENSE).
+This repository is distributed under the [ISC License](LICENSE).
